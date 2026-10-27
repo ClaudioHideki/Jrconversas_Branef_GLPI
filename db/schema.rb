@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_26_161000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_27_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -4732,6 +4732,43 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_161000) do
     t.index ["ticket_event_id", "recipient_account_user_id", "channel"], name: "jrc_sd_clock_alert_once", unique: true
   end
 
+  create_table "jrc_service_desk_glpi_commands", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "glpi_connection_id", null: false
+    t.bigint "account_user_id", null: false
+    t.bigint "unit_id", null: false
+    t.bigint "entity_id", null: false
+    t.string "idempotency_key", limit: 120, null: false
+    t.string "fingerprint", limit: 64, null: false
+    t.uuid "correlation_id", default: -> { "gen_random_uuid()" }, null: false
+    t.string "state", default: "pending", null: false
+    t.bigint "remote_id"
+    t.string "error_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_service_desk_glpi_commands_on_account_id"
+    t.index ["account_user_id"], name: "index_jrc_service_desk_glpi_commands_on_account_user_id"
+    t.index ["glpi_connection_id", "account_user_id", "idempotency_key"], name: "idx_sd_glpi_command_idempotency", unique: true
+    t.index ["unit_id"], name: "index_jrc_service_desk_glpi_commands_on_unit_id"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'sending'::character varying, 'succeeded'::character varying, 'rejected'::character varying, 'indeterminate'::character varying]::text[])", name: "sd_glpi_command_state"
+  end
+
+  create_table "jrc_service_desk_glpi_connections", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "base_url", null: false
+    t.text "user_token", null: false
+    t.text "app_token", null: false
+    t.boolean "enabled", default: false, null: false
+    t.string "timezone", default: "America/Sao_Paulo", null: false
+    t.jsonb "entity_mappings", default: [], null: false
+    t.jsonb "user_mappings", default: [], null: false
+    t.jsonb "categories", default: [], null: false
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_service_desk_glpi_connections_on_account_id", unique: true
+  end
+
   create_table "jrc_service_desk_incident_entries", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "unit_id", null: false
@@ -6669,6 +6706,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_161000) do
   add_foreign_key "jrc_service_desk_clock_alert_deliveries", "jrc_service_desk_ticket_events", column: ["account_id", "unit_id", "ticket_id", "ticket_event_id"], primary_key: ["account_id", "unit_id", "ticket_id", "id"], name: "jrc_sd_clock_alert_origin"
   add_foreign_key "jrc_service_desk_clock_alert_deliveries", "jrc_service_desk_tickets", column: ["account_id", "unit_id", "ticket_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_clock_alert_ticket"
   add_foreign_key "jrc_service_desk_clock_alert_deliveries", "notifications", on_delete: :nullify
+  add_foreign_key "jrc_service_desk_glpi_commands", "account_users"
+  add_foreign_key "jrc_service_desk_glpi_commands", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
+  add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_units", column: "unit_id"
+  add_foreign_key "jrc_service_desk_glpi_connections", "accounts"
   add_foreign_key "jrc_service_desk_incident_entries", "jrc_service_desk_incidents", column: ["account_id", "unit_id", "incident_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_case_entry_incident_fk"
   add_foreign_key "jrc_service_desk_incident_entries", "jrc_service_desk_unit_memberships", column: ["account_id", "unit_id", "actor_membership_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_case_entry_actor_fk"
   add_foreign_key "jrc_service_desk_incidents", "companies", column: ["account_id", "approval_issuer_company_id"], primary_key: ["account_id", "id"], name: "jrc_sd_problem_issuer_fk"

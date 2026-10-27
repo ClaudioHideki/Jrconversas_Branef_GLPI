@@ -111,6 +111,20 @@ Rails.application.routes.draw do
         scope module: :accounts do
           # JRC Service Desk CP4: all endpoints inherit the native Account authentication.
           namespace :jrc_service_desk do
+            scope :glpi do
+              get 'context', to: 'glpi#context'
+              get 'connection', to: 'glpi#configuration'
+              patch 'connection', to: 'glpi#update_configuration'
+              post 'connection/validate', to: 'glpi#validate_connection'
+              get 'tickets', to: 'glpi#tickets'
+              post 'tickets', to: 'glpi#create_ticket'
+              get 'tickets/:remote_id', to: 'glpi#show_ticket'
+              get 'commands/lookup', to: 'glpi#lookup_command'
+              get 'commands/:command_id', to: 'glpi#command'
+              post 'commands/:command_id/reconcile', to: 'glpi#reconcile_command'
+              get 'reports', to: 'glpi#report'
+              get 'reports/export', to: 'glpi#export'
+            end
             get 'knowledge', to: 'knowledge#index'
             # Incidents/problems: contextual workspace over the existing native records.
             get 'case_workspaces', to: 'case_workspaces#index'

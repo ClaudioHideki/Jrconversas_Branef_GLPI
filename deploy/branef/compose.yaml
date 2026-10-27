@@ -1,0 +1,131 @@
+name: jrc-branef
+
+x-environment: &environment
+  RAILS_ENV: production
+  NODE_ENV: production
+  INSTALLATION_ENV: docker
+  FRONTEND_URL: https://${BRANEF_DOMAIN:?Informe o dominio da Branef}
+  FORCE_SSL: 'true'
+  ENABLE_ACCOUNT_SIGNUP: 'false'
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Gere uma chave exclusiva}
+  ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:?Gere uma chave exclusiva}
+  ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:?Gere uma chave exclusiva}
+  ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:?Gere um salt exclusivo}
+  POSTGRES_HOST: postgres
+  POSTGRES_DATABASE: jrc_branef
+  POSTGRES_USERNAME: jrc_branef
+  POSTGRES_PASSWORD: ${BRANEF_POSTGRES_PASSWORD:?Gere uma senha exclusiva}
+  REDIS_URL: redis://:${BRANEF_REDIS_PASSWORD:?Gere uma senha hexadecimal exclusiva}@redis:6379/0
+  REDIS_PASSWORD: ${BRANEF_REDIS_PASSWORD:?Gere uma senha hexadecimal exclusiva}
+  ACTIVE_STORAGE_SERVICE: local
+  RAILS_LOG_TO_STDOUT: 'true'
+  RAILS_SERVE_STATIC_FILES: 'true'
+  DEFAULT_LOCALE: pt_BR
+  TZ: America/Sao_Paulo
+  RAILS_MAX_THREADS: '5'
+  SIDEKIQ_CONCURRENCY: '5'
+  JRC_SERVICE_DESK_INITIALIZER_USER_IDS: ${JRC_SERVICE_DESK_INITIALIZER_USER_IDS:-}
+  MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-}
+  SMTP_ADDRESS: ${SMTP_ADDRESS:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_DOMAIN: ${SMTP_DOMAIN:-}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-plain}
+  SMTP_ENABLE_STARTTLS_AUTO: 'true'
+
+x-app: &app
+  image: ${JRC_IMAGE:?Informe a imagem Branef por SHA ou digest}
+  environment: *environment
+  volumes:
+    - storage:/app/storage
+  networks:
+    - private
+  restart: unless-stopped
+
+services:
+  prepare:
+    <<: *app
+    command: ['bundle', 'exec', 'rails', 'db:chatwoot_prepare']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  rails:
+    <<: *app
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+    depends_on:
+      prepare:
+        condition: service_completed_successfully
+    networks:
+      - private
+      - dokploy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.jrc-branef.rule=Host(`${BRANEF_DOMAIN}`)
+      - traefik.http.routers.jrc-branef.entrypoints=websecure
+      - traefik.http.routers.jrc-branef.tls.certresolver=letsencrypt
+      - traefik.http.services.jrc-branef.loadbalancer.server.port=3000
+      - traefik.docker.network=dokploy-network
+
+  sidekiq:
+    <<: *app
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+    depends_on:
+      prepare:
+        condition: service_completed_successfully
+    # Workers need outbound access to GLPI and the configured message providers.
+    networks:
+      - private
+      - outbound
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jrc_branef
+      POSTGRES_USER: jrc_branef
+      POSTGRES_PASSWORD: ${BRANEF_POSTGRES_PASSWORD:?Gere uma senha exclusiva}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jrc_branef -d jrc_branef']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['sh', '-c', 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    environment:
+      REDIS_PASSWORD: ${BRANEF_REDIS_PASSWORD:?Gere uma senha exclusiva}
+      REDISCLI_AUTH: ${BRANEF_REDIS_PASSWORD:?Gere uma senha exclusiva}
+    volumes:
+      - redis:/data
+    networks:
+      - private
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres:
+  redis:
+  storage:
+
+networks:
+  private:
+    internal: true
+  outbound:
+  dokploy:
+    external: true
+    name: dokploy-network

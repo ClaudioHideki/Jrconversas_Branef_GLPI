@@ -1,4 +1,4 @@
-name: Candidato Cadastro Mestre - build e GHCR por SHA
+name: Branef GLPI - validacao e imagem por SHA
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ on:
       component:
         description: Construir somente o componente afetado (Cadastro Mestre usa app)
         type: choice
-        options: [app, nico-runtime, flows-sandbox]
+        options: [app]
         default: app
         required: true
 
@@ -27,7 +27,53 @@ permissions:
   packages: write
 
 jobs:
+  glpi-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: branef_glpi_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: glpi-ci-disposable-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d branef_glpi_test"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_DATABASE: branef_glpi_test
+      POSTGRES_USERNAME: postgres
+      POSTGRES_PASSWORD: glpi-ci-disposable-only
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY_BASE: glpi-ci-disposable-only-012345678901234567890123456789012345678901234567890123456789
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Dependencias nativas
+        run: |
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update
+          sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends libpq-dev libvips libvips-dev
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4.4'
+          bundler: 2.5.16
+          bundler-cache: true
+      - name: Schema descartavel e fronteiras GLPI sem trafego ao cliente
+        run: |
+          bundle exec rails db:schema:load
+          bundle exec ruby test/jrc_service_desk/glpi_integration.rb
+
   build-and-push:
+    needs: glpi-integration
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     concurrency:
@@ -37,7 +83,7 @@ jobs:
       SOURCE_SHA: ${{ inputs.source_sha }}
       BASE_SHA: ${{ inputs.base_sha }}
       COMPONENT: ${{ inputs.component }}
-      IMAGE: ${{ inputs.component == 'app' && 'claudiohideki/jrc-conversas-lab2' || format('claudiohideki/jrc-conversas-nico-v12-2-7-comercial-integrado-{0}', inputs.component) }}
+      IMAGE: claudiohideki/jrconversas_branef_glpi
       BUNDLE_FROZEN: 'true'
       TZ: UTC
 
@@ -157,6 +203,12 @@ jobs:
           app/javascript/dashboard/api/crm/commercialCycle.js
           app/javascript/dashboard/routes/dashboard/crm/helpers/commercialTerms.js
           app/javascript/dashboard/routes/dashboard/crm/views/orders
+
+      - name: Lint da integracao GLPI
+        run: >-
+          pnpm exec eslint
+          app/javascript/dashboard/api/serviceDeskGlpi.js
+          app/javascript/dashboard/routes/dashboard/serviceDesk/glpi
 
       - name: Lint dos fontes alterados de Relacionamento e badges
         if: inputs.component == 'app'

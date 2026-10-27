@@ -20,7 +20,13 @@ const session = provideServiceDesk();
 const { state, enabled, accountId, userId } = session;
 const groups = ['operation', 'governance', 'management'];
 const screenLabels = computed(() => tm('JRC_SERVICE_DESK.SCREENS'));
+const glpiLabels = computed(() => ({
+  glpi: t('JRC_GLPI.tabs.tickets'),
+  glpi_settings: t('JRC_GLPI.configure'),
+}));
+const screenLabel = key => glpiLabels.value[key] || screenLabels.value[key];
 const primaryKeys = [
+  'glpi',
   'overview',
   'tickets',
   'mine',
@@ -34,7 +40,7 @@ const primaryEntries = computed(() =>
     .filter(item => screenAccessible(state.context, item))
     .map(item => ({
       ...item,
-      label: screenLabels.value[item.key],
+      label: screenLabel(item.key),
     }))
 );
 const groupLabels = computed(() => ({
@@ -70,7 +76,7 @@ const breadcrumbs = computed(() => {
       label: t('JRC_SERVICE_DESK.SCREENS.tickets'),
       route: to('tickets'),
     });
-  items.push({ label: t(`JRC_SERVICE_DESK.SCREENS.${activeScreen.value}`) });
+  items.push({ label: screenLabel(activeScreen.value) });
   return items;
 });
 const blocked = computed(() =>
@@ -150,7 +156,7 @@ const blocked = computed(() =>
                 "
               >
                 <Icon :icon="item.icon" class="size-4 shrink-0" />{{
-                  t(`JRC_SERVICE_DESK.SCREENS.${item.key}`)
+                  screenLabel(item.key)
                 }}
               </RouterLink>
             </div>

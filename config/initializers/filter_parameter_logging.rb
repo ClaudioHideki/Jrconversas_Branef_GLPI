@@ -1,6 +1,7 @@
 # Be sure to restart your server when you modify this file.
 
 # Configure sensitive parameters which will be filtered from the log file.
+Rails.application.config.filter_parameters += %i[user_token app_token session_token]
 Rails.application.config.filter_parameters += [
   :password, :secret, :_key, :auth, :crypt, :salt, :certificate, :otp, :access, :private, :protected, :ssn,
   :otp_secret, :otp_code, :backup_code, :mfa_token, :otp_backup_codes, :identifier_hash,

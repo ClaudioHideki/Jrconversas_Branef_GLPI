@@ -13,6 +13,8 @@ import ServiceDeskAPI from 'dashboard/api/serviceDesk';
 import StructureAPI from 'dashboard/api/serviceDeskStructure';
 import { structureContext } from './helpers/structure.js';
 const pages = {
+  glpi: () => import('./glpi/GlpiWorkspace.vue'),
+  glpiSettings: () => import('./glpi/GlpiSettings.vue'),
   overview: () => import('./views/OverviewView.vue'),
   tickets: () => import('./views/TicketListView.vue'),
   detail: () => import('./views/TicketDetailView.vue'),

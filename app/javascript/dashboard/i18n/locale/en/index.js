@@ -4,6 +4,7 @@ import jrcContactCenter from './jrcContactCenter.json';
 import jrcHome from './jrcHome.json';
 import relationship from './relationship.json';
 import jrcServiceDesk from './jrcServiceDesk.json';
+import jrcGlpi from './jrcGlpi.json';
 import advancedFilters from './advancedFilters.json';
 import jrcBroker from './jrcBroker.json';
 import agentBots from './agentBots.json';
@@ -64,6 +65,7 @@ export default {
   ...relationship,
   ...jrcHome,
   ...jrcServiceDesk,
+  ...jrcGlpi,
   ...jrcNico,
   ...jrcNicoHelpdesk,
   ...jrcCustomerRelations,
