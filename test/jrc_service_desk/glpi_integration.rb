@@ -51,7 +51,7 @@ check.call('credentials encrypted at rest', !ciphertext.include?('synthetic-user
 
 class JrcServiceDesk::Glpi::Client
   class << self
-    attr_accessor :post_count, :ambiguous, :inputs
+    attr_accessor :post_count, :ambiguous, :inputs, :search_response
   end
   self.post_count = 0
   self.ambiguous = false
@@ -67,6 +67,7 @@ class JrcServiceDesk::Glpi::Client
     when 'search/Ticket/'
       expected_scope = [{ 'field' => 80, 'searchtype' => 'equals', 'value' => 0, 'link' => 'OR' }]
       raise 'Missing authorized entity scope' unless parameters['criteria'].first['criteria'] == expected_scope
+      return self.class.search_response if self.class.search_response
       { 'totalcount' => 1, 'data' => [{ '2' => 101, '1' => '<b>Consulta</b>', '80' => 'BRANEF', '12' => 1, '3' => 3,
                                      '15' => '2026-10-27 10:00:00', '82' => 0 }] }
     when 'Ticket/'
@@ -151,6 +152,27 @@ check.call('report uses authorized complete collection', http.response.status ==
 check.call('missing deadline is not counted as SLA met',
            report.dig('solution_sla', 'without_deadline') == 1 && report.dig('solution_sla', 'with_deadline') == 0)
 check.call('CSV cells neutralize formula injection', JrcServiceDesk::OperationalCsv.cell('=1+1') == "'=1+1")
+JrcServiceDesk::Glpi::Client.search_response = { 'totalcount' => 0, 'count' => 0, 'sort' => 2, 'order' => 'ASC', 'content-range' => '0-0/0' }
+http.get("#{base}/tickets", headers: headers)
+check.call('empty source without data returns an empty page',
+           http.response.status == 200 && JSON.parse(http.response.body)['items'] == [] && JSON.parse(http.response.body).dig('meta', 'total') == 0)
+http.get("#{base}/reports", headers: headers)
+check.call('empty source without data returns an empty report',
+           http.response.status == 200 && JSON.parse(http.response.body).dig('report', 'total') == 0)
+http.get("#{base}/reports/export", headers: headers)
+check.call('empty source without data exports headers only', http.response.status == 200 && http.response.body.lines.size == 1)
+JrcServiceDesk::Glpi::Client.search_response = { 'totalcount' => 0, 'data' => [] }
+http.get("#{base}/tickets", headers: headers)
+check.call('explicit empty source remains valid',
+           http.response.status == 200 && JSON.parse(http.response.body)['items'] == [])
+JrcServiceDesk::Glpi::Client.search_response = { 'totalcount' => 1 }
+http.get("#{base}/tickets", headers: headers)
+check.call('positive source missing data is not masked as empty',
+           http.response.status == 422 && JSON.parse(http.response.body)['code'] == 'invalid_input')
+http.get("#{base}/reports", headers: headers)
+check.call('positive report missing data is not masked as empty',
+           http.response.status == 422 && JSON.parse(http.response.body)['code'] == 'invalid_input')
+JrcServiceDesk::Glpi::Client.search_response = nil
 account.disable_features!('jrc_service_desk')
 http.get("#{base}/tickets", headers: headers)
 check.call('feature revocation is rechecked', http.response.status == 403)
