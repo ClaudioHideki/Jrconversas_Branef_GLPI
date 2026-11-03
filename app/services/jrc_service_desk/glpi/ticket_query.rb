@@ -55,7 +55,7 @@ class JrcServiceDesk::Glpi::TicketQuery
     raise ArgumentError unless page <= 100_000 && size <= 100
 
     result = client.get('search/Ticket/', parameters(offset: (page - 1) * size, size: size))
-    { items: result.fetch('data').map { |row| JrcServiceDesk::Glpi::Normalize.search(row) },
+    { items: result_rows(result).map { |row| JrcServiceDesk::Glpi::Normalize.search(row) },
       meta: { page: page, per_page: size, total: result.fetch('totalcount') } }
   end
 
@@ -70,7 +70,7 @@ class JrcServiceDesk::Glpi::TicketQuery
       raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if expected && expected != count
 
       expected = count
-      batch = result.fetch('data')
+      batch = result_rows(result)
       batch.each do |row|
         id = JrcServiceDesk::Input.id(row.fetch('2'))
         raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if rows.key?(id)
@@ -87,6 +87,14 @@ class JrcServiceDesk::Glpi::TicketQuery
   end
 
   private
+
+  def result_rows(result)
+    result.fetch('data') do
+      raise KeyError, 'Missing GLPI data for nonempty result' unless [0, '0'].include?(result.fetch('totalcount'))
+
+      []
+    end
+  end
 
   def condition(field, searchtype, value, link = 'AND')
     { 'field' => field, 'searchtype' => searchtype, 'value' => value, 'link' => link }
