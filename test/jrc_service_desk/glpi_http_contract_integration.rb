@@ -58,8 +58,9 @@ class GlpiHttpContractTest < GlpiIntegrationTest
   def test_multipart_document_reaches_dedicated_service_and_returns_receipt
     service = Object.new
     called = false
+    account_id = @account.id
     service.define_singleton_method(:upload) do |access:, ticket_id:, file:, idempotency_key:, name:|
-      raise 'Wrong account/parent' unless access.context.account.id && ticket_id == '101'
+      raise 'Wrong account/parent' unless access.context.account.id == account_id && ticket_id == '101'
       raise 'Multipart was not parsed' unless file.is_a?(ActionDispatch::Http::UploadedFile) && file.read == 'synthetic document bytes'
       raise 'Wrong upload metadata' unless name == 'proof.txt' && idempotency_key == 'http-document-proof'
 
@@ -83,10 +84,11 @@ class GlpiHttpContractTest < GlpiIntegrationTest
 
   def test_document_download_is_authenticated_attachment_without_public_redirect
     source = Object.new
+    account_id = @account.id
     source.define_singleton_method(:session) { |&block| block.call(self) }
     service = Object.new
     service.define_singleton_method(:download) do |access:, client:, ticket_id:, document_id:|
-      raise 'Wrong download scope' unless access.context.account.id && client.equal?(source) && ticket_id == '101' && document_id == '7'
+      raise 'Wrong download scope' unless access.context.account.id == account_id && client.equal?(source) && ticket_id == '101' && document_id == '7'
 
       { bytes: 'synthetic document bytes', filename: 'proof.txt', content_type: 'text/plain' }
     end
