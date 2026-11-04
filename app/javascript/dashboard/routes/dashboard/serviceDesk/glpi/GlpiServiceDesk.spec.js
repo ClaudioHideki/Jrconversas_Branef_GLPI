@@ -6,6 +6,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import messages from 'dashboard/i18n/locale/en/jrcGlpi.json';
 import serviceMessages from 'dashboard/i18n/locale/en/jrcServiceDesk.json';
 import { contextPayload } from '../__tests__/fixtures';
+import { SERVICE_DESK_ROUTES, serviceDeskRouteName } from '../routeDefinitions';
 
 const holder = vi.hoisted(() => ({ session: null }));
 vi.mock('../composables/useServiceDesk', () => ({
@@ -24,11 +25,11 @@ beforeEach(() => {
 
 const render = async (screen, dataSource) => {
   holder.session.state.context.data_source = dataSource;
-  const router = createRouter({ history: createMemoryHistory(), routes: [{
-    path: '/', component: { template: '<div>Native ticket editor</div>' },
-    meta: { serviceDeskScreen: screen },
-  }] });
-  await router.push('/');
+  const router = createRouter({ history: createMemoryHistory(), routes: SERVICE_DESK_ROUTES.map(row => ({
+    path: '/' + row.key, name: serviceDeskRouteName(row.key), component: { template: '<div>Native ticket editor</div>' },
+    meta: { serviceDeskScreen: row.key },
+  })) });
+  await router.push('/' + screen);
   const wrapper = mount(Layout, { global: {
     plugins: [router, createI18n({ legacy: false, locale: 'en', messages: { en: { ...messages, ...serviceMessages } } })],
     stubs: {
@@ -62,3 +63,4 @@ describe('Service Desk primary source', () => {
     wrapper.unmount();
   });
 });
+
