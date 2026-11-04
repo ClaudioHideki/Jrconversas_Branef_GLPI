@@ -319,4 +319,66 @@ class GlpiAutomationTest < GlpiIntegrationTest
     end
     assert_equal 0, JrcServiceDesk::GlpiReference.where(account: @account).count
   end
+
+  def test_case_http_read_closes_its_native_snapshot_before_source_io
+    incident = JrcServiceDesk::Incident.create!(account: @account, unit: @unit, created_by_membership: @unit_member,
+      title: 'Synthetic linked case', severity: 'normal', status: 'open', resource_kind: 'incident', started_at: Time.current,
+      idempotency_key: SecureRandom.uuid, request_fingerprint: 'a' * 64)
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      JrcServiceDesk::Glpi::LinkLocalReference.new.call(user_context: @identity, reference: @reference, incident_id: incident.id)
+    end
+    client = lambda do |_connection|
+      refute ActiveRecord::Base.connection.transaction_open?, 'Case HTTP reader held a DB transaction during GLPI source I/O'
+      @remote
+    end
+    JrcServiceDesk::Glpi::Client.stub(:new, client) do
+      http = ActionDispatch::Integration::Session.new(Rails.application)
+      http.get("/api/v1/accounts/#{@account.id}/jrc_service_desk/case_workspaces/#{incident.id}", headers: @user.create_new_auth_token)
+      assert_equal 200, http.response.status
+      assert_equal incident.title, JSON.parse(http.response.body).dig('record', 'title')
+      assert_equal 101, JSON.parse(http.response.body).dig('record', 'glpi_references', 'items', 0, 'reference', 'remote_id')
+    end
+  end
+
+  def test_actual_conversation_delete_job_preserves_remote_reference_and_immutable_link_audit
+    conversation, link = linked_conversation_for_deletion
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    http = ActionDispatch::Integration::Session.new(Rails.application)
+    http.delete("/api/v1/accounts/#{@account.id}/conversations/#{conversation.display_id}", headers: @user.create_new_auth_token)
+    assert_equal 200, http.response.status
+    queued = ActiveJob::Base.queue_adapter.enqueued_jobs.find { |job| job[:job] == DeleteObjectJob }
+    refute_nil queued
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { flunk 'Deleting a local target must never contact GLPI' }) do
+      DeleteObjectJob.deserialize(queued).perform_now
+    end
+    refute Conversation.exists?(conversation.id)
+    assert_equal conversation.id, link.reload.conversation_id
+    assert_equal @reference, link.glpi_reference.reload.reference
+    assert_equal @member.id, link.account_user_id
+    assert_empty @remote.writes
+  end
+
+  def test_inbox_purge_keeps_the_same_local_link_audit_without_blocking_conversation_deletion
+    conversation, link = linked_conversation_for_deletion
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { flunk 'Deleting a local inbox must never contact GLPI' }) do
+      DeleteObjectJob.perform_now(conversation.inbox, @user, '127.0.0.1')
+    end
+    refute Conversation.exists?(conversation.id)
+    assert_equal conversation.id, link.reload.conversation_id
+    assert_equal @reference, link.glpi_reference.reload.reference
+  end
+
+  private
+
+  def linked_conversation_for_deletion
+    channel = Channel::Api.create!(account: @account)
+    inbox = Inbox.create!(account: @account, channel: channel, name: 'Synthetic retained GLPI audit')
+    contact = Contact.create!(account: @account, name: 'Synthetic requester')
+    contact_inbox = ContactInbox.create!(contact: contact, inbox: inbox, source_id: SecureRandom.uuid)
+    conversation = Conversation.create!(account: @account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
+    link = JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      JrcServiceDesk::Glpi::LinkLocalReference.new.call(user_context: @identity, reference: @reference, conversation_id: conversation.id)
+    end
+    [conversation, link]
+  end
 end
