@@ -84,8 +84,11 @@ jobs:
           bundle exec rails db:schema:load
           bundle exec rails db:migrate
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
-          bundle exec ruby test/jrc_service_desk/glpi_projection_integration.rb
-          bundle exec ruby test/jrc_service_desk/glpi_resources_integration.rb
+          result=0
+          for suite in glpi_projection_integration glpi_resources_integration; do
+            bundle exec ruby "test/jrc_service_desk/${suite}.rb" || result=1
+          done
+          exit "$result"
       - uses: actions/upload-artifact@v4
         with:
           name: glpi-schema-${{ github.sha }}
