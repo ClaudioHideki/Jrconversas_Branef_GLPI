@@ -4,13 +4,15 @@ require_relative 'glpi_commands_integration'
 
 class GlpiTicketFormSource < GlpiCommandSource
   attr_accessor :profile_template, :metadata_denied, :on_template_read
-  attr_reader :rules, :options
+  attr_reader :rules, :options, :user_profiles
 
   def initialize
     super
     @profile_template = 10
     @rules = Hash.new { |hash, key| hash[key] = { 'Mandatory' => [], 'Hidden' => [], 'Predefined' => [] } }
     @template_reads = 0
+    @user_profiles = { 77 => [{ 'id' => 1, 'users_id' => 77, 'entities_id' => 0, 'is_recursive' => 0 }] }
+    rows['User/77'] = { 'id' => 77, 'name' => 'Synthetic requester', 'is_active' => 1 }
     rows['Entity/0'] = { 'id' => 0, 'entities_id' => nil, 'tickettype' => 1,
       'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 }
     [10, 11, 20, 21].each do |id|
@@ -41,6 +43,12 @@ class GlpiTicketFormSource < GlpiCommandSource
   end
 
   def collection(path, *)
+    if %w[TicketTemplate/ ITILCategory/ User/].include?(path)
+      return rows.select { |key, _| key.match?(%r{\A#{Regexp.escape(path)}\d+\z}) }.values.map(&:deep_dup)
+    end
+    if (match = path.match(%r{\AUser/(\d+)/Profile_User/\z}))
+      return user_profiles.fetch(match[1].to_i, []).deep_dup
+    end
     if (match = path.match(%r{\ATicketTemplate/(\d+)/TicketTemplate(Mandatory|Hidden|Predefined)Field/\z}))
       raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if metadata_denied == path
 
@@ -189,6 +197,49 @@ class GlpiTicketFormTest < GlpiIntegrationTest
     assert_raises(JrcServiceDesk::Glpi::Error) { form }
     assert_equal 10, form(template_id: 10)[:template_id]
     assert_equal 'explicit', form(template_id: 10)[:template_source]
+  end
+
+  def test_scoped_catalogues_include_only_applicable_metadata_and_leave_business_scope_unchanged
+    @remote.rows['TicketTemplate/11']['entities_id'] = 999
+    query = JrcServiceDesk::Glpi::ResourceQuery.new
+    result = query.call(access: @access, client: @remote, kind: 'templates', filters: { 'entity_id' => 0 })
+    assert_equal [10, 20, 21], result[:items].map { |row| row['id'] }
+    @remote.rows['User/88'] = { 'id' => 88, 'name' => 'Foreign entity requester' }
+    @remote.user_profiles[88] = [{ 'id' => 2, 'users_id' => 88, 'entities_id' => 999, 'is_recursive' => 0 }]
+    result = query.call(access: @access, client: @remote, kind: 'users', filters: { 'entity_id' => 0 })
+    assert_equal [77], result[:items].map { |row| row['id'] }
+    assert_raises(ArgumentError) { query.call(access: @access, client: @remote, kind: 'problems', filters: { 'entity_id' => 0 }) }
+    assert_raises(ArgumentError) { query.call(access: @access, client: @remote, kind: 'templates', filters: { 'entity_id' => 0, 'type' => 1 }) }
+  end
+
+  def test_inherited_catalogue_and_creation_use_the_same_contextual_metadata_proof
+    @remote.rows['Entity/8'] = { 'id' => 8, 'entities_id' => 0, 'tickettemplates_strategy' => -2, 'tickettemplates_id' => 0 }
+    @remote.rows['TicketTemplate/10']['is_recursive'] = 1
+    @remote.rules[10]['Predefined'] = [{ 'id' => 1, 'tickettemplates_id' => 10, 'num' => 4, 'value' => '77' }]
+    @remote.user_profiles[77].first['is_recursive'] = 1
+    @connection.update!(entity_mappings: [{ 'entity_id' => 8, 'unit_id' => @unit.id }])
+    access = JrcServiceDesk::Glpi::Access.new(@identity)
+    query = JrcServiceDesk::Glpi::ResourceQuery.new
+    result = query.call(access: access, client: @remote, kind: 'templates', filters: { 'entity_id' => 8 })
+    assert_equal [10], result[:items].map { |row| row['id'] }
+    receipt = @execute.call(access: access, operation: 'ticket.create', target_id: nil, entity_id: 8,
+      attributes: { 'name' => 'Inherited template', 'content' => 'Explicit description' }, idempotency_key: 'ancestor-form')
+    assert_equal 'succeeded', receipt[:state], receipt.inspect
+    assert_equal 77, @remote.writes.last.last['_users_id_requester']
+    assert_raises(Pundit::NotAuthorizedError) { access.unit_for(0) }
+    @remote.metadata_denied = 'Entity/8'
+    assert_raises(JrcServiceDesk::Glpi::Error) do
+      query.call(access: access, client: @remote, kind: 'templates', filters: { 'entity_id' => 8 })
+    end
+  end
+
+  def test_hidden_baseline_content_and_raw_lifecycle_override_are_explicitly_unavailable
+    @remote.rules[10]['Hidden'] = [{ 'id' => 1, 'tickettemplates_id' => 10, 'num' => 1 }]
+    refute form[:supported]
+    assert_includes form[:unsupported_required], 'name'
+    @remote.rules[10]['Hidden'] = []
+    assert_equal 'hidden_field_override', create({ 'status' => 6 })[:error_code]
+    assert_empty @remote.writes
   end
 
   def test_same_intent_key_replays_without_reloading_policy_or_duplicate_write
