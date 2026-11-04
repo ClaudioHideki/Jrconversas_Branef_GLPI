@@ -2,7 +2,7 @@ name: Branef GLPI - validacao e imagem por SHA
 
 on:
   push:
-    branches: [codex/branef-glpi-integral-20261104]
+    branches: ['codex/branef-glpi-*-20261104']
   workflow_dispatch:
     inputs:
       publish:
@@ -85,8 +85,8 @@ jobs:
           bundle exec rails db:migrate
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
           result=0
-          for suite in glpi_projection_integration glpi_resources_integration; do
-            bundle exec ruby "test/jrc_service_desk/${suite}.rb" || result=1
+          for suite in test/jrc_service_desk/glpi_*_integration.rb; do
+            bundle exec ruby "$suite" || result=1
           done
           exit "$result"
       - uses: actions/upload-artifact@v4
