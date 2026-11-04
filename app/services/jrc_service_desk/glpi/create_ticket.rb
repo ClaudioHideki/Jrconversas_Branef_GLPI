@@ -14,60 +14,17 @@ class JrcServiceDesk::Glpi::CreateTicket
 
     values = JrcServiceDesk::Input.attributes(attributes, FIELDS)
     entity = JrcServiceDesk::Glpi::Identifiers.remote(values.fetch('entity_id'))
-    unit = access.unit_for(entity)
+    access.unit_for(entity)
     input = normalized_input(values, entity)
     key = JrcServiceDesk::Input.request_key(values.fetch('idempotency_key'))
     fingerprint = JrcServiceDesk::CanonicalJson.digest(input.merge('connection_version' => access.connection.lock_version))
-    scope = JrcServiceDesk::GlpiCommand.where(account_id: access.context.account.id, glpi_connection: access.connection,
-                                             account_user: access.context.account_user)
-    existing = scope.find_by(idempotency_key: key)
-    return existing_receipt(existing, fingerprint) if existing
-
-    sent = false
-    command = scope.create!(unit_id: unit, entity_id: entity, idempotency_key: key, fingerprint: fingerprint,
-                            correlation_id: SecureRandom.uuid)
-    command.update!(state: 'sending')
-    # The committed receipt precedes network I/O. Never retry an ambiguous POST.
-    JrcServiceDesk::Glpi::Client.new(access.connection).session do |client|
-      profile = client.get('getActiveProfile/').fetch('active_profile')
-      raise JrcServiceDesk::Glpi::Error.new('creation_not_permitted', 403) if (profile.fetch('ticket', 0).to_i & 4).zero?
-
-      sent = true
-      response = client.create_ticket(input.merge('content' => input.fetch('content') + "<p>#{command.correlation_marker}</p>"))
-      remote_id = JrcServiceDesk::Input.id(response.fetch('id'))
-      command.update!(state: 'succeeded', remote_id: remote_id)
-    end
-    command.receipt
-  rescue ActiveRecord::RecordNotUnique
-    existing_receipt(scope.find_by!(idempotency_key: key), fingerprint)
-  rescue JrcServiceDesk::Glpi::Error => error
-    if command
-      definitive = !sent || %w[creation_not_permitted ERROR_RIGHT_MISSING ERROR_GLPI_ADD ERROR_BAD_ARRAY ERROR_APP_TOKEN_PARAMETERS_MISSING
-                      ERROR_WRONG_APP_TOKEN_PARAMETER ERROR_SESSION_TOKEN_INVALID].include?(error.code)
-      command.update!(state: definitive ? 'rejected' : 'indeterminate', error_code: error.code)
-      command.receipt
-    else
-      raise
-    end
-  rescue KeyError, ArgumentError
-    if command
-      command.update!(state: 'indeterminate', error_code: 'invalid_response')
-      command.receipt
-    else
-      raise
-    end
+    JrcServiceDesk::Glpi::Execute.new.call(access: access, operation: 'ticket.create', target_id: nil, entity_id: entity,
+      attributes: input, idempotency_key: key, legacy_fingerprint: fingerprint, prepared: true)
   end
 
   private
 
   attr_reader :access
-
-  def existing_receipt(command, fingerprint)
-    raise JrcServiceDesk::IdempotencyConflict unless command.fingerprint == fingerprint
-
-    access.unit_for(command.entity_id)
-    command.receipt
-  end
 
   def normalized_input(values, entity)
     title = values.fetch('title')

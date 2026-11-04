@@ -143,6 +143,16 @@ class GlpiTransportTest < Minitest::Test
     assert_raises(ArgumentError) { @client.update_item('User', 1, { 'name' => 'Changed' }) }
   end
 
+  def test_typed_problem_group_uses_the_real_glpi_class
+    @responses = [Response.new('201', { 'id' => 501 }, {})]
+    SsrfFilter.stub(:post, @transport) do
+      @client.create_item('Group_Problem', { 'problems_id' => 201, 'groups_id' => 701, 'type' => 2 })
+      assert_equal 'https://glpi.example.invalid/apirest.php/Group_Problem/', @requests.last[:url]
+      assert_raises(ArgumentError) { @client.create_item('Problem_Group', { 'problems_id' => 201, 'groups_id' => 701 }) }
+      assert_equal 1, @requests.size
+    end
+  end
+
   def test_single_deletion_accepts_documented_no_content_acknowledgement
     @responses = [Response.new('204', nil, {})]
     SsrfFilter.stub(:delete, @transport) do

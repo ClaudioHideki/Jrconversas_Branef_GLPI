@@ -62,6 +62,7 @@ class JrcServiceDesk::Glpi::Client
     when 'initSession/' then { 'session_token' => 'synthetic-session' }
     when 'killSession/' then true
     when 'getActiveProfile/' then { 'active_profile' => { 'id' => 6, 'name' => 'Suporte', 'ticket' => 5 } }
+    when 'getFullSession/' then { 'session' => { 'glpiID' => 900 } }
     when 'getMyEntities/' then { 'myentities' => [{ 'id' => 0, 'name' => 'BRANEF' }] }
     when 'listSearchOptions/Ticket/' then (JrcServiceDesk::Glpi::Normalize::FIELDS.keys + ['4']).to_h { |key| [key, { 'field' => key }] }
     when 'search/Ticket/'
@@ -81,6 +82,7 @@ class JrcServiceDesk::Glpi::Client
       id = Regexp.last_match(1).to_i
       input = self.class.inputs[id] || {}
       { 'id' => id, 'entities_id' => id == 999 ? 999 : 0, 'status' => 1, 'priority' => 3,
+        'type' => input.fetch('type', 1), 'urgency' => input.fetch('urgency', 3), 'impact' => input.fetch('impact', 3),
         'name' => input['name'] || 'Detail', 'content' => input['content'] || 'Description' }
     when /Ticket_User/ then [{ 'id' => 1, 'tickets_id' => 101, 'users_id' => 77, 'type' => 1 }]
     when /ITILFollowup/ then [{ 'id' => 1, 'items_id' => 101, 'itemtype' => 'Ticket', 'content' => 'Public', 'is_private' => 0 },

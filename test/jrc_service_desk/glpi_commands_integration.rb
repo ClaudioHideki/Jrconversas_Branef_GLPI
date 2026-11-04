@@ -1,0 +1,324 @@
+# frozen_string_literal: true
+
+require_relative 'glpi_test_helper'
+
+# Synthetic GLPI state, behind the real command service; never connects to a server.
+class GlpiCommandSource
+  attr_accessor :failure, :on_profile, :ignore_write, :denied, :skip_solution_status, :confirmation_error
+  attr_reader :writes, :rows
+
+  def initialize
+    @writes = []
+    @rows = { 'Ticket/101' => { 'id' => 101, 'entities_id' => 0, 'date_mod' => 'v1', 'type' => 1 },
+      'Problem/201' => { 'id' => 201, 'entities_id' => 0, 'date_mod' => 'v1' },
+      'Change/301' => { 'id' => 301, 'entities_id' => 0, 'date_mod' => 'v1' } }
+  end
+
+  def session
+    yield self
+  end
+
+  def get(path, *)
+    if path == 'getActiveProfile/'
+      on_profile&.call
+      return { 'active_profile' => %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory tickettemplate].to_h { |key| [key, denied ? 0 : 1048575] } }
+    end
+    return { 'session' => { 'glpiID' => 900 } } if path == 'getFullSession/'
+    if confirmation_error && writes.any? && path == "#{writes.last[1]}/#{writes.last[2] || 501}"
+      raise JrcServiceDesk::Glpi::Error.new(confirmation_error, 403)
+    end
+    row = rows[path]
+    raise JrcServiceDesk::Glpi::Error.new('ERROR_ITEM_NOT_FOUND', 404) unless row
+
+    row.deep_dup
+  end
+
+  def collection(path, *)
+    return [{ 'id' => 1, 'knowbaseitems_id' => 501, 'entities_id' => 0 }] if path == 'KnowbaseItem/501/Entity_KnowbaseItem/'
+    return [{ 'id' => 1, 'users_id' => 77, 'entities_id' => 0 }] if path == 'User/77/Profile_User/'
+    if path.match?(%r{\A(?:Ticket|Problem|Change)/\d+/(?:Ticket_User|Group_Ticket|Problem_User|Group_Problem|Change_User|Change_Group)/\z})
+      type, id, relation = path.split('/')
+      row = rows["#{type}/#{id}"] || {}
+      key = relation.include?('Group') ? 'groups_id' : 'users_id'
+      value = row[key == 'groups_id' ? '_groups_id_assign' : '_users_id_assign']
+      return value ? [{ 'id' => 1, "#{type.downcase}s_id" => id.to_i, key => value, 'type' => 2 }] : []
+    end
+
+    []
+  end
+
+  def create_item(type, input)
+    write!(:post, type, nil, input)
+  end
+
+  def update_item(type, id, input)
+    write!(:patch, type, id, input)
+  end
+
+  def delete_item(type, id, **)
+    write!(:delete, type, id, {})
+  end
+
+  def write!(verb, type, id, input)
+    raise JrcServiceDesk::Glpi::Error.new('ERROR_RESOURCE_NOT_FOUND', 404) if type == 'Problem_Group'
+    raise 'Intent was not durable before sending' unless JrcServiceDesk::GlpiCommand.where(state: 'sending').exists?
+
+    writes << [verb, type, id, input.deep_dup]
+    raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if failure == 'ERROR_RIGHT_MISSING'
+    id ||= 501
+    unless ignore_write
+      if verb == :delete
+        rows.delete("#{type}/#{id}")
+      else
+        rows["#{type}/#{id}"] = (rows["#{type}/#{id}"] || {}).merge(input).merge('id' => id, 'date_mod' => 'v2')
+        if type == 'ITILSolution' && !skip_solution_status
+          rows["#{input.fetch('itemtype')}/#{input.fetch('items_id')}"]['status'] = 5
+        end
+      end
+    end
+    raise JrcServiceDesk::Glpi::Error.new(failure, failure == 'ERROR_RIGHT_MISSING' ? 403 : 502) if failure
+
+    { 'id' => id, 'deleted' => verb == :delete }
+  end
+end
+
+class GlpiCommandsTest < GlpiIntegrationTest
+  def setup
+    super
+    @remote = GlpiCommandSource.new
+    @execute = JrcServiceDesk::Glpi::Execute.new(client_factory: ->(_) { @remote })
+  end
+
+  def execute(operation = 'ticket.update', target: 101, attributes: { 'name' => 'Changed' }, key: SecureRandom.uuid, **options)
+    @execute.call(access: JrcServiceDesk::Glpi::Access.new(@identity), operation: operation, target_id: target,
+      entity_id: 0, attributes: attributes, idempotency_key: key, **options)
+  end
+
+  def test_all_ticket_transitions_and_assignment_are_confirmed_by_readback
+    { 'update' => { 'name' => 'Updated' }, 'assign' => { '_users_id_assign' => 77 }, 'transfer' => { 'entities_id' => 0 },
+      'priority' => { 'priority' => 5 }, 'pause' => {}, 'resume' => {}, 'close' => {}, 'reopen' => {},
+      'solve' => { 'parent_id' => 101, 'content' => 'Solution' } }.each do |verb, input|
+      @remote.rows['User/77'] = { 'id' => 77, 'entities_id' => 0 }
+      receipt = execute("ticket.#{verb}", target: verb == 'solve' ? nil : 101, attributes: input)
+      assert_equal 'succeeded', receipt.fetch(:state), "#{verb}: #{receipt}"
+      assert_equal 900, receipt.fetch(:technical_user_id)
+    end
+    record = JrcServiceDesk::GlpiCommand.last
+    assert_equal @member.id, record.account_user_id
+    refute_includes record.receipt.to_json, 'synthetic-user'
+  end
+
+  def test_followup_task_and_validation_crud_keeps_exact_parent_and_private_fields
+    %w[followup task].each do |family|
+      receipt = execute("#{family}.create", target: nil, attributes: { 'parent_id' => 101, 'content' => 'Private', 'is_private' => 1 })
+      assert_equal 'succeeded', receipt[:state]
+      assert_equal 'succeeded', execute("#{family}.update", target: 501, attributes: { 'parent_id' => 101, 'content' => 'Edited' })[:state]
+      assert_equal 'succeeded', execute("#{family}.delete", target: 501, attributes: { 'parent_id' => 101 })[:state]
+    end
+    @remote.rows['User/77'] = { 'id' => 77, 'entities_id' => 0 }
+    request = execute('validation.request', target: nil, attributes: { 'parent_id' => 101, 'users_id_validate' => 77, 'comment_submission' => 'Approve' })
+    assert_equal 'succeeded', request[:state]
+    decision = execute('validation.decide', target: 501,
+      attributes: { 'parent_id' => 101, 'status' => 4, 'comment_validation' => 'Decision' })
+    assert_equal 'rejected', decision[:state]
+    assert_equal 'technical_validator_mismatch', decision[:error_code]
+    refute @remote.writes.any? { |row| row[3].key?('users_id_validate') && row[0] == :patch }
+    @remote.rows['TicketValidation/501']['users_id_validate'] = 900
+    assert_equal 'succeeded', execute('validation.decide', target: 501,
+      attributes: { 'parent_id' => 101, 'status' => 3, 'comment_validation' => 'Approved by technical validator' })[:state]
+  end
+
+  def test_problem_change_and_knowledge_crud
+    %w[problem change knowledge].each do |family|
+      fields = family == 'knowledge' ? { 'name' => 'Article', 'answer' => 'Answer' } : { 'name' => 'Synthetic', 'content' => 'Description' }
+      assert_equal 'succeeded', execute("#{family}.create", target: nil, attributes: fields)[:state]
+      assert_equal 'succeeded', execute("#{family}.update", target: 501, attributes: { 'name' => 'Edited' })[:state]
+      assert_equal 'succeeded', execute("#{family}.delete", target: 501, attributes: {}, reason: 'Synthetic test')[:state]
+    end
+  end
+
+  def test_same_key_returns_receipt_and_changed_payload_conflicts_without_resending
+    one = execute(key: 'same')
+    assert_equal one[:id], execute(key: 'same')[:id]
+    assert_equal 1, @remote.writes.size
+    assert_raises(JrcServiceDesk::IdempotencyConflict) { execute(key: 'same', attributes: { 'name' => 'Other' }) }
+    assert_raises(JrcServiceDesk::IdempotencyConflict) { execute('ticket.close', key: 'same', attributes: {}) }
+  end
+
+  def test_timeout_after_post_stays_indeterminate_and_reconcile_never_reposts
+    @remote.failure = 'source_unavailable'
+    receipt = execute('followup.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Hello' }, key: 'timeout')
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal receipt[:id], execute('followup.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Hello' }, key: 'timeout')[:id]
+    @remote.failure = nil
+    reconciled = JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
+      access: JrcServiceDesk::Glpi::Access.new(@identity), command: JrcServiceDesk::GlpiCommand.find(receipt[:id]), remote_id: 501)
+    assert_equal 'succeeded', reconciled[:state]
+    assert_equal 1, @remote.writes.size
+  end
+
+  def test_configuration_change_and_revocation_before_sending_prevent_write
+    @remote.on_profile = -> { @connection.update!(timezone: 'Europe/London') }
+    receipt = execute
+    assert_equal 'rejected', receipt[:state]
+    assert_equal 'configuration_changed', receipt[:error_code]
+    assert_empty @remote.writes
+    @remote.on_profile = -> { @member.update!(role: 'agent') }
+    assert_equal 'rejected', execute[:state]
+    assert_empty @remote.writes
+  end
+
+  def test_entity_parent_and_expected_version_checks_prevent_write
+    @remote.rows['Ticket/101']['entities_id'] = 999
+    assert_equal 'rejected', execute[:state]
+    @remote.rows['Ticket/101']['entities_id'] = 0
+    assert_equal 'rejected', execute(expected_version: 'old')[:state]
+    @remote.rows['TicketTask/501'] = { 'id' => 501, 'tickets_id' => 999 }
+    assert_equal 'rejected', execute('task.update', target: 501, attributes: { 'parent_id' => 101, 'content' => 'No' })[:state]
+    assert_empty @remote.writes
+  end
+
+  def test_unconfirmed_write_and_foreign_link_are_never_success
+    @remote.ignore_write = true
+    assert_equal 'indeterminate', execute[:state]
+    # A separate fully authorized ticket avoids reusing an unresolved object.
+    @remote.rows['Ticket/102'] = { 'id' => 102, 'entities_id' => 0 }
+    @remote.ignore_write = false
+    @remote.rows['Problem/999'] = { 'id' => 999, 'entities_id' => 999 }
+    receipt = execute('problem_link.create', target: nil, attributes: { 'parent_id' => 102, 'problems_id' => 999 })
+    assert_equal 'rejected', receipt[:state]
+    assert_equal 1, @remote.writes.size
+  end
+
+  def test_problem_change_operational_verbs_and_linked_targets
+    %w[problem change].each do |family|
+      id = family == 'problem' ? 201 : 301
+      { 'assign' => { '_users_id_assign' => 77 }, 'priority' => { 'priority' => 5 },
+        'pause' => {}, 'resume' => {}, 'close' => {}, 'reopen' => {},
+        'solve' => { 'parent_id' => id, 'content' => 'Solved' } }.each do |verb, input|
+        @remote.rows['User/77'] = { 'id' => 77 }
+        assert_equal 'succeeded', execute("#{family}.#{verb}", target: verb == 'solve' ? nil : id, attributes: input)[:state]
+      end
+    end
+    { 'problem_link' => ['problems_id', 201], 'change_link' => ['changes_id', 301],
+      'knowledge_link' => ['knowbaseitems_id', 501], 'actor' => ['users_id', 77],
+      'group' => ['groups_id', 701], 'supplier' => ['suppliers_id', 801] }.each do |family, values|
+      field, id = values
+      @remote.rows['KnowbaseItem/501'] = { 'id' => 501, 'name' => 'Article' }
+      @remote.rows['Group/701'] = { 'id' => 701, 'entities_id' => 0 }
+      @remote.rows['Supplier/801'] = { 'id' => 801, 'entities_id' => 0 }
+      attributes = { 'parent_id' => 101, field => id }
+      attributes['type'] = 2 if %w[actor group supplier].include?(family)
+      assert_equal 'succeeded', execute("#{family}.create", target: nil, attributes: attributes)[:state], family
+      assert_equal 'succeeded', execute("#{family}.delete", target: 501, attributes: { 'parent_id' => 101 })[:state], family
+    end
+  end
+
+  def test_input_rejects_authorship_overrides_unknown_fields_and_missing_parent
+    assert_raises(ArgumentError) { execute(attributes: { 'users_id' => 77 }) }
+    assert_raises(ArgumentError) { execute('task.create', target: nil, attributes: { 'content' => 'No parent' }) }
+    assert_raises(ArgumentError) { execute('validation.decide', target: 501, attributes: { 'parent_id' => 101, 'status' => 9 }) }
+    assert_empty @remote.writes
+  end
+
+  def test_reconciliation_checks_the_written_version_instead_of_requiring_the_old_version
+    @remote.failure = 'source_unavailable'
+    receipt = execute(expected_version: 'v1')
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal 'v2', @remote.rows['Ticket/101']['date_mod']
+    @remote.failure = nil
+    reconciled = JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
+      access: JrcServiceDesk::Glpi::Access.new(@identity), command: JrcServiceDesk::GlpiCommand.find(receipt[:id]))
+    assert_equal 'succeeded', reconciled[:state]
+    assert_equal 1, @remote.writes.size
+  end
+
+  def test_task_planning_executor_duration_and_private_state_are_confirmed
+    @remote.rows['User/77'] = { 'id' => 77 }
+    @remote.rows['Group/701'] = { 'id' => 701, 'entities_id' => 0 }
+    receipt = execute('task.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Planned',
+      'begin' => '2026-11-04 10:00:00', 'end' => '2026-11-04 11:00:00', 'actiontime' => 3600,
+      'state' => 1, 'users_id_tech' => 77, 'groups_id_tech' => 701, 'is_private' => 1 })
+    assert_equal 'succeeded', receipt[:state]
+    assert_equal 3600, @remote.rows['TicketTask/501']['actiontime']
+    assert_equal 1, @remote.rows['TicketTask/501']['is_private']
+  end
+
+  def test_audit_payload_is_encrypted_and_public_receipt_contains_no_description
+    receipt = execute(attributes: { 'content' => 'Private audit contents' })
+    record = JrcServiceDesk::GlpiCommand.find(receipt[:id])
+    assert_equal 'Private audit contents', record.request_payload['content']
+    stored = JrcServiceDesk::GlpiCommand.connection.select_value(
+      "SELECT request_payload FROM jrc_service_desk_glpi_commands WHERE id=#{record.id}")
+    refute_includes stored, 'Private audit contents'
+    refute_includes record.receipt.to_json, 'Private audit contents'
+    assert_equal 900, record.technical_user_id
+  end
+
+  def test_solution_receipt_never_claims_success_if_parent_remains_open
+    @remote.rows['Ticket/101']['status'] = 2
+    @remote.skip_solution_status = true
+    receipt = execute('ticket.solve', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Solution' })
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal 'write_not_confirmed', receipt[:error_code]
+  end
+
+  def test_rich_content_is_sanitized_without_sending_its_internal_format_to_glpi
+    receipt = execute(attributes: { 'content' => '<table><tr><td>Preserved</td></tr></table><a href="javascript:alert(1)">Unsafe</a>',
+      'content_format' => 'rich' })
+    assert_equal 'succeeded', receipt[:state]
+    input = @remote.writes.last.last
+    assert_includes input['content'], '<table>'
+    refute_includes input['content'], 'javascript:'
+    refute input.key?('content_format')
+    assert_raises(ArgumentError) { execute(attributes: { 'name' => 'No content', 'content_format' => 'rich' }) }
+  end
+
+  def test_confirmation_denial_after_accepted_post_remains_reconcilable_without_reposting
+    @remote.confirmation_error = 'ERROR_RIGHT_MISSING'
+    receipt = execute('followup.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Accepted remotely' }, expected_version: 'v1')
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal '501', receipt[:remote_id]
+    @remote.confirmation_error = nil
+    @remote.rows['Ticket/101']['date_mod'] = 'v2'
+    reconciled = JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
+      access: JrcServiceDesk::Glpi::Access.new(@identity), command: JrcServiceDesk::GlpiCommand.find(receipt[:id]))
+    assert_equal 'succeeded', reconciled[:state]
+    assert_equal 1, @remote.writes.size
+  end
+
+  def test_source_write_denial_is_rejected_before_remote_mutation
+    @remote.failure = 'ERROR_RIGHT_MISSING'
+    receipt = execute(attributes: { 'name' => 'Must not be written' })
+    assert_equal 'rejected', receipt[:state]
+    assert_equal 'ERROR_RIGHT_MISSING', receipt[:error_code]
+    refute @remote.rows['Ticket/101'].key?('name')
+  end
+
+  def test_problem_group_assignment_and_links_use_the_real_api_relation
+    @remote.rows['Group/701'] = { 'id' => 701, 'entities_id' => 0 }
+    receipt = execute('problem.assign', target: 201, attributes: { '_groups_id_assign' => 701 })
+    assert_equal 'succeeded', receipt[:state]
+    created = execute('problem_group.create', target: nil, attributes: { 'parent_id' => 201, 'groups_id' => 701, 'type' => 2 })
+    assert_equal 'succeeded', created[:state]
+    assert_equal 'Group_Problem', @remote.writes.last[1]
+    assert_equal 'succeeded', execute('problem_group.delete', target: 501, attributes: { 'parent_id' => 201 })[:state]
+  end
+
+  def test_stale_parent_version_prevents_every_child_post
+    { 'ticket.solve' => { 'content' => 'Solution' }, 'task.create' => { 'content' => 'Task' },
+      'followup.create' => { 'content' => 'Followup' } }.each do |operation, attributes|
+      receipt = execute(operation, target: nil, attributes: attributes.merge('parent_id' => 101), expected_version: 'stale')
+      assert_equal 'rejected', receipt[:state], operation
+      assert_equal 'version_conflict', receipt[:error_code], operation
+    end
+    assert_empty @remote.writes
+  end
+
+  def test_parentless_create_rejects_an_unsupported_expected_version
+    assert_raises(ArgumentError) do
+      execute('problem.create', target: nil, attributes: { 'name' => 'New problem', 'content' => 'Description' }, expected_version: 'stale')
+    end
+    assert_empty @remote.writes
+  end
+end
