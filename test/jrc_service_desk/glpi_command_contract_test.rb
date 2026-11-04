@@ -34,4 +34,9 @@ class GlpiCommandContractTest < Minitest::Test
       refute_includes descriptor[:fields], 'users_id_recipient'
     end
   end
+
+  def test_problem_and_change_group_relations_use_the_installed_glpi_classes
+    assert_equal 'Group_Problem', JrcServiceDesk::Glpi::OperationCatalogue.fetch('problem_group.create').fetch(:type)
+    assert_equal 'Change_Group', JrcServiceDesk::Glpi::OperationCatalogue.fetch('change_group.create').fetch(:type)
+  end
 end

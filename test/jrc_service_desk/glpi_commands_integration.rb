@@ -4,7 +4,7 @@ require_relative 'glpi_test_helper'
 
 # Synthetic GLPI state, behind the real command service; never connects to a server.
 class GlpiCommandSource
-  attr_accessor :failure, :on_profile, :ignore_write, :denied, :skip_solution_status
+  attr_accessor :failure, :on_profile, :ignore_write, :denied, :skip_solution_status, :confirmation_error
   attr_reader :writes, :rows
 
   def initialize
@@ -24,6 +24,9 @@ class GlpiCommandSource
       return { 'active_profile' => %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory tickettemplate].to_h { |key| [key, denied ? 0 : 1048575] } }
     end
     return { 'session' => { 'glpiID' => 900 } } if path == 'getFullSession/'
+    if confirmation_error && writes.any? && path == "#{writes.last[1]}/#{writes.last[2] || 501}"
+      raise JrcServiceDesk::Glpi::Error.new(confirmation_error, 403)
+    end
     row = rows[path]
     raise JrcServiceDesk::Glpi::Error.new('ERROR_ITEM_NOT_FOUND', 404) unless row
 
@@ -33,7 +36,7 @@ class GlpiCommandSource
   def collection(path, *)
     return [{ 'id' => 1, 'knowbaseitems_id' => 501, 'entities_id' => 0 }] if path == 'KnowbaseItem/501/Entity_KnowbaseItem/'
     return [{ 'id' => 1, 'users_id' => 77, 'entities_id' => 0 }] if path == 'User/77/Profile_User/'
-    if path.match?(%r{\A(?:Ticket|Problem|Change)/\d+/(?:Ticket_User|Group_Ticket|Problem_User|Problem_Group|Change_User|Change_Group)/\z})
+    if path.match?(%r{\A(?:Ticket|Problem|Change)/\d+/(?:Ticket_User|Group_Ticket|Problem_User|Group_Problem|Change_User|Change_Group)/\z})
       type, id, relation = path.split('/')
       row = rows["#{type}/#{id}"] || {}
       key = relation.include?('Group') ? 'groups_id' : 'users_id'
@@ -57,9 +60,11 @@ class GlpiCommandSource
   end
 
   def write!(verb, type, id, input)
+    raise JrcServiceDesk::Glpi::Error.new('ERROR_RESOURCE_NOT_FOUND', 404) if type == 'Problem_Group'
     raise 'Intent was not durable before sending' unless JrcServiceDesk::GlpiCommand.where(state: 'sending').exists?
 
     writes << [verb, type, id, input.deep_dup]
+    raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if failure == 'ERROR_RIGHT_MISSING'
     id ||= 501
     unless ignore_write
       if verb == :delete
@@ -267,5 +272,52 @@ class GlpiCommandsTest < GlpiIntegrationTest
     refute_includes input['content'], 'javascript:'
     refute input.key?('content_format')
     assert_raises(ArgumentError) { execute(attributes: { 'name' => 'No content', 'content_format' => 'rich' }) }
+  end
+
+  def test_confirmation_denial_after_accepted_post_remains_reconcilable_without_reposting
+    @remote.confirmation_error = 'ERROR_RIGHT_MISSING'
+    receipt = execute('followup.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Accepted remotely' })
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal '501', receipt[:remote_id]
+    @remote.confirmation_error = nil
+    reconciled = JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
+      access: JrcServiceDesk::Glpi::Access.new(@identity), command: JrcServiceDesk::GlpiCommand.find(receipt[:id]))
+    assert_equal 'succeeded', reconciled[:state]
+    assert_equal 1, @remote.writes.size
+  end
+
+  def test_source_write_denial_is_rejected_before_remote_mutation
+    @remote.failure = 'ERROR_RIGHT_MISSING'
+    receipt = execute(attributes: { 'name' => 'Must not be written' })
+    assert_equal 'rejected', receipt[:state]
+    assert_equal 'ERROR_RIGHT_MISSING', receipt[:error_code]
+    refute @remote.rows['Ticket/101'].key?('name')
+  end
+
+  def test_problem_group_assignment_and_links_use_the_real_api_relation
+    @remote.rows['Group/701'] = { 'id' => 701, 'entities_id' => 0 }
+    receipt = execute('problem.assign', target: 201, attributes: { '_groups_id_assign' => 701 })
+    assert_equal 'succeeded', receipt[:state]
+    created = execute('problem_group.create', target: nil, attributes: { 'parent_id' => 201, 'groups_id' => 701, 'type' => 2 })
+    assert_equal 'succeeded', created[:state]
+    assert_equal 'Group_Problem', @remote.writes.last[1]
+    assert_equal 'succeeded', execute('problem_group.delete', target: 501, attributes: { 'parent_id' => 201 })[:state]
+  end
+
+  def test_stale_parent_version_prevents_every_child_post
+    { 'ticket.solve' => { 'content' => 'Solution' }, 'task.create' => { 'content' => 'Task' },
+      'followup.create' => { 'content' => 'Followup' } }.each do |operation, attributes|
+      receipt = execute(operation, target: nil, attributes: attributes.merge('parent_id' => 101), expected_version: 'stale')
+      assert_equal 'rejected', receipt[:state], operation
+      assert_equal 'version_conflict', receipt[:error_code], operation
+    end
+    assert_empty @remote.writes
+  end
+
+  def test_parentless_create_rejects_an_unsupported_expected_version
+    assert_raises(ArgumentError) do
+      execute('problem.create', target: nil, attributes: { 'name' => 'New problem', 'content' => 'Description' }, expected_version: 'stale')
+    end
+    assert_empty @remote.writes
   end
 end
