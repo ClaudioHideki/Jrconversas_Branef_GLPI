@@ -3,7 +3,8 @@
 require 'cgi'
 
 class JrcServiceDesk::Glpi::CommandInput
-  attr_reader :operation, :descriptor, :target_id, :parent_id, :entity_id, :input, :expected_version, :reason, :content_format, :template_id
+  attr_reader :operation, :descriptor, :target_id, :parent_id, :entity_id, :input, :expected_version, :reason,
+              :content_format, :template_id, :template_selector_provided
 
   def initialize(operation:, target_id:, entity_id:, attributes:, expected_version: nil, reason: nil, prepared: false, partial: false)
     @operation = operation
@@ -25,6 +26,7 @@ class JrcServiceDesk::Glpi::CommandInput
     allowed = descriptor[:fields] + %w[content_format] + (descriptor[:parent] ? %w[parent_id] : [])
     values = JrcServiceDesk::Input.attributes(attributes, allowed)
     if operation == 'ticket.create'
+      @template_selector_provided = values.key?('template_id')
       selected = values.delete('template_id')
       @template_id = JrcServiceDesk::Glpi::Identifiers.remote(selected) unless selected.nil? || selected == ''
       @template_id = nil if @template_id == 0

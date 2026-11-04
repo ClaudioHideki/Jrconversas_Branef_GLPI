@@ -10,7 +10,7 @@ class GlpiCommandSource
     @rows = { 'Ticket/101' => { 'id' => 101, 'entities_id' => 0, 'date_mod' => 'v1', 'type' => 1 },
       'Problem/201' => { 'id' => 201, 'entities_id' => 0, 'date_mod' => 'v1' },
       'Change/301' => { 'id' => 301, 'entities_id' => 0, 'date_mod' => 'v1' },
-      'Entity/0' => { 'id' => 0, 'entities_id' => nil, 'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 } }
+      'Entity/0' => { 'id' => 0, 'entities_id' => nil, 'tickettype' => 1, 'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 } }
   end
 
   def session

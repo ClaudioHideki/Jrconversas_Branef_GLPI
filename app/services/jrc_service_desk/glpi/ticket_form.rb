@@ -26,13 +26,18 @@ class JrcServiceDesk::Glpi::TicketForm
     @access.unit_for(@entity)
     @client = client
     @scope = JrcServiceDesk::Glpi::MetadataScope.new(access: @access, client: client, entity_id: @entity)
-    type = JrcServiceDesk::Input.id(values.fetch('type', 1))
+    @type_supplied = values['type'].present?
+    type = @type_supplied ? JrcServiceDesk::Input.id(values['type']) : entity_default_type
     raise ArgumentError unless [1, 2].include?(type)
 
     category_id = optional_id(values['category_id'])
     explicit = optional_id(values['template_id'])
     profile = client.get('getActiveProfile/').fetch('active_profile')
     raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) if (profile.fetch('ticket', 0).to_i & 4).zero?
+    entities = client.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities')
+    invalid! unless entities.is_a?(Array)
+    permitted = entities.any? { |row| JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('id')) == @entity }
+    raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) unless permitted
 
     @options = client.get('listSearchOptions/Ticket/')
     invalid! unless @options.is_a?(Hash)
@@ -99,6 +104,25 @@ class JrcServiceDesk::Glpi::TicketForm
       row = @scope.entity(id)
       return optional_id(row.fetch('tickettemplates_id')) unless row.fetch('tickettemplates_strategy').to_s == '-2'
       return 0 if id.zero? || row['entities_id'].nil?
+
+      id = JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('entities_id'))
+    end
+  end
+
+  def entity_default_type
+    id = @entity
+    visited = []
+    loop do
+      invalid! if visited.include?(id) || visited.length >= 100
+      visited << id
+      row = @scope.entity(id)
+      value = row.fetch('tickettype')
+      unless value.to_s == '-2'
+        number = JrcServiceDesk::Glpi::Identifiers.remote(value)
+        invalid! unless [1, 2].include?(number)
+        return number
+      end
+      return 1 if id.zero? || row['entities_id'].nil?
 
       id = JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('entities_id'))
     end
@@ -178,7 +202,7 @@ class JrcServiceDesk::Glpi::TicketForm
     hidden = Array(template&.fetch(:hidden)).uniq.sort
     predefined = { 'type' => type, 'itilcategories_id' => category, 'urgency' => 3, 'impact' => 3, 'status' => 1 }
       .merge(template ? template[:predefined] : {})
-    predefined['type'] = type if type != 1 && !hidden.include?('type')
+    predefined['type'] = type if @type_supplied && type != 1 && !hidden.include?('type')
     predefined['itilcategories_id'] = category if category.positive? && !hidden.include?('itilcategories_id')
     validate_references!(predefined)
     unsupported = (required - FIELDS) + Array(template&.fetch(:unsupported))
@@ -196,7 +220,7 @@ class JrcServiceDesk::Glpi::TicketForm
     # Provenance does not make the same effective form a different policy.
     result[:version] = JrcServiceDesk::CanonicalJson.digest(result.except(:template_source).merge(
       connection_id: @access.connection.id, connection_version: @access.connection.lock_version,
-      profile_id: profile.fetch('id'), template_revision: template&.fetch(:revision)))
+      profile_id: JrcServiceDesk::Input.id(profile.fetch('id')), template_revision: template&.fetch(:revision)))
     result
   end
 

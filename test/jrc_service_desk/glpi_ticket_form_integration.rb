@@ -3,7 +3,7 @@
 require_relative 'glpi_commands_integration'
 
 class GlpiTicketFormSource < GlpiCommandSource
-  attr_accessor :profile_template, :metadata_denied, :on_template_read
+  attr_accessor :profile_template, :metadata_denied, :on_template_read, :allowed_entities
   attr_reader :rules, :options, :user_profiles
 
   def initialize
@@ -33,7 +33,7 @@ class GlpiTicketFormSource < GlpiCommandSource
     raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if metadata_denied == path
     return options.deep_dup if path == 'listSearchOptions/Ticket/'
     if path == 'getMyEntities/'
-      return { 'myentities' => rows.select { |key, _| key.match?(%r{\AEntity/\d+\z}) }.values }
+      return { 'myentities' => allowed_entities || rows.select { |key, _| key.match?(%r{\AEntity/\d+\z}) }.values }
     end
     if path == 'getActiveProfile/'
       return { 'active_profile' => { 'id' => 6, 'ticket' => 1048575, 'tickettemplates_id' => profile_template } }
@@ -288,5 +288,53 @@ class GlpiTicketFormTest < GlpiIntegrationTest
     assert_equal 'rejected', receipt[:state]
     assert_equal 'not_authorized', receipt[:error_code]
     assert_empty @remote.writes
+  end
+
+  def test_predefined_selector_round_trip_and_rich_description_preserve_safe_content
+    @remote.rules[10]['Predefined'] = [{ 'id' => 1, 'tickettemplates_id' => 10, 'num' => 14, 'value' => '2' },
+      { 'id' => 2, 'tickettemplates_id' => 10, 'num' => 21, 'value' => '<p>Mandatory prompt</p><script>alert(1)</script>' }]
+    initial = form
+    assert_equal 2, initial[:type]
+    assert_equal initial[:version], form(type: 2)[:version]
+    refute_includes initial[:predefined_html]['content'], '<script>'
+    receipt = create({ 'type' => 2, 'content' => '<table><tr><td>Filled with actual facts</td></tr></table>',
+      'content_format' => 'rich' }, template_version: initial[:version])
+    assert_equal 'succeeded', receipt[:state], receipt.inspect
+    assert_includes @remote.writes.last.last['content'], '<table>'
+    refute @remote.writes.last.last.key?('content_format')
+  end
+
+  def test_ambiguous_primary_ticket_post_replays_and_reconciles_without_resending_or_reapplying_current_defaults
+    @remote.failure = 'source_unavailable'
+    receipt = create({}, key: 'ambiguous-form')
+    assert_equal 'indeterminate', receipt[:state]
+    @remote.metadata_denied = 'TicketTemplate/10/TicketTemplateMandatoryField/'
+    assert_equal receipt[:id], create({}, key: 'ambiguous-form')[:id]
+    assert_equal 1, @remote.writes.size
+    @remote.failure = nil
+    reconciled = JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
+      access: @access, command: JrcServiceDesk::GlpiCommand.find(receipt[:id]), remote_id: 501)
+    assert_equal 'succeeded', reconciled[:state], reconciled.inspect
+    assert_equal 1, @remote.writes.size
+  end
+
+  def test_form_requires_source_session_entity_permission_even_for_an_explicit_same_entity_template
+    @remote.allowed_entities = []
+    error = assert_raises(JrcServiceDesk::Glpi::Error) { form(template_id: 10) }
+    assert_equal 'operation_not_permitted', error.code
+    assert_equal 403, error.http_status
+    assert_empty @remote.writes
+  end
+
+  def test_omitted_type_uses_entity_default_before_selecting_a_category_model
+    @remote.rows['Entity/0']['tickettype'] = 2
+    policy = @form.call(access: @access, client: @remote, filters: { 'entity_id' => 0, 'category_id' => 7 })
+    assert_equal 2, policy[:type]
+    assert_equal 21, policy[:template_id]
+    receipt = create({ 'itilcategories_id' => 7 })
+    assert_equal 'succeeded', receipt[:state], receipt.inspect
+    assert_equal 2, @remote.writes.last.last['type']
+    assert_equal 21, @remote.writes.last.last['_tickettemplate']
+    assert_equal 20, form(category_id: 7, type: 1)[:template_id]
   end
 end
