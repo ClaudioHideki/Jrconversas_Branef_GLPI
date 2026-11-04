@@ -13,6 +13,8 @@ import ServiceDeskAPI from 'dashboard/api/serviceDesk';
 import StructureAPI from 'dashboard/api/serviceDeskStructure';
 import { structureContext } from './helpers/structure.js';
 const pages = {
+  glpiServiceDesk: () => import('./glpi/GlpiServiceDesk.vue'),
+  nativeHistory: () => import('./glpi/NativeHistory.vue'),
   glpi: () => import('./glpi/GlpiWorkspace.vue'),
   glpiSettings: () => import('./glpi/GlpiSettings.vue'),
   overview: () => import('./views/OverviewView.vue'),

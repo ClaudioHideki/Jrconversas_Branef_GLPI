@@ -122,7 +122,10 @@ const summaryFields = [
 </script>
 
 <template>
-  <section class="grid gap-4" :data-testid="`glpi-resource-${resource}`">
+  <section
+    class="grid gap-4"
+    :data-testid="`glpi-resource-${resource}`"
+  >
     <h3 class="font-semibold">{{ t(`JRC_GLPI.resources.${resource}`) }}</h3>
     <form
       v-if="!parentId"
@@ -144,7 +147,10 @@ const summaryFields = [
         :disabled="glpi.state.loading[key]"
       />
     </form>
-    <p v-if="glpi.state.loading[key]" role="status">
+    <p
+      v-if="glpi.state.loading[key]"
+      role="status"
+    >
       {{ t('JRC_GLPI.loading') }}
     </p>
     <p
@@ -156,7 +162,10 @@ const summaryFields = [
     </p>
     <template v-if="data">
       <GlpiCoverage :coverage="data.coverage" />
-      <p v-if="!data.items.length" class="text-sm">
+      <p
+        v-if="!data.items.length"
+        class="text-sm"
+      >
         {{ t('JRC_GLPI.empty_history') }}
       </p>
       <div class="grid gap-2 lg:grid-cols-2">
@@ -168,33 +177,38 @@ const summaryFields = [
           :aria-pressed="selected?.id === row.id"
           @click="open(row)"
         >
-          <span class="font-semibold">{{
-            row.name ||
-            row.filename ||
-            t('JRC_GLPI.workspace.record_number', { id: row.id })
-          }}</span>
+          <span class="font-semibold">
+            {{
+              row.name ||
+              row.filename ||
+              t('JRC_GLPI.workspace.record_number', { id: row.id })
+            }}
+          </span>
           <span
             v-if="row.is_private !== undefined"
             class="text-xs text-n-slate-11"
-            >{{
+          >
+            {{
               t(
                 row.is_private
                   ? 'JRC_GLPI.workspace.private'
                   : 'JRC_GLPI.workspace.public'
               )
-            }}</span
-          >
-          <span class="line-clamp-3 whitespace-pre-wrap break-words text-sm">{{
-            row.content ||
-            row.answer ||
-            row.comment_submission ||
-            row.comment_validation ||
-            row.comment ||
-            ''
-          }}</span>
-          <time class="text-xs text-n-slate-11">{{
-            row.date_mod || row.date || row.begin
-          }}</time>
+            }}
+          </span>
+          <span class="line-clamp-3 whitespace-pre-wrap break-words text-sm">
+            {{
+              row.content ||
+              row.answer ||
+              row.comment_submission ||
+              row.comment_validation ||
+              row.comment ||
+              ''
+            }}
+          </span>
+          <time class="text-xs text-n-slate-11">
+            {{ row.date_mod || row.date || row.begin }}
+          </time>
         </button>
       </div>
       <Pagination
@@ -230,7 +244,10 @@ const summaryFields = [
             v-dompurify-html="selected[`${field}_html`]"
             class="prose prose-sm max-w-none overflow-x-auto break-words"
           />
-          <dd v-else class="whitespace-pre-wrap break-words text-sm">
+          <dd
+            v-else
+            class="whitespace-pre-wrap break-words text-sm"
+          >
             {{ selected[field] }}
           </dd>
         </template>

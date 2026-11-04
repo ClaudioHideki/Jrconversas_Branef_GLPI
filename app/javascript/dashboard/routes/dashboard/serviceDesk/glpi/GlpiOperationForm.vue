@@ -240,12 +240,15 @@ const submit = async () => {
     <p class="text-xs text-n-amber-11">
       {{ t('JRC_GLPI.workspace.homologation') }}
     </p>
-    <p v-if="!operations.length" role="status">
+    <p
+      v-if="!operations.length"
+      role="status"
+    >
       {{ t('JRC_GLPI.workspace.no_operations') }}
     </p>
     <template v-else>
-      <label class="grid gap-1 text-xs"
-        >{{ t('JRC_GLPI.workspace.action') }}
+      <label class="grid gap-1 text-xs">
+        {{ t('JRC_GLPI.workspace.action') }}
         <select
           v-model="operation"
           :disabled="busy || !!receipt"
@@ -262,16 +265,29 @@ const submit = async () => {
           </option>
         </select>
       </label>
-      <p v-if="blocked" role="status" class="text-sm text-n-amber-11">
+      <p
+        v-if="blocked"
+        role="status"
+        class="text-sm text-n-amber-11"
+      >
         {{ t(`JRC_GLPI.workspace.blocks.${blocked}`) }}
       </p>
-      <p v-else class="text-xs text-n-slate-11">
+      <p
+        v-else
+        class="text-xs text-n-slate-11"
+      >
         {{ t('JRC_GLPI.workspace.item_check') }}
       </p>
-      <p v-if="missingTarget" role="status">
+      <p
+        v-if="missingTarget"
+        role="status"
+      >
         {{ t('JRC_GLPI.workspace.select_record') }}
       </p>
-      <p v-if="unknownField" role="alert">
+      <p
+        v-if="unknownField"
+        role="alert"
+      >
         {{ t('JRC_GLPI.workspace.unsupported_fields') }}
       </p>
       <form
@@ -279,8 +295,8 @@ const submit = async () => {
         class="grid gap-3 sm:grid-cols-2"
         @submit.prevent="submit"
       >
-        <label class="grid gap-1 text-xs"
-          >{{ t('JRC_GLPI.entity') }}
+        <label class="grid gap-1 text-xs">
+          {{ t('JRC_GLPI.entity') }}
           <select
             v-model="entityId"
             required
@@ -297,7 +313,11 @@ const submit = async () => {
             </option>
           </select>
         </label>
-        <p v-if="descriptor.parent && !parent" class="text-sm" role="status">
+        <p
+          v-if="descriptor.parent && !parent"
+          class="text-sm"
+          role="status"
+        >
           {{ t('JRC_GLPI.workspace.select_parent') }}
         </p>
         <label
@@ -380,25 +400,28 @@ const submit = async () => {
             @click="enableRich(field)"
           />
         </label>
-        <label class="grid gap-1 text-xs sm:col-span-2"
-          >{{ t('JRC_GLPI.workspace.reason')
-          }}<input
+        <label class="grid gap-1 text-xs sm:col-span-2">
+          {{ t('JRC_GLPI.workspace.reason') }}
+          <input
             v-model="reason"
             :disabled="busy || !!receipt"
             :required="descriptor.verb === 'delete'"
             maxlength="1000"
             class="!mb-0 w-full rounded-lg border border-n-weak px-3 py-2 text-sm"
-        /></label>
+          />
+        </label>
         <label
           v-if="descriptor.verb === 'delete'"
           class="flex gap-2 text-xs sm:col-span-2"
-          ><input
+        >
+          <input
             v-model="confirmed"
             type="checkbox"
             required
             :disabled="busy || !!receipt"
-          />{{ t('JRC_GLPI.workspace.confirm_delete') }}</label
-        >
+          />
+          {{ t('JRC_GLPI.workspace.confirm_delete') }}
+        </label>
         <Button
           type="submit"
           :label="t('JRC_GLPI.workspace.execute')"

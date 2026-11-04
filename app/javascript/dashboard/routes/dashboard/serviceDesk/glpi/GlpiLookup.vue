@@ -86,11 +86,13 @@ watch(
       v-if="glpi.state.errors.lookup"
       role="alert"
       class="text-xs text-n-ruby-11"
-      >{{
-        t('JRC_GLPI.source_code', { code: glpi.state.errors.lookup.code })
-      }}</span
     >
-    <span v-if="result?.meta && result.meta.total > 25" class="flex gap-2">
+      {{ t('JRC_GLPI.source_code', { code: glpi.state.errors.lookup.code }) }}
+    </span>
+    <span
+      v-if="result?.meta && result.meta.total > 25"
+      class="flex gap-2"
+    >
       <Button
         type="button"
         size="xs"

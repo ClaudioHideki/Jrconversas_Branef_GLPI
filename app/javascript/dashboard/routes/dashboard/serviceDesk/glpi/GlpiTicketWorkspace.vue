@@ -81,7 +81,10 @@ const create = () =>
 </script>
 
 <template>
-  <section class="grid gap-4" data-testid="glpi-ticket-workspace">
+  <section
+    class="grid gap-4"
+    data-testid="glpi-ticket-workspace"
+  >
     <GlpiOperationForm
       v-if="screen === 'new'"
       :glpi="glpi"
@@ -89,25 +92,39 @@ const create = () =>
       @succeeded="receipt => receipt.remote_id && open(receipt.remote_id)"
     />
     <template v-else-if="selectedId">
-      <p v-if="glpi.state.loading.detail" role="status">
+      <p
+        v-if="glpi.state.loading.detail"
+        role="status"
+      >
         {{ t('JRC_GLPI.loading') }}
       </p>
       <template v-if="detail">
         <article class="grid gap-3 rounded-xl border border-n-weak p-4">
           <h3 class="text-lg font-semibold">
-            {{ t('JRC_GLPI.ticket_number', { id: detail.ticket.id }) }} ·
-            {{ detail.ticket.title }}
+            {{
+              t('JRC_GLPI.workspace.record_title', {
+                number: t('JRC_GLPI.ticket_number', { id: detail.ticket.id }),
+                title: detail.ticket.title,
+              })
+            }}
           </h3>
           <p class="text-sm">
-            {{ t(`JRC_GLPI.statuses.${detail.ticket.status}`) }} ·
-            {{ t(`JRC_GLPI.priorities.${detail.ticket.priority}`) }}
+            {{
+              t('JRC_GLPI.workspace.record_state', {
+                status: t(`JRC_GLPI.statuses.${detail.ticket.status}`),
+                priority: t(`JRC_GLPI.priorities.${detail.ticket.priority}`),
+              })
+            }}
           </p>
           <div
             v-if="detail.ticket.description_html"
             v-dompurify-html="detail.ticket.description_html"
             class="prose prose-sm max-w-none overflow-x-auto break-words"
           />
-          <p v-else class="whitespace-pre-wrap break-words text-sm">
+          <p
+            v-else
+            class="whitespace-pre-wrap break-words text-sm"
+          >
             {{ detail.ticket.description }}
           </p>
           <p class="text-xs text-n-slate-11">
@@ -118,8 +135,12 @@ const create = () =>
             }}
           </p>
           <p class="text-sm">
-            {{ t('JRC_GLPI.solution_deadline') }}:
-            {{ detail.ticket.time_to_resolve || t('JRC_GLPI.no_deadline') }}
+            {{
+              t('JRC_GLPI.workspace.deadline_value', {
+                value:
+                  detail.ticket.time_to_resolve || t('JRC_GLPI.no_deadline'),
+              })
+            }}
           </p>
         </article>
         <GlpiOperationForm
@@ -177,7 +198,10 @@ const create = () =>
           load();
         "
       />
-      <p v-if="glpi.state.loading.tickets" role="status">
+      <p
+        v-if="glpi.state.loading.tickets"
+        role="status"
+      >
         {{ t('JRC_GLPI.loading') }}
       </p>
       <template v-if="list">
@@ -240,7 +264,10 @@ const create = () =>
             </tbody>
           </table>
         </div>
-        <p v-if="!list.items.length" class="text-sm">
+        <p
+          v-if="!list.items.length"
+          class="text-sm"
+        >
           {{ t('JRC_GLPI.empty') }}
         </p>
         <Pagination

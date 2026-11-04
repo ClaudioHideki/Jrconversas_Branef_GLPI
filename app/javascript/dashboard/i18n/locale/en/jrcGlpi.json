@@ -174,7 +174,12 @@
       "add_category": "Adicionar categoria conferida",
       "sync_heading": "Coleta de chamados GLPI · índice de leitura",
       "sync_help": "Atualiza projeções e cobertura por meio de leituras da origem, sem alterar chamados.",
-      "sync_start": "Atualizar índice e cobertura"
+      "sync_start": "Atualizar índice e cobertura",
+      "record_title": "{number} · {title}",
+      "record_state": "{status} · {priority}",
+      "deadline_value": "Prazo de solução: {value}",
+      "export_progress": "{state} · {processed} / {total}",
+      "search": "Pesquisar por número ou título"
     },
     "receipts": {
       "pending": "Intenção registrada; aguardando processamento.",
