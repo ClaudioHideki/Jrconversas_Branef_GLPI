@@ -71,6 +71,11 @@ $foreign = (int) $entity->add(['name' => 'BRANEF LAB FOREIGN', 'entities_id' => 
 if (!$support || !$child || !$foreign) {
     throw new RuntimeException('Synthetic entity setup failed');
 }
+$narrowToken = bin2hex(random_bytes(20));
+$narrow = insert('glpi_users', ['name' => 'branef_lab_narrow_' . bin2hex(random_bytes(4)), 'is_active' => 1,
+    'profiles_id' => $profile['id'], 'entities_id' => $support, 'api_token' => $narrowToken, 'authtype' => 1]);
+insert('glpi_profiles_users', ['users_id' => $narrow, 'profiles_id' => $profile['id'], 'entities_id' => 0,
+    'is_recursive' => 1, 'is_default_profile' => 1]);
 $tickets = [];
 foreach (['root' => 0, 'support' => $support, 'child' => $child, 'foreign' => $foreign, 'limited_own' => 0] as $label => $entityId) {
     $requester = $label === 'limited_own' ? $limited : $technical;
@@ -97,7 +102,8 @@ $catalogues = [
 insert('glpi_groups_users', ['groups_id' => $catalogues['group'], 'users_id' => $technical, 'is_manager' => 1]);
 $fixtures = ['version' => GLPI_VERSION, 'technical_user_id' => $technical, 'limited_user_id' => $limited,
     'entities' => ['root' => 0, 'support' => $support, 'child' => $child, 'foreign' => $foreign], 'tickets' => $tickets, 'catalogues' => $catalogues,
-    'app_token' => $appToken, 'user_token' => $technicalToken, 'limited_token' => $limitedToken];
+    'app_token' => $appToken, 'user_token' => $technicalToken, 'limited_token' => $limitedToken,
+    'narrow_token' => $narrowToken, 'narrow_user_id' => $narrow];
 $path = '/lab-out/fixtures.json';
 file_put_contents($path, json_encode($fixtures, JSON_THROW_ON_ERROR));
 chmod($path, 0600);
