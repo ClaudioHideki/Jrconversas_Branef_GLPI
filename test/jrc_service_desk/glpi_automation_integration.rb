@@ -278,4 +278,17 @@ class GlpiAutomationTest < GlpiIntegrationTest
       assert_empty @remote.writes
     end
   end
+
+  def test_actual_nico_http_prepare_reports_glpi_unavailability_without_a_native_fallback
+    @connection.update!(enabled: false)
+    http = ActionDispatch::Integration::Session.new(Rails.application)
+    http.post("/api/v1/accounts/#{@account.id}/jrc_nico/operations/prepare", headers: @user.create_new_auth_token,
+      params: { message: 'Create synthetic GLPI ticket', request_id: SecureRandom.uuid, tool: 'create_glpi_ticket',
+        arguments: { destination: { connection_id: @connection.id, connection_version: @connection.lock_version, entity_id: 0 },
+          attributes: { name: 'No native fallback', content: 'Description', type: 1, urgency: 3, impact: 3 } } }, as: :json)
+    assert_equal 422, http.response.status
+    assert_equal 'not_configured', JSON.parse(http.response.body)['error']
+    assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
+    assert_empty @remote.writes
+  end
 end
