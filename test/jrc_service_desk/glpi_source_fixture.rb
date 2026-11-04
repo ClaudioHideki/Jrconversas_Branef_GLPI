@@ -19,8 +19,15 @@ class GlpiCommandSource
   def get(path, *)
     if path == 'getActiveProfile/'
       on_profile&.call
-      return { 'active_profile' => %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory itiltemplate].to_h { |key| [key, denied ? 0 : 1048575] } }
+      profile = %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory itiltemplate].to_h { |key| [key, denied ? 0 : 1048575] }
+      return { 'active_profile' => profile.merge('id' => 6, 'tickettemplates_id' => 0) }
     end
+    return { '1' => { 'table' => 'glpi_tickets', 'field' => 'name' },
+      '21' => { 'table' => 'glpi_tickets', 'field' => 'content' }, '14' => { 'table' => 'glpi_tickets', 'field' => 'type' },
+      '10' => { 'table' => 'glpi_tickets', 'field' => 'urgency' }, '11' => { 'table' => 'glpi_tickets', 'field' => 'impact' },
+      '3' => { 'table' => 'glpi_tickets', 'field' => 'priority' }, '12' => { 'table' => 'glpi_tickets', 'field' => 'status' },
+      '7' => { 'table' => 'glpi_itilcategories', 'field' => 'completename' } } if path == 'listSearchOptions/Ticket/'
+    return { 'id' => 0, 'entities_id' => nil, 'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 } if path == 'Entity/0'
     return { 'session' => { 'glpiID' => 900 } } if path == 'getFullSession/'
     return { 'myentities' => [{ 'id' => 0, 'name' => 'Synthetic root' }] } if path == 'getMyEntities/'
     return { 'totalcount' => 1, 'data' => [{ '2' => 101, '1' => 'Synthetic', '80' => 'Root' }] } if path == 'search/Ticket/'
