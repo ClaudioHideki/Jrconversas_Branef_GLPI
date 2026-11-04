@@ -30,7 +30,7 @@ class JrcServiceDesk::GlpiConnection < JrcServiceDesk::AccountRecord
     return if namespaces.first == namespaces.last
 
     history = [JrcServiceDesk::GlpiCommand, JrcServiceDesk::GlpiTicketSnapshot,
-               JrcServiceDesk::GlpiSyncRun, JrcServiceDesk::GlpiExport]
+               JrcServiceDesk::GlpiSyncRun, JrcServiceDesk::GlpiExport, JrcServiceDesk::GlpiReference]
     return unless history.any? { |model| model.where(glpi_connection_id: id).exists? }
 
     errors.add(:base_url, :connection_namespace_locked,

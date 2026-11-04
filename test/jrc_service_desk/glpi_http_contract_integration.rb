@@ -170,6 +170,14 @@ class GlpiHttpContractTest < GlpiIntegrationTest
     assert_equal 'https://corrected-glpi.example.invalid/apirest.php', @connection.reload.base_url
   end
 
+  def test_invalid_endpoint_is_a_validation_error_even_with_history
+    JrcServiceDesk::GlpiReference.create!(account: @account, glpi_connection: @connection, unit: @unit,
+      itemtype: 'Ticket', remote_id: 101, entity_id: 0)
+    @connection.base_url = '%%%invalid-uri'
+    refute @connection.valid?
+    assert @connection.errors.any?
+  end
+
   def test_reference_only_history_also_locks_its_source_namespace
     JrcServiceDesk::GlpiReference.create!(account: @account, glpi_connection: @connection, unit: @unit,
       itemtype: 'Ticket', remote_id: 101, entity_id: 0)
