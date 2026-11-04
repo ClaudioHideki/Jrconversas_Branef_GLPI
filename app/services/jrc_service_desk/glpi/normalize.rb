@@ -3,7 +3,7 @@
 require 'cgi'
 
 module JrcServiceDesk::Glpi::Normalize
-  FIELDS = { '2' => 'id', '1' => 'title', '80' => 'entity', '12' => 'status', '3' => 'priority', '15' => 'opened_at',
+  FIELDS = { '2' => 'id', '1' => 'title', '80' => 'entity', '12' => 'status', '3' => 'priority', '15' => 'opened_at', '14' => 'type',
              '19' => 'updated_at', '17' => 'solved_at', '16' => 'closed_at', '7' => 'category', '5' => 'technician',
              '8' => 'group', '18' => 'solution_deadline', '82' => 'solution_exceeded', '155' => 'response_deadline',
              '30' => 'solution_sla', '37' => 'response_sla' }.freeze
