@@ -45,6 +45,8 @@ class JrcServiceDesk::Glpi::OperationCatalogue
     end
     add.call('validation.request', 'TicketValidation', 'post', 'approvals_request', %w[users_id_validate comment_submission],
              parent: 'Ticket', parent_field: 'tickets_id', required: %w[users_id_validate comment_submission], source_right: ['ticketvalidation', 3072])
+    add.call('document.upload', 'Document', 'post', 'tickets_assign', %w[name], multipart: true,
+             parent: 'Ticket', parent_field: 'items_id', source_right: ['document', 4])
     add.call('validation.decide', 'TicketValidation', 'patch', 'approvals_decide', %w[status comment_validation],
              parent: 'Ticket', parent_field: 'tickets_id', required: %w[status comment_validation], source_right: ['ticketvalidation', 12288])
     { 'actor' => ['Ticket_User', %w[users_id type]], 'group' => ['Group_Ticket', %w[groups_id type]],

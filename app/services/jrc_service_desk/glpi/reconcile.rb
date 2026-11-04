@@ -16,6 +16,10 @@ class JrcServiceDesk::Glpi::Reconcile
     access.unit_for(command.entity_id)
     descriptor = JrcServiceDesk::Glpi::OperationCatalogue.fetch(command.operation)
     @executor.authorize_local!(access, descriptor)
+    if command.operation == 'document.upload'
+      return JrcServiceDesk::Glpi::Documents.new(client_factory: @client_factory).reconcile(access: access, command: command, remote_id: remote_id)
+    end
+
     @executor.with_object_lock(command) do
       command.reload
       return command.receipt if command.state == 'succeeded'

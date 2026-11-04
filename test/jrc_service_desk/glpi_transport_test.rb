@@ -190,4 +190,56 @@ class GlpiTransportTest < Minitest::Test
       assert_equal 'invalid_response', error.code
     end
   end
+
+  def test_multipart_upload_uses_only_document_endpoint_and_generated_filename
+    @responses = [Response.new('201', { 'id' => 601 }, {})]
+    SsrfFilter.stub(:post, @transport) do
+      assert_equal({ 'id' => 601 }, @client.upload_document({ 'name' => 'Attachment', 'entities_id' => 0 },
+        bytes: "abc\x00".b, filename: 'jrc_safe.txt', content_type: 'text/plain'))
+      request = @requests.first
+      assert_equal 'https://glpi.example.invalid/apirest.php/Document/', request[:url]
+      assert_match(/multipart\/form-data; boundary=/, request[:headers]['Content-Type'])
+      assert_includes request[:body], 'name="uploadManifest"'
+      assert_includes request[:body], 'name="filename[0]"; filename="jrc_safe.txt"'
+      assert_includes request[:body], "abc\x00".b
+    end
+    assert_raises(ArgumentError) do
+      @client.upload_document({}, bytes: 'x', filename: "../evil\r\nx.txt", content_type: 'text/plain')
+    end
+  end
+
+  def test_binary_download_uses_exact_document_path_and_bounds_response_without_truncating
+    response = Object.new
+    def response.code; '200'; end
+    def response.[](key); key == 'content-type' ? 'text/plain' : nil; end
+    def response.read_body; yield "a\x00b".b; end
+    @responses = [response]
+    SsrfFilter.stub(:get, @transport) do
+      result = @client.download_document(601)
+      assert_equal "a\x00b".b, result[:bytes]
+      assert_equal 'application/octet-stream', @requests.last[:headers]['Accept']
+      assert_equal 'https://glpi.example.invalid/apirest.php/Document/601', @requests.last[:url]
+      assert_raises(ArgumentError) { @client.download_document('https://evil.invalid') }
+    end
+  end
+
+  def test_binary_download_rejects_oversize_and_source_denial
+    oversized = Object.new
+    def oversized.code; '200'; end
+    def oversized.[](_); nil; end
+    def oversized.read_body; yield 'x' * (50.megabytes + 1); end
+    @responses = [oversized, Response.new('403', ['ERROR_RIGHT_MISSING', 'Denied'], {})]
+    SsrfFilter.stub(:get, @transport) do
+      assert_equal 'download_too_large', assert_raises(JrcServiceDesk::Glpi::Error) { @client.download_document(601) }.code
+      assert_equal 'ERROR_RIGHT_MISSING', assert_raises(JrcServiceDesk::Glpi::Error) { @client.download_document(601) }.code
+    end
+  end
+
+  def test_binary_download_rejects_partial_or_missing_file_payload
+    @responses = [Response.new('206', 'Partial', {}), Response.new('204', nil, {})]
+    SsrfFilter.stub(:get, @transport) do
+      assert_equal 'incomplete_download', assert_raises(JrcServiceDesk::Glpi::Error) { @client.download_document(601) }.code
+      assert_equal 'incomplete_download', assert_raises(JrcServiceDesk::Glpi::Error) { @client.download_document(601) }.code
+    end
+  end
 end

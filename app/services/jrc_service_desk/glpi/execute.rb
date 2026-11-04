@@ -15,6 +15,10 @@ class JrcServiceDesk::Glpi::Execute
 
   def call(access:, operation:, target_id:, entity_id:, attributes:, idempotency_key:, expected_version: nil, reason: nil,
            legacy_fingerprint: nil, prepared: false)
+    if JrcServiceDesk::Glpi::OperationCatalogue.fetch(operation)[:multipart]
+      raise JrcServiceDesk::Glpi::Error.new('multipart_required', 422)
+    end
+
     contract = JrcServiceDesk::Glpi::CommandInput.new(operation: operation, target_id: target_id, entity_id: entity_id,
       attributes: attributes, expected_version: expected_version, reason: reason, prepared: prepared)
     access = fresh_access(access)

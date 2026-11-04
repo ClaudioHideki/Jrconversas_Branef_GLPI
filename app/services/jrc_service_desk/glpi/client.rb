@@ -3,6 +3,7 @@
 require 'ssrf_filter'
 require 'json'
 require 'uri'
+require 'securerandom'
 require_relative 'collection'
 
 class JrcServiceDesk::Glpi::Client
@@ -69,6 +70,24 @@ class JrcServiceDesk::Glpi::Client
     last_response[:status] == 204 ? { 'id' => id, 'deleted' => true } : result
   end
 
+  # Binary transport is deliberately restricted to the official Document endpoint.
+  def upload_document(input, bytes:, filename:, content_type:)
+    raise ArgumentError unless filename.match?(/\A[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]{1,12})?\z/)
+    raise ArgumentError unless content_type.match?(/\A[a-zA-Z0-9!#$&^_.+-]+\/[a-zA-Z0-9!#$&^_.+-]+\z/)
+    raise JrcServiceDesk::Glpi::Error.new('upload_too_large', 413) if bytes.bytesize > 20.megabytes
+
+    boundary = "JRC#{SecureRandom.hex(24)}"
+    manifest = JSON.generate(input: input.merge('_filename' => [filename]))
+    body = +"--#{boundary}\r\nContent-Disposition: form-data; name=\"uploadManifest\"\r\nContent-Type: application/json\r\n\r\n#{manifest}\r\n"
+    body << "--#{boundary}\r\nContent-Disposition: form-data; name=\"filename[0]\"; filename=\"#{filename}\"\r\nContent-Type: #{content_type}\r\n\r\n"
+    body = body.b << bytes.b << "\r\n--#{boundary}--\r\n"
+    request(:post, 'Document/', encoded_body: body, extra_headers: { 'Content-Type' => "multipart/form-data; boundary=#{boundary}" })
+  end
+
+  def download_document(id)
+    request(:get, "Document/#{item_id!(id)}", extra_headers: { 'Accept' => 'application/octet-stream' }, binary: true)
+  end
+
   private
 
   def mutable_type!(type)
@@ -89,25 +108,38 @@ class JrcServiceDesk::Glpi::Client
     end
   end
 
-  def request(method, path, parameters: {}, body: nil, auth: false)
+  def request(method, path, parameters: {}, body: nil, auth: false, encoded_body: nil, extra_headers: {}, binary: false)
     raise ArgumentError unless path.is_a?(String) && path.match?(/\A[A-Za-z][A-Za-z0-9_]*(?:\/[A-Za-z0-9_]+)*\/?\z/)
 
     url = "#{connection.base_url.delete_suffix('/')}/#{path}"
     url += "?#{URI.encode_www_form(query_pairs(parameters))}" if parameters.any?
     headers = { 'Content-Type' => 'application/json', 'App-Token' => connection.app_token }
     headers[auth ? 'Authorization' : 'Session-Token'] = auth ? "user_token #{connection.user_token}" : @session_token
-    response_body = +''
+    headers.merge!(extra_headers)
+    response_body = +''.b
     status = nil
-    SsrfFilter.public_send(method, url, headers: headers, body: body && JSON.generate(body), max_redirects: 0,
+    content_type = nil
+    SsrfFilter.public_send(method, url, headers: headers, body: encoded_body || (body && JSON.generate(body)), max_redirects: 0,
                           sensitive_headers: %w[authorization app-token session-token],
                           http_options: { open_timeout: 5, read_timeout: 30 }) do |response|
       status = response.code.to_i
+      content_type = response['content-type']
       @last_response = { status: status, content_range: response['content-range'], accept_range: response['accept-range'] }.freeze
+      limit = binary && status == 200 ? 50.megabytes : 8.megabytes
+      too_large = binary && status == 200 ? 'download_too_large' : 'response_too_large'
+      length = response['content-length']
+      raise JrcServiceDesk::Glpi::Error.new(too_large, 413) if length && length.to_i > limit
       response.read_body do |chunk|
+        raise JrcServiceDesk::Glpi::Error.new(too_large, 413) if response_body.bytesize + chunk.bytesize > limit
+
         response_body << chunk
-        raise JrcServiceDesk::Glpi::Error.new('response_too_large') if response_body.bytesize > 8.megabytes
+      end
+      if binary && status == 200 && length && length.to_i != response_body.bytesize
+        raise JrcServiceDesk::Glpi::Error.new('incomplete_download')
       end
     end
+    return { bytes: response_body, content_type: content_type } if binary && status == 200
+    raise JrcServiceDesk::Glpi::Error.new('incomplete_download') if binary && [204, 206].include?(status)
     return nil if status == 204
 
     data = JSON.parse(response_body)
