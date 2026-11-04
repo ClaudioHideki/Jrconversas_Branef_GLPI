@@ -72,18 +72,31 @@ if (!$support || !$child || !$foreign) {
     throw new RuntimeException('Synthetic entity setup failed');
 }
 $tickets = [];
-foreach (['root' => 0, 'support' => $support, 'child' => $child, 'foreign' => $foreign] as $label => $entityId) {
+foreach (['root' => 0, 'support' => $support, 'child' => $child, 'foreign' => $foreign, 'limited_own' => 0] as $label => $entityId) {
+    $requester = $label === 'limited_own' ? $limited : $technical;
     $tickets[$label] = insert('glpi_tickets', ['name' => 'SYNTHETIC BRANEF ' . $label, 'content' => '<p>Synthetic fixture</p>',
         'entities_id' => $entityId, 'type' => 1, 'status' => 1, 'priority' => 3, 'urgency' => 3, 'impact' => 3,
-        'date' => $now, 'date_mod' => $now, 'users_id_recipient' => $technical]);
-    insert('glpi_tickets_users', ['tickets_id' => $tickets[$label], 'users_id' => $technical, 'type' => 1]);
+        'date' => $now, 'date_mod' => $now, 'users_id_recipient' => $requester]);
+    insert('glpi_tickets_users', ['tickets_id' => $tickets[$label], 'users_id' => $requester, 'type' => 1]);
 }
 for ($index = 1; $index <= 205; $index++) {
     insert('glpi_itilfollowups', ['itemtype' => 'Ticket', 'items_id' => $tickets['root'], 'date' => $now,
         'users_id' => $technical, 'content' => 'Synthetic followup ' . $index, 'is_private' => $index === 205 ? 1 : 0]);
+    insert('glpi_tickettasks', ['tickets_id' => $tickets['root'], 'date' => $now, 'date_mod' => $now,
+        'users_id' => $technical, 'content' => 'Synthetic task ' . $index, 'is_private' => $index === 205 ? 1 : 0,
+        'actiontime' => 60, 'state' => 1]);
 }
+$catalogues = [
+    'group' => insert('glpi_groups', ['name' => 'BRANEF LAB GROUP', 'entities_id' => 0, 'is_recursive' => 1,
+        'is_assign' => 1, 'is_requester' => 1, 'is_task' => 1]),
+    'supplier' => insert('glpi_suppliers', ['name' => 'BRANEF LAB SUPPLIER', 'entities_id' => 0, 'is_recursive' => 1]),
+    'computer' => insert('glpi_computers', ['name' => 'BRANEF LAB COMPUTER', 'entities_id' => 0]),
+    'task_category' => insert('glpi_taskcategories', ['name' => 'BRANEF LAB TASK', 'entities_id' => 0, 'is_recursive' => 1]),
+    'solution_type' => insert('glpi_solutiontypes', ['name' => 'BRANEF LAB SOLUTION', 'entities_id' => 0, 'is_recursive' => 1])
+];
+insert('glpi_groups_users', ['groups_id' => $catalogues['group'], 'users_id' => $technical, 'is_manager' => 1]);
 $fixtures = ['version' => GLPI_VERSION, 'technical_user_id' => $technical, 'limited_user_id' => $limited,
-    'entities' => ['root' => 0, 'support' => $support, 'child' => $child, 'foreign' => $foreign], 'tickets' => $tickets,
+    'entities' => ['root' => 0, 'support' => $support, 'child' => $child, 'foreign' => $foreign], 'tickets' => $tickets, 'catalogues' => $catalogues,
     'app_token' => $appToken, 'user_token' => $technicalToken, 'limited_token' => $limitedToken];
 $path = '/lab-out/fixtures.json';
 file_put_contents($path, json_encode($fixtures, JSON_THROW_ON_ERROR));
