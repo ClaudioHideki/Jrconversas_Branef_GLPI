@@ -45,9 +45,13 @@ services:
     networks:
       lab:
         aliases: [glpi.example.invalid]
+      ingress: {}
     depends_on:
       glpi:
         condition: service_healthy
 networks:
   lab:
     internal: true
+  # Docker does not publish host ports for an internal-only network. Only the
+  # fixed-upstream TLS proxy joins this bridge; PHP and MariaDB stay internal.
+  ingress: {}
