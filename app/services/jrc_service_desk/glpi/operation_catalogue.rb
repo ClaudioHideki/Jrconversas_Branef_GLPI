@@ -51,7 +51,8 @@ class JrcServiceDesk::Glpi::OperationCatalogue
       'problem_link' => ['Problem_Ticket', %w[problems_id]], 'change_link' => ['Change_Ticket', %w[changes_id]],
       'knowledge_link' => ['KnowbaseItem_Item', %w[knowbaseitems_id]], 'document_link' => ['Document_Item', %w[documents_id]] }.each do |key, values|
       %w[create delete].each do |verb|
-        add.call("#{key}.#{verb}", values[0], verb == 'create' ? 'post' : 'delete', 'tickets_assign',
+        capability = %w[problem_link change_link].include?(key) ? 'incidents_manage' : 'tickets_assign'
+        add.call("#{key}.#{verb}", values[0], verb == 'create' ? 'post' : 'delete', capability,
                  verb == 'create' ? values[1] : [], parent: 'Ticket', required: verb == 'create' ? values[1] : [],
                  parent_field: %w[knowledge_link document_link].include?(key) ? 'items_id' : 'tickets_id',
                  defaults: %w[knowledge_link document_link].include?(key) ? { 'itemtype' => 'Ticket' } : {})
@@ -87,7 +88,7 @@ class JrcServiceDesk::Glpi::OperationCatalogue
         add.call('change_validation.request', 'ChangeValidation', 'post', 'incidents_manage', %w[users_id_validate comment_submission],
                  parent: type, parent_field: 'changes_id', required: %w[users_id_validate comment_submission], source_right: ['changevalidation', 4])
         add.call('change_validation.decide', 'ChangeValidation', 'patch', 'incidents_manage', %w[status comment_validation],
-                 parent: type, parent_field: 'changes_id', required: %w[status comment_validation], source_right: ['changevalidation', 2])
+                 parent: type, parent_field: 'changes_id', required: %w[status comment_validation], source_right: ['changevalidation', 1024])
       end
     end
     %w[create update delete].each do |verb|
@@ -105,9 +106,10 @@ class JrcServiceDesk::Glpi::OperationCatalogue
     end
     %w[Mandatory Hidden Predefined].each do |kind|
       %w[create delete].each do |verb|
-        fields = %w[tickettemplates_id num] + (kind == 'Predefined' ? %w[value] : [])
+        fields = %w[num] + (kind == 'Predefined' ? %w[value] : [])
         add.call("template_#{kind.downcase}.#{verb}", "TicketTemplate#{kind}Field", verb == 'create' ? 'post' : 'delete',
                  'categories_manage', verb == 'create' ? fields : [], admin: true,
+                 parent: 'TicketTemplate', parent_field: 'tickettemplates_id',
                  required: verb == 'create' ? fields : [], source_right: ['tickettemplate', 2])
       end
     end

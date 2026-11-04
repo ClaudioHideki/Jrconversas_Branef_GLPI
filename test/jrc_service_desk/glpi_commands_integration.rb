@@ -110,10 +110,14 @@ class GlpiCommandsTest < GlpiIntegrationTest
     @remote.rows['User/77'] = { 'id' => 77, 'entities_id' => 0 }
     request = execute('validation.request', target: nil, attributes: { 'parent_id' => 101, 'users_id_validate' => 77, 'comment_submission' => 'Approve' })
     assert_equal 'succeeded', request[:state]
-    @remote.denied = true
-    assert_equal 'rejected', execute('validation.decide', target: 501,
-      attributes: { 'parent_id' => 101, 'status' => 3, 'comment_validation' => 'Decision' })[:state]
+    decision = execute('validation.decide', target: 501,
+      attributes: { 'parent_id' => 101, 'status' => 4, 'comment_validation' => 'Decision' })
+    assert_equal 'rejected', decision[:state]
+    assert_equal 'technical_validator_mismatch', decision[:error_code]
     refute @remote.writes.any? { |row| row[3].key?('users_id_validate') && row[0] == :patch }
+    @remote.rows['TicketValidation/501']['users_id_validate'] = 900
+    assert_equal 'succeeded', execute('validation.decide', target: 501,
+      attributes: { 'parent_id' => 101, 'status' => 3, 'comment_validation' => 'Approved by technical validator' })[:state]
   end
 
   def test_problem_change_and_knowledge_crud
@@ -207,5 +211,17 @@ class GlpiCommandsTest < GlpiIntegrationTest
     assert_raises(ArgumentError) { execute('task.create', target: nil, attributes: { 'content' => 'No parent' }) }
     assert_raises(ArgumentError) { execute('validation.decide', target: 501, attributes: { 'parent_id' => 101, 'status' => 9 }) }
     assert_empty @remote.writes
+  end
+
+  def test_reconciliation_checks_the_written_version_instead_of_requiring_the_old_version
+    @remote.failure = 'source_unavailable'
+    receipt = execute(expected_version: 'v1')
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal 'v2', @remote.rows['Ticket/101']['date_mod']
+    @remote.failure = nil
+    reconciled = JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
+      access: JrcServiceDesk::Glpi::Access.new(@identity), command: JrcServiceDesk::GlpiCommand.find(receipt[:id]))
+    assert_equal 'succeeded', reconciled[:state]
+    assert_equal 1, @remote.writes.size
   end
 end

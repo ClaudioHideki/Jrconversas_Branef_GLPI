@@ -35,7 +35,7 @@ class JrcServiceDesk::Glpi::CommandInput
     elsif descriptor[:verb] == 'post'
       if descriptor[:type] == 'KnowbaseItem'
         input['_visibility'] = { '_type' => 'Entity', 'entities_id' => @entity_id, 'is_recursive' => 0 }
-      elsif !descriptor[:type].start_with?('TicketTemplate') || descriptor[:type] == 'TicketTemplate'
+      else
         raise ArgumentError if input.key?('entities_id') && input['entities_id'] != @entity_id
 
         input['entities_id'] = @entity_id
@@ -79,7 +79,7 @@ class JrcServiceDesk::Glpi::CommandInput
             when 'type' then 1..(descriptor[:type] == 'Ticket' ? 2 : 3)
             when 'status'
               if descriptor[:type].end_with?('Validation')
-                2..4
+                3..4
               elsif descriptor[:type] == 'Change'
                 [1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
               elsif descriptor[:type] == 'Problem'
