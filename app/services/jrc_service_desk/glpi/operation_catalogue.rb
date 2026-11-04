@@ -100,7 +100,7 @@ class JrcServiceDesk::Glpi::OperationCatalogue
                required: verb == 'create' ? %w[name answer] : [], source_right: ['knowbase', verb == 'create' ? 4 : verb == 'delete' ? 16 : 2])
     end
     { 'category' => ['ITILCategory', CATEGORY_FIELDS, 'itilcategory'],
-      'template' => ['TicketTemplate', TEMPLATE_FIELDS, 'tickettemplate'] }.each do |key, values|
+      'template' => ['TicketTemplate', TEMPLATE_FIELDS, 'itiltemplate'] }.each do |key, values|
       %w[create update delete].each do |verb|
         add.call("#{key}.#{verb}", values[0], { 'create' => 'post', 'update' => 'patch', 'delete' => 'delete' }.fetch(verb),
                  'categories_manage', verb == 'delete' ? [] : values[1], admin: true,
@@ -113,7 +113,7 @@ class JrcServiceDesk::Glpi::OperationCatalogue
         add.call("template_#{kind.downcase}.#{verb}", "TicketTemplate#{kind}Field", verb == 'create' ? 'post' : 'delete',
                  'categories_manage', verb == 'create' ? fields : [], admin: true,
                  parent: 'TicketTemplate', parent_field: 'tickettemplates_id',
-                 required: verb == 'create' ? fields : [], source_right: ['tickettemplate', 2])
+                 required: verb == 'create' ? fields : [], source_right: ['itiltemplate', 2])
       end
     end
   end.freeze
