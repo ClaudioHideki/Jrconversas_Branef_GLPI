@@ -19,9 +19,11 @@ class GlpiCommandSource
   def get(path, *)
     if path == 'getActiveProfile/'
       on_profile&.call
-      return { 'active_profile' => %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory tickettemplate].to_h { |key| [key, denied ? 0 : 1048575] } }
+      return { 'active_profile' => %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory itiltemplate].to_h { |key| [key, denied ? 0 : 1048575] } }
     end
     return { 'session' => { 'glpiID' => 900 } } if path == 'getFullSession/'
+    return { 'myentities' => [{ 'id' => 0, 'name' => 'Synthetic root' }] } if path == 'getMyEntities/'
+    return { 'totalcount' => 1, 'data' => [{ '2' => 101, '1' => 'Synthetic', '80' => 'Root' }] } if path == 'search/Ticket/'
     if confirmation_error && writes.any? && path == "#{writes.last[1]}/#{writes.last[2] || 501}"
       raise JrcServiceDesk::Glpi::Error.new(confirmation_error, 403)
     end

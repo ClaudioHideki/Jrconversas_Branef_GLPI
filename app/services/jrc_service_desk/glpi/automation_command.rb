@@ -1,6 +1,13 @@
 # frozen_string_literal: true
 
 class JrcServiceDesk::Glpi::AutomationCommand
+  def create(user_context:, destination:, attributes:, idempotency_key:)
+    binding = JrcServiceDesk::Glpi::Destination.new(destination)
+    access = binding.access!(user_context)
+    JrcServiceDesk::Glpi::Execute.new.call(access: access, operation: 'ticket.create', target_id: nil,
+      entity_id: binding.values.fetch('entity_id'), attributes: attributes, idempotency_key: idempotency_key)
+  end
+
   def call(user_context:, reference:, operation:, attributes:, idempotency_key:, expected_version: nil, reason: nil, target_id: nil)
     ref = JrcServiceDesk::Glpi::Reference.new(reference)
     access = JrcServiceDesk::Glpi::Access.new(user_context).ready!
@@ -19,10 +26,7 @@ class JrcServiceDesk::Glpi::AutomationCommand
 
       target = values['remote_id']
     end
-    JrcServiceDesk::Glpi::Client.new(access.connection).session do |client|
-      ref.authorize!(access: access, client: client, operational: true)
-    end
-    # Execute performs its own fresh checks, durable receipt, technical attribution and readback.
+    # Execute verifies the live target/parent after persisting intent, before any source write.
     JrcServiceDesk::Glpi::Execute.new.call(access: access, operation: operation, target_id: target,
       entity_id: values['entity_id'], attributes: attributes, idempotency_key: idempotency_key,
       expected_version: expected_version, reason: reason)

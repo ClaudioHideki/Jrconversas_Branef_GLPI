@@ -84,6 +84,9 @@ class GlpiAutomationTest < GlpiIntegrationTest
       http.get("/api/v1/accounts/#{@account.id}/conversations/#{conversation.display_id}", headers: @user.create_new_auth_token)
       assert_equal 200, http.response.status
       assert_equal 101, JSON.parse(http.response.body).dig('glpi_references', 'items', 0, 'reference', 'remote_id')
+      http.get("/api/v1/accounts/#{@account.id}/jrc_service_desk/case_workspaces/#{incident.id}", headers: @user.create_new_auth_token)
+      assert_equal 200, http.response.status
+      assert_equal 101, JSON.parse(http.response.body).dig('record', 'glpi_references', 'items', 0, 'reference', 'remote_id')
       @unit_member.update!(active: false)
       assert_raises(Pundit::NotAuthorizedError) do
         service.call(user_context: @identity, reference: @reference, conversation_id: conversation.id)
@@ -223,5 +226,16 @@ class GlpiAutomationTest < GlpiIntegrationTest
     end
     assert_equal 'configuration_changed', error.code
     assert_empty @remote.writes
+  end
+
+  def test_operational_grant_revoked_during_remote_preflight_prevents_the_automated_write
+    @remote.on_profile = -> { @unit_member.update!(active: false) }
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      receipt = JrcServiceDesk::Glpi::AutomationCommand.new.call(user_context: @identity, reference: @reference,
+        operation: 'ticket.update', attributes: { 'name' => 'No write after revocation' }, idempotency_key: 'preflight-revocation')
+      assert_equal 'rejected', receipt[:state]
+      assert_equal 'not_authorized', receipt[:error_code]
+      assert_empty @remote.writes
+    end
   end
 end

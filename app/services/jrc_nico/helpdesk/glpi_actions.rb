@@ -9,6 +9,12 @@ class JrcNico::Helpdesk::GlpiActions
 
   def call(name, arguments)
     JrcNico::ToolCatalog.new(@access).validate!(name, arguments)
+    return search(arguments) if name == 'search_glpi_tickets'
+    if name == 'create_glpi_ticket'
+      approved_command!(name, arguments)
+      return receipt_result(JrcServiceDesk::Glpi::AutomationCommand.new.create(user_context: @context,
+        destination: arguments.fetch('destination'), attributes: arguments.fetch('attributes'), idempotency_key: request_key))
+    end
     ref = JrcServiceDesk::Glpi::Reference.new(arguments.fetch('reference'))
     if name == 'read_glpi_reference'
       access = JrcServiceDesk::Glpi::Access.new(@context).ready!
@@ -24,9 +30,8 @@ class JrcNico::Helpdesk::GlpiActions
       receipt = JrcServiceDesk::Glpi::AutomationCommand.new.call(user_context: @context, reference: ref.values,
         operation: arguments.fetch('operation'), attributes: arguments.fetch('attributes', {}),
         target_id: arguments['target_id'], expected_version: arguments['expected_version'], reason: arguments['reason'],
-        idempotency_key: "nico_#{@command.id}_#{@command.request_id}")
-      { command: receipt, source: 'glpi', message: "GLPI: #{receipt[:state]}",
-        resources: [['JrcServiceDesk::GlpiCommand', receipt[:id].to_i]] }
+        idempotency_key: request_key)
+      receipt_result(receipt)
     else
       local = if name == 'link_glpi_conversation'
                 { conversation_id: @access.conversation(arguments.fetch('conversation_id')).id }
@@ -40,6 +45,37 @@ class JrcNico::Helpdesk::GlpiActions
   end
 
   private
+
+  def request_key
+    "nico_#{@command.id}_#{@command.request_id}"
+  end
+
+  def receipt_result(receipt)
+    { command: receipt, source: 'glpi', message: "GLPI: #{receipt[:state]}",
+      resources: [['JrcServiceDesk::GlpiCommand', receipt[:id].to_i]] }
+  end
+
+  def search(arguments)
+    access = JrcServiceDesk::Glpi::Access.new(@context).ready!
+    JrcServiceDesk::Glpi::Client.new(access.connection).session do |client|
+      page = JrcServiceDesk::Glpi::TicketQuery.new(access, arguments.merge('per_page' => 20)).page(client)
+      resources = []
+      items = page.fetch(:items).map do |item|
+        id = JrcServiceDesk::Input.id(item.fetch('id'))
+        row = client.get("Ticket/#{id}")
+        access.authorize_ticket!(client, row)
+        raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless row['id'].to_s == id.to_s
+
+        ref = JrcServiceDesk::Glpi::Reference.new('account_id' => access.context.account.id, 'connection_id' => access.connection.id,
+          'itemtype' => 'Ticket', 'remote_id' => id, 'entity_id' => row.fetch('entities_id'))
+        record = ref.record!(access: access, client: client)
+        resources << [record.class.name, record.id]
+        { reference: record.reference, name: JrcServiceDesk::Glpi::Normalize.text(row['name']),
+          status: row['status'], priority: row['priority'], date_mod: row['date_mod'] }
+      end
+      { source: 'glpi', items: items, meta: page[:meta], resources: resources, bulk_content: false }
+    end
+  end
 
   def approved_command!(name, arguments)
     @command&.reload

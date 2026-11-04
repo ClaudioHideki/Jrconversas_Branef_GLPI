@@ -1,5 +1,9 @@
 class JrcNico::HelpdeskToolCatalog
   TOOLS = {
+    'search_glpi_tickets' => ['Consultar até 20 chamados GLPI por página e 20 páginas; refine filtros para continuar. Somente metadados e referências; não copia descrições à IA',
+      'service_desk_helpdesk', false, %w[entity_id search status priority page]],
+    'create_glpi_ticket' => ['Preparar criação GLPI no destino connection_id/connection_version/entity_id autorizado. attributes: name/content/type/urgency/impact; exige confirmação humana',
+      'service_desk_helpdesk', true, %w[destination* attributes*]],
     'read_glpi_reference' => ['Consultar somente o registro GLPI explicitamente identificado e autorizado, sem enviar a base inteira à IA',
       'service_desk_helpdesk', false, %w[reference*]],
     'execute_glpi_operation' => ['Preparar uma operação GLPI tipada com usuário técnico e auditoria JRC; exige confirmação humana e versão consultada',
@@ -22,6 +26,7 @@ class JrcNico::HelpdeskToolCatalog
       'service_desk_helpdesk', true, %w[event_id* closed_transition_id* title* body* generalization_reviewed* source_digest*]]
   }.freeze
   CAPABILITIES = {
+    'search_glpi_tickets' => :tickets_view, 'create_glpi_ticket' => :tickets_create,
     'read_glpi_reference' => :tickets_view, 'execute_glpi_operation' => :tickets_view,
     'link_glpi_conversation' => :conversations_link, 'link_glpi_case' => :incidents_manage,
     'read_service_ticket_tasks' => :tasks_view, 'create_service_ticket_task' => :tasks_manage,
@@ -30,8 +35,8 @@ class JrcNico::HelpdeskToolCatalog
     'prepare_closed_case_knowledge' => :history_view
   }.freeze
   BOOLEAN_VALUES = [true, false].freeze
-  GLPI_TOOLS = %w[read_glpi_reference execute_glpi_operation link_glpi_conversation link_glpi_case].freeze
-  GLPI_MUTATIONS = GLPI_TOOLS - %w[read_glpi_reference]
+  GLPI_TOOLS = %w[search_glpi_tickets create_glpi_ticket read_glpi_reference execute_glpi_operation link_glpi_conversation link_glpi_case].freeze
+  GLPI_MUTATIONS = GLPI_TOOLS - %w[read_glpi_reference search_glpi_tickets]
 
   def self.available?(access, name)
     selected = JrcServiceDesk::NativeSourceGuard.selected_glpi?(access.account)
@@ -45,6 +50,14 @@ class JrcNico::HelpdeskToolCatalog
 
   def self.valid_value?(key, value)
     case key
+    when 'destination'
+      JrcServiceDesk::Glpi::Destination.new(value)
+      true
+    when 'entity_id'
+      JrcServiceDesk::Glpi::Identifiers.remote(value)
+      true
+    when 'status', 'priority'
+      value.is_a?(Integer) && value.between?(1, 6)
     when 'reference'
       JrcServiceDesk::Glpi::Reference.new(value)
       true

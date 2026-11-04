@@ -222,6 +222,11 @@ class JrcServiceDesk::Glpi::Execute
       identity = client.get('getFullSession/').fetch('session')
       technical_id = JrcServiceDesk::Input.id(identity.fetch('glpiID'))
       command.update!(technical_user_id: technical_id)
+      if descriptor[:type] == 'Ticket' && descriptor[:verb] == 'post'
+        entities = client.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities')
+        permitted = entities.any? { |row| JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('id')) == command.entity_id }
+        raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) unless permitted
+      end
       before, parent = authorize_objects!(access, client, command, descriptor)
       authorize_source!(profile, command, descriptor, before, parent, technical_id)
       payload = command.request_payload.deep_dup

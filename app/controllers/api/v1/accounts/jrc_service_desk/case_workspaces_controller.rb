@@ -26,7 +26,8 @@ class Api::V1::Accounts::JrcServiceDesk::CaseWorkspacesController < Api::V1::Acc
 
     row = scoped_case
     authorize row, :show?
-    render json: base_payload.merge(record: case_presenter.call(row))
+    references = ::JrcServiceDesk::Glpi::LinkedReferences.new.call(user_context: pundit_user, incident_id: row.id)
+    render json: base_payload.merge(record: case_presenter.call(row).merge(glpi_references: references))
   end
 
   def create

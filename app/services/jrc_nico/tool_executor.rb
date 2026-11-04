@@ -101,7 +101,11 @@ class JrcNico::ToolExecutor
 
   def read_conversation
     conversation = @access.conversation(@args.fetch('conversation_id'))
-    conversation_snapshot(conversation).merge(messages: conversation.messages.where(private: false).reorder(id: :desc).limit(30).reverse.map do |m|
+    references = JrcServiceDesk::Glpi::LinkedReferences.new.call(user_context: {
+      account: @access.account, user: @access.user, account_user: @access.membership }, conversation_id: conversation.id)
+    resources = references[:items].map { |item| ['JrcServiceDesk::GlpiReference', item.fetch(:reference_record_id)] }
+    conversation_snapshot(conversation).merge(glpi_references: references, resources: resources,
+      messages: conversation.messages.where(private: false).reorder(id: :desc).limit(30).reverse.map do |m|
       m.slice(:id, :message_type, :content, :status, :created_at)
     end)
   end
