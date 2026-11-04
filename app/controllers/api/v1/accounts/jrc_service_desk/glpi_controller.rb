@@ -76,23 +76,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     permit!(:read?)
     id = ::JrcServiceDesk::Input.id(params[:remote_id])
     payload = with_client do |client|
-      ticket = client.get("Ticket/#{id}")
-      access.authorize_ticket!(client, ticket)
-      history = {}
-      %w[ITILFollowup TicketTask].each do |kind|
-        begin
-          rows = client.get("Ticket/#{id}/#{kind}/", 'range' => '0-99', 'order' => 'DESC', 'sort' => 'id')
-          # Shared credentials may see private interactions. They are not exposed to JRC agents by default.
-          rows = rows.reject { |row| [1, '1', true].include?(row['is_private']) } unless access.context.administrator?
-          items = rows.map do |row|
-            row.slice('id', 'date', 'is_private').merge('content' => ::JrcServiceDesk::Glpi::Normalize.text(row['content']))
-          end
-          history[kind] = { available: true, items: items }
-        rescue ::JrcServiceDesk::Glpi::Error => error
-          history[kind] = { available: false, error_code: error.code }
-        end
-      end
-      { ticket: ::JrcServiceDesk::Glpi::Normalize.detail(ticket), history: history }
+      ::JrcServiceDesk::Glpi::Detail.new.call(access: access, client: client, ticket_id: id)
     end
     render json: envelope.merge(payload)
   end
@@ -101,6 +85,38 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     permit!(:create?)
     receipt = ::JrcServiceDesk::Glpi::CreateTicket.new(access).call(request.request_parameters)
     render json: envelope.merge(command: receipt), status: receipt[:state] == 'succeeded' ? :created : :accepted
+  end
+
+  def capabilities
+    permit!(:read?)
+    result = with_client { |client| ::JrcServiceDesk::Glpi::Capabilities.new.call(access: access, client: client) }
+    render json: envelope.merge(result)
+  end
+
+  def resources
+    permit!(:read?)
+    result = with_client do |client|
+      ::JrcServiceDesk::Glpi::ResourceQuery.new.call(access: access, client: client, kind: params[:kind], filters: request.query_parameters)
+    end
+    render json: envelope.merge(result)
+  end
+
+  def resource
+    permit!(:read?)
+    result = with_client do |client|
+      ::JrcServiceDesk::Glpi::ResourceQuery.new.find(access: access, client: client, kind: params[:kind], id: params[:remote_id])
+    end
+    render json: envelope.merge(item: result)
+  end
+
+  def relations
+    permit!(:read?)
+    result = with_client do |client|
+      parent = params[:resource_kind].present? ? { 'problems' => 'Problem', 'changes' => 'Change' }.fetch(params[:resource_kind]) : 'Ticket'
+      ::JrcServiceDesk::Glpi::ResourceQuery.new.related(access: access, client: client, kind: params[:kind],
+                                                      ticket_id: params[:remote_id], parent_type: parent)
+    end
+    render json: envelope.merge(result)
   end
 
   def command

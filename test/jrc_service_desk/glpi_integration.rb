@@ -82,9 +82,12 @@ class JrcServiceDesk::Glpi::Client
       input = self.class.inputs[id] || {}
       { 'id' => id, 'entities_id' => id == 999 ? 999 : 0, 'status' => 1, 'priority' => 3,
         'name' => input['name'] || 'Detail', 'content' => input['content'] || 'Description' }
-    when /Ticket_User/ then [{ 'users_id' => 77, 'type' => 1 }]
-    when /ITILFollowup/ then [{ 'id' => 1, 'content' => 'Public', 'is_private' => 0 }, { 'id' => 2, 'content' => 'PRIVATE', 'is_private' => 1 }]
+    when /Ticket_User/ then [{ 'id' => 1, 'tickets_id' => 101, 'users_id' => 77, 'type' => 1 }]
+    when /ITILFollowup/ then [{ 'id' => 1, 'items_id' => 101, 'itemtype' => 'Ticket', 'content' => 'Public', 'is_private' => 0 },
+                            { 'id' => 2, 'items_id' => 101, 'itemtype' => 'Ticket', 'content' => 'PRIVATE', 'is_private' => 1 }]
     when /TicketTask/ then []
+    when %r{\ATicket/\d+/(?:ITILSolution|TicketValidation|Group_Ticket|Supplier_Ticket|Document_Item|Item_Ticket|Problem_Ticket|Change_Ticket|KnowbaseItem_Item|Log|TicketSatisfaction)/\z}
+      []
     else raise "Unexpected path #{path}"
     end
   end

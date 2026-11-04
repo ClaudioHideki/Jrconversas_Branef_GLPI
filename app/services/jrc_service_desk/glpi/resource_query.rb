@@ -26,7 +26,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
   end
 
   def call(access:, client:, kind:, filters:)
-    authorize_kind!(access, kind)
+    access = authorize_kind!(access, kind)
     values = JrcServiceDesk::Input.attributes(filters, %w[page per_page search ticket_id parent_type])
     if values['ticket_id'].present?
       return related(access: access, client: client, kind: kind, ticket_id: values['ticket_id'],
@@ -69,7 +69,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
 
   # Backend-only raw lookup; callers cannot provide a remote type or URL.
   def raw(access:, client:, kind:, id:)
-    authorize_kind!(access, kind)
+    access = authorize_kind!(access, kind)
     type = resource_type(kind)
     id = JrcServiceDesk::Input.id(id)
     row = client.get("#{type}/#{id}")
@@ -83,7 +83,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
   end
 
   def related(access:, client:, kind:, ticket_id:, parent_type: 'Ticket')
-    authorize_kind!(access, kind)
+    access = authorize_kind!(access, kind)
     raise ArgumentError unless %w[Ticket Problem Change].include?(parent_type)
 
     id = JrcServiceDesk::Input.id(ticket_id)
@@ -108,6 +108,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
   end
 
   def authorize_record!(access, client, type, row)
+    access = bind_access!(access)
     if type == 'Ticket'
       access.authorize_ticket!(client, row)
     elsif ENTITY_TYPES.value?(type) || ASSET_TYPES.include?(type)
@@ -150,8 +151,22 @@ class JrcServiceDesk::Glpi::ResourceQuery
   end
 
   def authorize_kind!(access, kind)
-    access.ready!
+    access = bind_access!(access)
     raise Pundit::NotAuthorizedError unless access.context.capability?(CAPABILITIES.fetch(kind, :tickets_view))
+
+    access
+  end
+
+  def bind_access!(access)
+    fresh = JrcServiceDesk::Glpi::Access.new(access.context.to_h).ready!
+    unless fresh.connection.id == access.connection.id && fresh.connection.lock_version == access.connection.lock_version
+      raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409)
+    end
+    identity = [fresh.context.account.id, fresh.connection.id, fresh.connection.lock_version, fresh.context.account_user.id,
+                fresh.entity_ids, fresh.glpi_user_id, fresh.all_tickets?, fresh.context.effective_capabilities]
+    @parents.clear unless @identity == identity
+    @identity = identity
+    fresh
   end
 
   def parent!(access, client, type, id)

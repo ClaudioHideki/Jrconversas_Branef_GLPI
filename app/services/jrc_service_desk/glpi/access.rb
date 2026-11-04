@@ -51,7 +51,13 @@ class JrcServiceDesk::Glpi::Access
     unit_for(JrcServiceDesk::Glpi::Identifiers.remote(ticket.fetch('entities_id')))
     return if all_tickets?
 
-    actors = client.get("Ticket/#{JrcServiceDesk::Input.id(ticket.fetch('id'))}/Ticket_User/", 'range' => '0-999')
-    raise Pundit::NotAuthorizedError unless actors.any? { |actor| actor['users_id'].to_s == glpi_user_id.to_s && [1, 2].include?(actor['type'].to_i) }
+    id = JrcServiceDesk::Input.id(ticket.fetch('id'))
+    actors = client.collection("Ticket/#{id}/Ticket_User/")
+    authorized = actors.any? do |actor|
+      raise Pundit::NotAuthorizedError unless actor['tickets_id'].to_s == id.to_s
+
+      actor['users_id'].to_s == glpi_user_id.to_s && [1, 2].include?(actor['type'].to_i)
+    end
+    raise Pundit::NotAuthorizedError unless authorized
   end
 end
