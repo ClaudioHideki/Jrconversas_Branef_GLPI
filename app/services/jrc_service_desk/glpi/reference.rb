@@ -49,12 +49,20 @@ class JrcServiceDesk::Glpi::Reference
     row
   end
 
-  def record!(access:, client:)
-    authorize!(access: access, client: client)
-    record = JrcServiceDesk::GlpiReference.find_or_initialize_by(account_id: values['account_id'], glpi_connection_id: values['connection_id'],
-      itemtype: values['itemtype'], remote_id: values['remote_id'], entity_id: values['entity_id'])
-    record.unit_id = access.unit_for(values['entity_id'])
-    record.save! if record.new_record? || record.changed?
-    record
+  def record!(access:, client:, operational: false)
+    authorize!(access: access, client: client, operational: operational)
+    # Configuration takes Account FOR UPDATE. The first persisted source identity
+    # must join that namespace boundary after remote proof, without holding a
+    # database transaction across the network request.
+    Account.transaction do
+      Account.where(id: values['account_id']).lock('FOR SHARE').take!
+      fresh = authorize_local!(access: access, operational: operational)
+      record = JrcServiceDesk::GlpiReference.create_or_find_by!(account_id: values['account_id'], glpi_connection_id: values['connection_id'],
+        itemtype: values['itemtype'], remote_id: values['remote_id'], entity_id: values['entity_id']) do |row|
+        row.unit_id = fresh.unit_for(values['entity_id'])
+      end
+      record.update!(unit_id: fresh.unit_for(values['entity_id'])) if record.unit_id != fresh.unit_for(values['entity_id'])
+      record
+    end
   end
 end

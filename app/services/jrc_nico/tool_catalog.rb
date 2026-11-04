@@ -84,6 +84,11 @@ class JrcNico::ToolCatalog
       if group == 'service_desk' && name != 'service_desk_context' && JrcServiceDesk::NativeSourceGuard.selected_glpi?(@access.account)
         next
       end
+      if JrcServiceDesk::NativeSourceGuard.selected_glpi?(@access.account)
+        next if (fields & %w[ticket_id* ticket_ids*]).any?
+
+        fields = fields - %w[ticket_id ticket_ids]
+      end
 
       if %w[service_desk projects projects_create relationship].include?(group)
         domain_access ||= JrcNico::DomainAccess.new(@access)

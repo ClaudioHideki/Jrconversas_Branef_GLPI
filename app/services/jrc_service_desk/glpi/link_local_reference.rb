@@ -22,21 +22,19 @@ class JrcServiceDesk::Glpi::LinkLocalReference
       raise Pundit::NotAuthorizedError
     end
     record = JrcServiceDesk::Glpi::Client.new(access.connection).session do |client|
-      ref.authorize!(access: access, client: client, operational: true)
-      ref.record!(access: access, client: client)
+      ref.record!(access: access, client: client, operational: true)
     end
-    fresh = JrcServiceDesk::Glpi::Access.new(user_context).ready!
-    if fresh.connection.lock_version != access.connection.lock_version
-      raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409)
-    end
-    ref.authorize_local!(access: fresh, operational: true)
-    Pundit.authorize(fresh.context.to_h, local.reload, :show?)
-    @authorizer&.call
-    key = conversation_id ? { conversation_id: local.id } : { incident_id: local.id }
-    JrcServiceDesk::GlpiReferenceLink.find_or_create_by!(glpi_reference: record, **key) do |link|
-      link.account_id = access.context.account.id
-      link.unit_id = record.unit_id
-      link.account_user_id = access.context.account_user.id
+    Account.transaction do
+      Account.where(id: access.context.account.id).lock('FOR SHARE').take!
+      fresh = ref.authorize_local!(access: access, operational: true)
+      Pundit.authorize(fresh.context.to_h, local.reload, :show?)
+      @authorizer&.call
+      key = conversation_id ? { conversation_id: local.id } : { incident_id: local.id }
+      JrcServiceDesk::GlpiReferenceLink.create_or_find_by!(glpi_reference: record, **key) do |link|
+        link.account_id = fresh.context.account.id
+        link.unit_id = record.unit_id
+        link.account_user_id = fresh.context.account_user.id
+      end
     end
   end
 end
