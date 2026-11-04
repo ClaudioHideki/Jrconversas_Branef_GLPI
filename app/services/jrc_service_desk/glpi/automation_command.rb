@@ -4,6 +4,7 @@ class JrcServiceDesk::Glpi::AutomationCommand
   def call(user_context:, reference:, operation:, attributes:, idempotency_key:, expected_version: nil, reason: nil, target_id: nil)
     ref = JrcServiceDesk::Glpi::Reference.new(reference)
     access = JrcServiceDesk::Glpi::Access.new(user_context).ready!
+    ref.authorize_local!(access: access, operational: true)
     descriptor = JrcServiceDesk::Glpi::OperationCatalogue.fetch(operation)
     values = ref.values
     raise ArgumentError if target_id && (descriptor[:verb] == 'post' || !descriptor[:parent])

@@ -16,6 +16,9 @@ class JrcNico::DomainActions
 
   def call(name, arguments)
     raise ArgumentError, 'Operação não disponível.' unless JrcNico::DomainToolCatalog::TOOLS.key?(name)
+    if JrcNico::DomainToolCatalog::TOOLS.fetch(name)[1] == 'service_desk' && name != 'service_desk_context'
+      JrcServiceDesk::NativeSourceGuard.call(context)
+    end
 
     @args = arguments
     case name

@@ -19,7 +19,7 @@ class JrcServiceDesk::Glpi::Reference
     "glpi/#{FIELDS.map { |field| values.fetch(field) }.join('/')}"
   end
 
-  def authorize!(access:, client:, operational: false)
+  def authorize_local!(access:, operational: false)
     fresh = JrcServiceDesk::Glpi::Access.new(access.context.to_h).ready!
     unless fresh.context.account.id == values['account_id'] && fresh.connection.id == values['connection_id'] &&
            fresh.connection.primary_source?
@@ -28,6 +28,11 @@ class JrcServiceDesk::Glpi::Reference
     unit = fresh.context.unit_scope.find(fresh.unit_for(values['entity_id']))
     raise Pundit::NotAuthorizedError if operational && !fresh.context.operational_unit_allowed?(unit)
 
+    fresh
+  end
+
+  def authorize!(access:, client:, operational: false)
+    fresh = authorize_local!(access: access, operational: operational)
     row = JrcServiceDesk::Glpi::ResourceQuery.new.raw(access: fresh, client: client,
       kind: KINDS.fetch(values['itemtype']), id: values['remote_id'])
     if values['itemtype'] == 'KnowbaseItem'

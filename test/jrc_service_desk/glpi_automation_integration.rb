@@ -148,4 +148,43 @@ class GlpiAutomationTest < GlpiIntegrationTest
     end
     assert_empty @remote.writes
   end
+
+  def test_real_nico_read_result_retains_typed_provenance_and_is_rechecked_after_disable
+    access = JrcNico::OperationalAccess.new(account: @account, user: @user).authorize!
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      result = JrcNico::ToolExecutor.new(access).call('read_glpi_reference', 'reference' => @reference)
+      type, id = result.fetch(:resources).first
+      assert_equal 'JrcServiceDesk::GlpiReference', type
+      record = JrcNico::DomainAccess.authorize_resource!(access, type, id)
+      assert_equal @reference, record.reference
+      @connection.update!(enabled: false)
+      assert_raises(JrcServiceDesk::Glpi::Error) { JrcNico::DomainAccess.authorize_resource!(access, type, id) }
+    end
+  end
+
+  def test_native_nico_facts_and_direct_ticket_tool_cannot_be_used_as_glpi_fallback
+    context = JrcNico::Helpdesk::Context.new(@member)
+    assert_raises(JrcServiceDesk::Glpi::Error) do
+      JrcNico::Helpdesk::Facts.new(context: context, policy: nil, ticket: nil, trigger: 'monitor').call
+    end
+    assert_raises(JrcServiceDesk::Glpi::Error) do
+      JrcNico::DomainActions.new(context.access).call('read_service_ticket', 'ticket_id' => 101)
+    end
+    group = JrcNico::Helpdesk::Catalog.call(account: @account).find { |row| row[:key] == 'D1' }
+    assert_equal 'glpi_typed_command_required', group[:status]
+    refute group[:automatic_execution]
+  end
+
+  def test_nico_context_and_explicit_bounded_search_expose_usable_typed_references_without_bulk_content
+    access = JrcNico::OperationalAccess.new(account: @account, user: @user).authorize!
+    context = JrcNico::DomainActions.new(access).call('service_desk_context', {})
+    assert_equal @connection.id, context.dig(:glpi, :connection_id)
+    assert_equal [0], context.dig(:glpi, :entity_ids)
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      result = JrcNico::ToolExecutor.new(access).call('search_glpi_tickets', 'entity_id' => 0, 'search' => 'Synthetic')
+      assert_equal @reference, result.fetch(:items).first.fetch(:reference)
+      refute result.fetch(:items).first.key?(:content)
+      assert_equal 20, result.fetch(:meta).fetch(:per_page)
+    end
+  end
 end

@@ -235,7 +235,7 @@ class JrcNico::OperatorSession
       allowed = Array(session.context['conversation_ids']).all? do |id|
         access.conversation(id)
         true
-      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound
+      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound, JrcServiceDesk::Glpi::Error
         false
       end
       allowed &&= Array(session.context['resources']).all? do |type, id|
@@ -257,7 +257,7 @@ class JrcNico::OperatorSession
           JrcNico::DomainAccess.authorize_resource!(access, type, id) if JrcNico::DomainAccess::RESOURCE_TYPES.include?(type)
         end
         true
-      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound
+      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound, JrcServiceDesk::Glpi::Error
         false
       end
       notices = JrcNico::Notice.where(id: session.commands.where('created_at >= ?', session.context['visible_since'])

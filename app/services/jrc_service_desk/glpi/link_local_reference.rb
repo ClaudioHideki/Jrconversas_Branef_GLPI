@@ -6,6 +6,7 @@ class JrcServiceDesk::Glpi::LinkLocalReference
 
     access = JrcServiceDesk::Glpi::Access.new(user_context).ready!
     ref = JrcServiceDesk::Glpi::Reference.new(reference)
+    ref.authorize_local!(access: access, operational: true)
     capability = conversation_id ? :conversations_link : :incidents_manage
     raise Pundit::NotAuthorizedError unless access.context.capability?(capability)
 
