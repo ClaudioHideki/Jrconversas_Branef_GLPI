@@ -45,6 +45,7 @@ class JrcServiceDesk::Glpi::SyncTickets
   def collect_entity(client, entity)
     observed = 0
     indexed = 0
+    actor_unavailable = 0
     failures = []
     query = JrcServiceDesk::Glpi::TicketQuery.new(@access, 'entity_id' => entity)
     client.collection('search/Ticket/', query.parameters(offset: 0, size: 200)).each do |row|
@@ -61,10 +62,12 @@ class JrcServiceDesk::Glpi::SyncTickets
           raise JrcServiceDesk::Glpi::Error.new('entity_mismatch', 409)
         end
         access.authorize_ticket!(client, detail)
+        actors = JrcServiceDesk::Glpi::TicketActors.new.call(client: client, ticket_id: id)
+        actor_unavailable += 1 unless actors.fetch('actor_scope_available')
         snapshot = JrcServiceDesk::GlpiTicketSnapshot.find_or_initialize_by(account: @connection.account,
           glpi_connection: @connection, remote_id: id)
         snapshot.update!(unit_id: access.unit_for(actual_entity), entity_id: actual_entity, connection_version: @version,
-          payload: JrcServiceDesk::Glpi::Normalize.search(row).merge(JrcServiceDesk::Glpi::Normalize.detail(detail)),
+          payload: JrcServiceDesk::Glpi::Normalize.search(row).merge(JrcServiceDesk::Glpi::Normalize.detail(detail)).merge(actors),
           observed_at: Time.current, glpi_sync_run: @run, active: true)
         indexed += 1
       rescue JrcServiceDesk::Glpi::Error, Pundit::NotAuthorizedError, KeyError => e
@@ -72,7 +75,7 @@ class JrcServiceDesk::Glpi::SyncTickets
       end
     end
     { 'state' => failures.empty? ? 'complete' : 'partial', 'observed' => observed, 'indexed' => indexed,
-      'error' => failures.first, 'errors' => failures.tally }
+      'error' => failures.first, 'errors' => failures.tally, 'actor_unavailable' => actor_unavailable }
   rescue JrcServiceDesk::Glpi::Error, Pundit::NotAuthorizedError, KeyError => e
     { 'state' => 'partial', 'observed' => observed, 'indexed' => indexed,
       'error' => e.respond_to?(:code) ? e.code : e.is_a?(KeyError) ? 'invalid_response' : 'access_revoked' }

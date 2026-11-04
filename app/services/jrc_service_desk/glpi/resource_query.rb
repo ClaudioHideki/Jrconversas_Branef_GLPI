@@ -102,6 +102,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
     end
     rows = client.collection("#{parent_type}/#{id}/#{type}/").map do |row|
       check_parent!(type, row, parent_type, id)
+      authorize_linked!(access, client, type, row)
       normalize(row) unless private?(access, row)
     end.compact
     { items: rows, coverage: coverage([]), meta: { total: rows.size } }
@@ -111,7 +112,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
     access = bind_access!(access)
     if type == 'Ticket'
       access.authorize_ticket!(client, row)
-    elsif ENTITY_TYPES.value?(type) || ASSET_TYPES.include?(type)
+    elsif ENTITY_TYPES.value?(type) || ASSET_TYPES.include?(type) || type == 'Document'
       access.unit_for(JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('entities_id')))
     elsif type == 'KnowbaseItem'
       id = JrcServiceDesk::Input.id(row.fetch('id'))
@@ -135,6 +136,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
 
       field = POLYMORPHIC.include?(type) ? 'items_id' : 'tickets_id'
       parent!(access, client, parent_type, JrcServiceDesk::Input.id(row.fetch(field)))
+      authorize_linked!(access, client, type, row)
     else
       raise ArgumentError
     end
@@ -179,6 +181,26 @@ class JrcServiceDesk::Glpi::ResourceQuery
     field = POLYMORPHIC.include?(type) ? 'items_id' : "#{parent_type.downcase}s_id"
     raise Pundit::NotAuthorizedError unless row[field].to_s == id.to_s
     raise Pundit::NotAuthorizedError if POLYMORPHIC.include?(type) && row['itemtype'] != parent_type
+  end
+
+  def authorize_linked!(access, client, type, row)
+    case type
+    when 'Problem_Ticket'
+      raw(access: access, client: client, kind: 'problems', id: row.fetch('problems_id'))
+    when 'Change_Ticket'
+      raw(access: access, client: client, kind: 'changes', id: row.fetch('changes_id'))
+    when 'KnowbaseItem_Item'
+      raw(access: access, client: client, kind: 'knowledge', id: row.fetch('knowbaseitems_id'))
+    when 'Item_Ticket', 'Document_Item'
+      target_type = type == 'Document_Item' ? 'Document' : row.fetch('itemtype')
+      raise Pundit::NotAuthorizedError unless target_type == 'Document' || ASSET_TYPES.include?(target_type)
+
+      id = JrcServiceDesk::Input.id(row.fetch(type == 'Document_Item' ? 'documents_id' : 'items_id'))
+      target = client.get("#{target_type}/#{id}")
+      raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless target['id'].to_s == id.to_s
+
+      authorize_record!(access, client, target_type, target)
+    end
   end
 
   def private?(access, row)

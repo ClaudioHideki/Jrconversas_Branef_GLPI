@@ -1,0 +1,41 @@
+name: Branef - GLPI 10 synthetic laboratory
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/branef-glpi-*-20261104']
+    paths: ['test/glpi_lab/**', '.github/workflows/glpi-laboratory.yml']
+permissions:
+  contents: read
+jobs:
+  glpi10:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare synthetic credentials and TLS
+        run: |
+          python3 test/glpi_lab/prepare.py
+          echo '127.0.0.1 glpi.example.invalid' | sudo tee -a /etc/hosts > /dev/null
+      - name: Build and install GLPI 10.0.18
+        run: >-
+          docker compose -p branef-glpi-10-${{ github.run_id }} --env-file test/glpi_lab/.runtime/compose.env
+          -f test/glpi_lab/compose.yaml up -d --build --wait --wait-timeout 300
+      - name: Verify real API, version, root and limited profile
+        run: python3 test/glpi_lab/smoke.py
+      - name: Laboratory diagnostics
+        if: failure()
+        run: >-
+          docker compose -p branef-glpi-10-${{ github.run_id }} --env-file test/glpi_lab/.runtime/compose.env
+          -f test/glpi_lab/compose.yaml logs --tail 70
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: glpi10-synthetic-evidence-${{ github.sha }}
+          path: test/glpi_lab/.runtime/smoke-results.json
+      - name: Remove only this isolated laboratory
+        if: always()
+        run: >-
+          docker compose -p branef-glpi-10-${{ github.run_id }} --env-file test/glpi_lab/.runtime/compose.env
+          -f test/glpi_lab/compose.yaml down --volumes

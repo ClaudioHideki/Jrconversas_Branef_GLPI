@@ -1,0 +1,53 @@
+services:
+  lab-db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: branef_glpi_lab
+      MARIADB_USER: glpi
+      MARIADB_PASSWORD: ${LAB_DB_PASSWORD:?Synthetic lab password required}
+      MARIADB_ROOT_PASSWORD: ${LAB_ROOT_PASSWORD:?Synthetic root password required}
+    tmpfs:
+      - /var/lib/mysql:size=512m
+    mem_limit: 768m
+    networks: [lab]
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  glpi:
+    build: .
+    environment:
+      GLPI_LAB_CONFIRM: isolated-synthetic
+      MARIADB_DATABASE: branef_glpi_lab
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:?Synthetic lab password required}
+      LAB_HOST_UID: ${LAB_HOST_UID:?Host UID required}
+    volumes:
+      - ./.runtime/out:/lab-out
+    mem_limit: 512m
+    networks: [lab]
+    depends_on:
+      lab-db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, test -f /var/www/glpi/config/lab-ready]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+  tls:
+    image: nginx:1.28-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.runtime/tls:/tls:ro
+    ports:
+      - 127.0.0.1:14443:443
+    mem_limit: 64m
+    networks:
+      lab:
+        aliases: [glpi.example.invalid]
+    depends_on:
+      glpi:
+        condition: service_healthy
+networks:
+  lab:
+    internal: true

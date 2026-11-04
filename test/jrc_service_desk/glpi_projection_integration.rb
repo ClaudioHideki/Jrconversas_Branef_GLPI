@@ -15,6 +15,7 @@ class GlpiProjectionTest < GlpiIntegrationTest
     client = Minitest::Mock.new
     client.expect(:collection, [{ '2' => 101, '1' => 'Root ticket' }], ['search/Ticket/', Hash])
     client.expect(:get, { 'id' => 101, 'entities_id' => 0, 'name' => 'Root ticket' }, ['Ticket/101'])
+    client.expect(:collection, [], ['Ticket/101/Ticket_User/'])
     run = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: client)
     assert_equal 'complete', run.state
     row = JrcServiceDesk::GlpiTicketSnapshot.find_by!(glpi_connection: @connection, remote_id: 101)
@@ -54,6 +55,7 @@ class GlpiProjectionTest < GlpiIntegrationTest
     client = Minitest::Mock.new
     client.expect(:collection, [{ '2' => 101 }, { '2' => 101 }], ['search/Ticket/', Hash])
     client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
+    client.expect(:collection, [], ['Ticket/101/Ticket_User/'])
     run = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: client)
     assert_equal 'partial', run.state
     assert_equal 'source_changed', run.coverage.fetch('0').fetch('error')

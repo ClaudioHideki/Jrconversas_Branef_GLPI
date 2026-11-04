@@ -80,7 +80,11 @@ jobs:
           bundler-cache: true
       - name: Schema descartavel e fronteiras GLPI sem trafego ao cliente
         run: |
-          bundle exec ruby test/jrc_service_desk/glpi_transport_test.rb
+          result=0
+          for suite in test/jrc_service_desk/glpi_*_test.rb; do
+            bundle exec ruby "$suite" || result=1
+          done
+          test "$result" = 0
           bundle exec rails db:schema:load
           bundle exec rails db:migrate
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
