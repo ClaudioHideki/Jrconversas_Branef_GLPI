@@ -95,13 +95,13 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
       error = assert_raises(JrcServiceDesk::Glpi::Error) { client.get("Ticket/#{@fixtures.fetch('tickets').fetch('root')}") }
       assert_equal 403, error.http_status
     end
-    before = GlpiLabTransport::COUNTS[:post]
+    before = GlpiLabTransport::ITEM_MUTATIONS[:post]
     receipt = @executor.call(access: access, operation: 'ticket.create', target_id: nil, entity_id: 0,
       attributes: { 'name' => 'Synthetic forbidden write', 'content' => 'Synthetic', 'type' => 1, 'urgency' => 3, 'impact' => 3 },
       idempotency_key: SecureRandom.uuid)
     assert_equal 'rejected', receipt.fetch(:state)
     assert_equal 'operation_not_permitted', receipt.fetch(:error_code)
-    assert_equal before, GlpiLabTransport::COUNTS[:post]
+    assert_equal before, GlpiLabTransport::ITEM_MUTATIONS[:post]
     @connection.update!(user_token: @fixtures.fetch('user_token'))
     source do |client|
       foreign = @fixtures.fetch('tickets').fetch('foreign')
@@ -367,6 +367,7 @@ Minitest.after_run do
   evidence = { version: GlpiLabEvidence::FIXTURES.fetch('version'), source_sha: ENV.fetch('GITHUB_SHA', 'local-unpublished'), customer_requests: 0, synthetic_only: true,
     required_operations: GlpiLabEvidence::REQUIRED.size, operations: GlpiLabEvidence::RESULTS,
     untested_operations: missing, checks: GlpiLabEvidence::CHECKS, observations: GlpiLabEvidence::OBSERVATIONS, transport_requests: GlpiLabTransport::COUNTS,
+    item_mutations: GlpiLabTransport::ITEM_MUTATIONS, session_control_posts: GlpiLabTransport::SESSION_CONTROL_POSTS,
     actual_jrc_components: %w[Client TicketQuery ResourceQuery SyncTickets Overview Execute Documents] }
   File.write(File.expand_path('.runtime/laboratory-results.json', __dir__), JSON.pretty_generate(evidence))
   puts JSON.generate(version: evidence[:version], required_operations: evidence[:required_operations],
