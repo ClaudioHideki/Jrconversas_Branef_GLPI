@@ -53,6 +53,29 @@ class GlpiHttpContractTest < GlpiIntegrationTest
     assert_equal 7, received.fetch(:attributes).fetch('template_id')
   end
 
+  def test_bound_creation_form_uses_authenticated_account_and_query_without_business_writes
+    source = Object.new
+    source.define_singleton_method(:session) { |&block| block.call(self) }
+    service = Object.new
+    account_id = @account.id
+    service.define_singleton_method(:call) do |access:, client:, filters:|
+      raise 'Wrong form scope' unless access.context.account.id == account_id && client.equal?(source)
+      raise 'Wrong form query' unless filters == { 'entity_id' => '0', 'type' => '1', 'template_id' => '7' }
+
+      { entity_id: 0, type: 1, template_id: 7, version: 'a' * 64, supported: true }
+    end
+    JrcServiceDesk::Glpi::Client.stub(:new, source) do
+      JrcServiceDesk::Glpi::TicketForm.stub(:new, service) do
+        @http.get("#{@base}/ticket_form", headers: bound_headers, params: { entity_id: 0, type: 1, template_id: 7 })
+      end
+    end
+    assert_equal 200, @http.response.status
+    result = JSON.parse(@http.response.body)
+    assert_equal 'a' * 64, result.dig('form', 'version')
+    assert_equal @connection.id.to_s, result['connection_id']
+    assert_equal 'no-store', @http.response.headers['Cache-Control']
+  end
+
   def test_authenticated_context_and_projection_share_binding_without_source_io
     @connection.update!(primary_source: true)
     JrcServiceDesk::Glpi::Client.stub(:new, ->(*) { flunk 'Projection read contacted GLPI' }) do
