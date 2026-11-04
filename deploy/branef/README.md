@@ -1,7 +1,13 @@
 # Instalação Branef
 
 Esta instalação usa aplicação, PostgreSQL, Redis e volumes exclusivos. O GLPI
-continua no endereço do cliente. A integração consulta e cria chamados pela API v1.
+continua no endereço do cliente. A integração usa a API REST v1; os comandos
+disponíveis dependem das permissões atuais do operador JRC e do perfil GLPI.
+
+Este guia descreve a configuração da revisão em desenvolvimento. A publicação de
+uma branch ou um teste aprovado não comprova sua implantação. O relatório da
+entrega deve registrar separadamente imagem publicada, revisão em execução,
+laboratório e homologação no GLPI do cliente.
 
 ## Preparar o projeto no Dokploy
 
@@ -53,7 +59,15 @@ O comando de preparação do banco não cria automaticamente concessões operaci
    validadas: `[{"id":123,"name":"Suporte","entity_id":1}]`. Não confundir IDs GLPI
    com IDs locais. O perfil do manual retornou 403 nos catálogos durante a auditoria;
    ajustar permissões específicas ou obter os IDs com a administração GLPI.
-7. Habilitar a integração e abrir Service Desk > Chamados GLPI.
+7. Habilitar a integração. Para usar o GLPI nas telas operacionais do Service Desk,
+   selecionar `primary_source` na configuração autenticada da conta. Essa opção
+   fica no banco da aplicação; não é uma URL adicional no ENV nem uma opção do navegador.
+   Com a fonte GLPI selecionada, desabilitar a conexão apresenta indisponibilidade;
+   não faz as telas retornarem silenciosamente aos chamados locais.
+8. Iniciar a coleta administrativa dos chamados. Acompanhar o recibo e a cobertura
+   por entidade. Os indicadores e a lista principal usam essa projeção de leitura;
+   detalhes e operações verificam a origem. Uma coleta parcial não comprova que
+   todos os chamados foram disponibilizados.
 
 Os tokens são cifrados e nunca retornam à tela após salvos. Para substituir um
 token, preencher somente o campo correspondente. Campos vazios preservam valores
@@ -61,19 +75,35 @@ existentes. Validar de novo após trocar endpoint, credenciais ou permissões.
 
 ## Operação e falhas
 
-- Lista, detalhe e relatórios consultam o GLPI; não criam cópias de Ticket nativo
-  nem acionam os relógios e notificações do Service Desk local.
-- Abertura grava um recibo antes do envio. Repetir a mesma referência não envia
-  um segundo POST. Um timeout após o envio fica indeterminado, sem repetição automática.
+- Lista, indicadores e relatórios compartilham filtros e uma projeção derivada,
+  identificada pela conexão, versão e horário da coleta. Não existem cópias
+  editáveis de Ticket nativo para cada chamado GLPI. A coleta informa falhas de
+  busca, detalhe, entidade ou atores; uma falha não se transforma em total zero.
+- Criação, edição e demais operações registram intenção durável antes do envio,
+  identidade técnica GLPI e operador JRC. Repetir a mesma chave com os mesmos
+  dados recupera o recibo. Um timeout após o envio fica indeterminado, sem
+  repetição automática. O recibo só confirma sucesso depois da verificação na origem.
 - Consultar o resultado pelo formulário. Para reconciliar um resultado indeterminado,
   localizar o chamado pela marca `JRC: conta/envio`, depois informar número de envio
   e ID GLPI na configuração. O servidor confere conteúdo e entidade antes de vincular.
 - 403 indica restrição de acesso; 404 não prova exclusão do histórico. Ajustar o
-  perfil GLPI com o cliente. Anexos não integram esta primeira entrega; acompanhamentos
-  e tarefas disponíveis são apresentados, com indicação de falha por coleção.
-- Relatórios são limitados ao escopo autorizado, com máximo de 10.000 registros.
-  O sistema detecta duplicação e mudança de contagem durante a coleta. Não apresenta
-  ausência de prazo como cumprimento de SLA e não calcula gratificação.
+  perfil GLPI com o cliente. O manifesto separa suporte do conector, permissão
+  local, direito anunciado pelo perfil e homologação. Um direito de perfil não
+  substitui a autorização por registro na origem.
+- Anexos usam o backend autenticado: envio até 20 MiB, download até 50 MiB, podendo
+  haver limites menores no GLPI. Upload e associação possuem etapas distintas.
+  Retirar o vínculo não exclui o arquivo compartilhado. Não publicar URLs com tokens.
+- Exportações são tarefas em segundo plano, sem corte silencioso em 10.000 linhas.
+  Exigem cobertura completa do escopo solicitado e nova verificação antes do
+  download. O arquivo é privado, expira em 24 horas e possui limite operacional
+  padrão de 100 MiB (`GLPI_EXPORT_MAX_BYTES`, em bytes, opcional). Exceder o limite
+  produz falha explícita; não entrega um CSV truncado. A janela de verificação
+  não representa um snapshot transacional do GLPI.
+- Chamados locais anteriores permanecem no histórico JRC. Não converter, apagar
+  ou enviar esses registros ao GLPI automaticamente. Não aplicar relógios locais
+  nem duplicar notificações GLPI em uma referência remota.
+- Datas e prazos vêm da origem. Ausência de prazo não conta como cumprimento de
+  SLA. Não calcular gratificações a partir de regras propostas em um manual.
 - Usar filtros de abertura para separar períodos/legado. As regras financeiras e
   exclusões propostas no manual não são aplicadas automaticamente.
 
@@ -83,7 +113,13 @@ Conferir HTTPS, login, criação da conta/unidade, isolamento entre usuários, c
 e abertura com identidade correta. Homologar uma abertura em ambiente apropriado e
 confirmar o número no GLPI. A auditoria inicial usou somente GETs na origem.
 
-Configurar backup do PostgreSQL, do volume `storage` e das chaves de criptografia.
-Manter o digest anterior como referência de rollback. Antes de mudanças de schema,
-preservar backup; rollback de imagem não desfaz migrations. Nenhum procedimento
-desta documentação exige apagar volumes ou bancos.
+Preservar os mecanismos de backup já configurados e as chaves de criptografia.
+Manter o digest anterior como referência de rollback: voltar a imagem não desfaz
+migrations. A implantação desta revisão não exige apagar volumes, recriar banco,
+redefinir senhas nem gerar um novo backup manual.
+
+As credenciais GLPI ficam cifradas por conta no banco e são cadastradas pela tela
+administrativa. Senhas do PostgreSQL/Redis, chaves Rails, SMTP, S3 e token NICO
+continuam no Environment do Compose. Não colocar segredos no Git, neste guia ou
+no relatório de implantação. Todos os processos da aplicação devem conservar as
+mesmas chaves Rails; trocá-las pode tornar os tokens já cifrados ilegíveis.

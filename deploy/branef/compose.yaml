@@ -17,13 +17,23 @@ x-environment: &environment
   POSTGRES_PASSWORD: ${BRANEF_POSTGRES_PASSWORD:?Gere uma senha exclusiva}
   REDIS_URL: redis://:${BRANEF_REDIS_PASSWORD:?Gere uma senha hexadecimal exclusiva}@redis:6379/0
   REDIS_PASSWORD: ${BRANEF_REDIS_PASSWORD:?Gere uma senha hexadecimal exclusiva}
-  ACTIVE_STORAGE_SERVICE: local
+  ACTIVE_STORAGE_SERVICE: s3_compatible
+  STORAGE_BUCKET_NAME: ${STORAGE_BUCKET_NAME:?Informe o bucket exclusivo da Branef}
+  STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:?Informe a chave S3 exclusiva}
+  STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Informe o segredo S3 exclusivo}
+  STORAGE_REGION: ${STORAGE_REGION:-br-east-1}
+  STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-https://s3.jrcws.cloud}
+  STORAGE_FORCE_PATH_STYLE: 'true'
   RAILS_LOG_TO_STDOUT: 'true'
   RAILS_SERVE_STATIC_FILES: 'true'
   DEFAULT_LOCALE: pt_BR
   TZ: America/Sao_Paulo
   RAILS_MAX_THREADS: '5'
   SIDEKIQ_CONCURRENCY: '5'
+  GLPI_EXPORT_MAX_BYTES: ${GLPI_EXPORT_MAX_BYTES:-104857600}
+  NICO_MODE: provider
+  NICO_RUNTIME_URL: http://nico-runtime:3108
+  NICO_SERVICE_TOKEN: ${NICO_SERVICE_TOKEN:?Gere um token exclusivo com pelo menos 32 caracteres}
   JRC_SERVICE_DESK_INITIALIZER_USER_IDS: ${JRC_SERVICE_DESK_INITIALIZER_USER_IDS:-}
   MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-}
   SMTP_ADDRESS: ${SMTP_ADDRESS:-}
@@ -33,6 +43,7 @@ x-environment: &environment
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-plain}
   SMTP_ENABLE_STARTTLS_AUTO: 'true'
+  SMTP_OPENSSL_VERIFY_MODE: peer
 
 x-app: &app
   image: ${JRC_IMAGE:?Informe a imagem Branef por SHA ou digest}
@@ -46,6 +57,11 @@ x-app: &app
 services:
   prepare:
     <<: *app
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
     command: ['bundle', 'exec', 'rails', 'db:chatwoot_prepare']
     restart: 'no'
     depends_on:
@@ -56,6 +72,11 @@ services:
 
   rails:
     <<: *app
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
     entrypoint: docker/entrypoints/rails.sh
     command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
     depends_on:
@@ -64,16 +85,14 @@ services:
     networks:
       - private
       - dokploy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.jrc-branef.rule=Host(`${BRANEF_DOMAIN}`)
-      - traefik.http.routers.jrc-branef.entrypoints=websecure
-      - traefik.http.routers.jrc-branef.tls.certresolver=letsencrypt
-      - traefik.http.services.jrc-branef.loadbalancer.server.port=3000
-      - traefik.docker.network=dokploy-network
 
   sidekiq:
     <<: *app
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
     command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
     depends_on:
       prepare:
@@ -83,9 +102,45 @@ services:
       - private
       - outbound
 
+  nico-runtime:
+    image: ${NICO_IMAGE:?Informe o digest verificado do runtime NICO}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1536M
+    environment:
+      NODE_ENV: production
+      PORT: '3108'
+      NICO_MODE: provider
+      NICO_SERVICE_TOKEN: ${NICO_SERVICE_TOKEN:?Gere um token exclusivo com pelo menos 32 caracteres}
+      NICO_ALLOWED_ACCOUNTS: ${BRANEF_NICO_ACCOUNT_ID:?Informe o ID da conta Branef}
+      NICO_PGLITE_DATA_DIR: /runtime-data/nico
+      NICO_PROVIDER_ALLOWED_HOSTS: ${NICO_PROVIDER_ALLOWED_HOSTS:-api.openai.com}
+      NICO_MAX_CONCURRENCY: '3'
+      LOG_LEVEL: error
+      TZ: America/Sao_Paulo
+    volumes:
+      - nico_data:/runtime-data
+    networks:
+      - private
+      - outbound
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:3108/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
     environment:
       POSTGRES_DB: jrc_branef
       POSTGRES_USER: jrc_branef
@@ -103,6 +158,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
     command: ['sh', '-c', 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
     environment:
       REDIS_PASSWORD: ${BRANEF_REDIS_PASSWORD:?Gere uma senha exclusiva}
@@ -118,6 +178,7 @@ services:
       retries: 10
 
 volumes:
+  nico_data:
   postgres:
   redis:
   storage:

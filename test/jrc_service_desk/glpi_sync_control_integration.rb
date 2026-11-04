@@ -61,4 +61,37 @@ class GlpiSyncControlTest < GlpiIntegrationTest
     end
     assert_equal 'failed', JrcServiceDesk::GlpiSyncRun.where(glpi_connection: @connection).sole.state
   end
+
+  def test_revocation_after_an_empty_entity_stops_before_the_next_source_request
+    @connection.update!(entity_mappings: [{ entity_id: 0, unit_id: @unit.id }, { entity_id: 1, unit_id: @unit.id }])
+    calls = 0
+    client = Object.new
+    member = @member
+    client.define_singleton_method(:collection) do |*|
+      calls += 1
+      member.update!(role: 'agent')
+      []
+    end
+    run = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: client)
+    assert_equal 'failed', run.state
+    assert_equal 'access_revoked', run.coverage['error']
+    assert_equal 1, calls, 'Do not start another entity request after local authorization was revoked'
+  end
+
+  def test_cancellation_after_an_empty_entity_stops_before_the_next_source_request
+    @connection.update!(entity_mappings: [{ entity_id: 0, unit_id: @unit.id }, { entity_id: 1, unit_id: @unit.id }])
+    access = JrcServiceDesk::Glpi::Access.new(@identity)
+    run = JrcServiceDesk::Glpi::SyncStatus.new.prepare(access: access)
+    calls = 0
+    client = Object.new
+    client.define_singleton_method(:collection) do |*|
+      calls += 1
+      JrcServiceDesk::Glpi::SyncStatus.new.cancel(access: access, id: run.id)
+      []
+    end
+    result = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: client, run: run)
+    assert_equal 'failed', result.state
+    assert_equal 'sync_cancelled', result.coverage['error']
+    assert_equal 1, calls, 'Do not start another entity request after cancellation'
+  end
 end
