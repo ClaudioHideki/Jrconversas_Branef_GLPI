@@ -5,7 +5,7 @@ class JrcServiceDesk::Glpi::AutomationCommand
     @authorizer = authorizer
   end
 
-  def create(user_context:, destination:, attributes:, idempotency_key:)
+  def create(user_context:, destination:, attributes:, idempotency_key:, template_version: nil)
     binding = JrcServiceDesk::Glpi::Destination.new(destination)
     access = binding.access!(user_context)
     executor = JrcServiceDesk::Glpi::Execute.new(access_authorizer: lambda do |fresh|
@@ -13,7 +13,8 @@ class JrcServiceDesk::Glpi::AutomationCommand
       @authorizer&.call
     end)
     executor.call(access: access, operation: 'ticket.create', target_id: nil,
-      entity_id: binding.values.fetch('entity_id'), attributes: attributes, idempotency_key: idempotency_key)
+      entity_id: binding.values.fetch('entity_id'), attributes: attributes, idempotency_key: idempotency_key,
+      template_version: template_version)
   end
 
   def call(user_context:, reference:, operation:, attributes:, idempotency_key:, expected_version: nil, reason: nil, target_id: nil)
