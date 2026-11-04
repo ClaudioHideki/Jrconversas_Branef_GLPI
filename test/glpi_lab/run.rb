@@ -13,6 +13,7 @@ module GlpiLabEvidence
   raise 'Wrong GLPI laboratory version' unless FIXTURES.fetch('version') == '10.0.18'
   RESULTS = {}
   CHECKS = []
+  OBSERVATIONS = {}
   REQUIRED = begin
     operations = %w[ticket.create ticket.update ticket.assign ticket.transfer ticket.priority ticket.pause ticket.resume
                     ticket.close ticket.reopen ticket.solve ticket.delete ticket.restore validation.request validation.decide]
@@ -135,16 +136,22 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
     client.instance_variable_set(:@session_token, session.fetch('session_token'))
     begin
       active = client.get('getActiveEntities/').fetch('active_entity')
+      observation = { active_entity: active.fetch('id').to_i,
+        active_entities: active.fetch('active_entities').map { |row| row.fetch('id').to_i } }
+      GlpiLabEvidence::OBSERVATIONS['raw_default_entity'] = observation
       assert_equal @fixtures.fetch('entities').fetch('support'), active.fetch('id').to_i
       refute_includes active.fetch('active_entities').map { |row| row.fetch('id').to_i }, 0
       permitted = client.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities').map { |row| row.fetch('id').to_i }
+      observation[:permitted_entities] = permitted
       assert_includes permitted, 0
       narrow = JrcServiceDesk::Glpi::TicketQuery.new(access, {}).all(client).map { |row| row.fetch('id').to_i }
+      observation[:root_visible_before_all_selection] = narrow.include?(@fixtures.fetch('tickets').fetch('root'))
       refute_includes narrow, @fixtures.fetch('tickets').fetch('root')
       # GLPI 10.0.18 uses omitted entities_id for the literal internal 'all';
       # sending the string 'all' is cast to integer0 by its API implementation.
       assert_equal true, client.send(:request, :post, 'changeActiveEntities/', body: { 'is_recursive' => true })
       broad = JrcServiceDesk::Glpi::TicketQuery.new(access, {}).all(client).map { |row| row.fetch('id').to_i }
+      observation[:root_visible_after_all_selection] = broad.include?(@fixtures.fetch('tickets').fetch('root'))
       assert_includes broad, @fixtures.fetch('tickets').fetch('root')
       refute_includes broad, @fixtures.fetch('tickets').fetch('foreign')
       GlpiLabEvidence::CHECKS << 'raw narrow default excludes root despite permitted-root list; explicit all restores locally scoped query'
@@ -160,6 +167,10 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
       allowed = client.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities').map { |row| row.fetch('id').to_i }
       assert_includes allowed, 0
       rows = JrcServiceDesk::Glpi::TicketQuery.new(access, {}).all(client).map { |row| row.fetch('id').to_i }
+      active = client.get('getActiveEntities/').fetch('active_entity')
+      GlpiLabEvidence::OBSERVATIONS['client_default_entity'] = { active_entity: active.fetch('id').to_i,
+        active_entities: active.fetch('active_entities').map { |row| row.fetch('id').to_i }, permitted_entities: allowed,
+        root_visible: rows.include?(@fixtures.fetch('tickets').fetch('root')) }
       assert_includes rows, @fixtures.fetch('tickets').fetch('root'), 'A fresh session must cover every authorized mapped entity, not only the source user default'
       refute_includes rows, @fixtures.fetch('tickets').fetch('foreign')
     end
@@ -353,12 +364,12 @@ end
 
 Minitest.after_run do
   missing = GlpiLabEvidence::REQUIRED - GlpiLabEvidence::RESULTS.keys
-  evidence = { version: GlpiLabEvidence::FIXTURES.fetch('version'), customer_requests: 0, synthetic_only: true,
+  evidence = { version: GlpiLabEvidence::FIXTURES.fetch('version'), source_sha: ENV.fetch('GITHUB_SHA', 'local-unpublished'), customer_requests: 0, synthetic_only: true,
     required_operations: GlpiLabEvidence::REQUIRED.size, operations: GlpiLabEvidence::RESULTS,
-    untested_operations: missing, checks: GlpiLabEvidence::CHECKS, transport_requests: GlpiLabTransport::COUNTS,
+    untested_operations: missing, checks: GlpiLabEvidence::CHECKS, observations: GlpiLabEvidence::OBSERVATIONS, transport_requests: GlpiLabTransport::COUNTS,
     actual_jrc_components: %w[Client TicketQuery ResourceQuery SyncTickets Overview Execute Documents] }
   File.write(File.expand_path('.runtime/laboratory-results.json', __dir__), JSON.pretty_generate(evidence))
   puts JSON.generate(version: evidence[:version], required_operations: evidence[:required_operations],
-    recorded_operations: evidence[:operations].size, untested: missing.size, customer_requests: 0)
+    recorded_operations: evidence[:operations].size, untested: missing.size, customer_requests: 0, observations: evidence[:observations])
   exit 1 unless missing.empty?
 end
