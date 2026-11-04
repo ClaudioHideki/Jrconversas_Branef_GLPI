@@ -147,3 +147,53 @@ copia automaticamente todos os documentos GLPI para esse bucket.
 Um erro403 significa acesso negado; não significa ausência de chamados. Um404
 também não comprova, isoladamente, que o histórico foi excluído. Os ajustes de
 permissão precisam ser confirmados com a administração do GLPI do cliente.
+
+## Atualização assistida no Dokploy
+
+Este procedimento atualiza a instalação existente. A publicação da imagem e a
+implantação no servidor são etapas distintas; somente registrar a nova imagem no
+ENV não comprova que ela já esteja em execução.
+
+1. Abrir o projeto **JRCBranef**, ambiente **production**, Compose **jrc-branef**.
+   Conferir o endereço público `https://branef.jrcws.cloud` e a conta Branef 3.
+2. Em **Environment**, localizar `JRC_IMAGE`. Usar a referência imutável completa
+   entregue após os testes, `ghcr.io/...@sha256:...`. Guardar a referência anterior
+   para identificação. Preservar as demais linhas e salvar.
+3. Em **General**, conferir que Rails, Sidekiq e preparação usam `${JRC_IMAGE}`.
+   Se existir imagem escrita diretamente em algum desses serviços, corrigir essa
+   referência antes de implantar. Preservar os serviços e volumes PostgreSQL/Redis,
+   o runtime NICO, as redes, o bucket e todas as chaves atuais.
+4. Clicar em **Deploy**. Em **Deployments**, acompanhar o download, a preparação
+   e a inicialização. Preparação é uma tarefa finita: término com código 0 é o
+   esperado; Rails/Sidekiq/NICO/PostgreSQL/Redis devem permanecer em execução.
+5. Em **Containers**, abrir o terminal do contêiner **Rails**. Executar dentro de
+   `/app`, substituindo a revisão pelo SHA completo aprovado:
+
+   ```sh
+   EXPECTED_BRANEF_REVISION=SHA_COMPLETO_APROVADO bundle exec rails runner deploy/branef/verify_delivery.rb
+   ```
+
+   O diagnóstico confere revisão/migrations/conta e consulta Redis, S3, NICO e
+   metadados GLPI. Não imprime tokens ou senhas e não cria/edita chamados. A sessão
+   temporária GLPI pode selecionar entidades já permitidas ao perfil; isso não
+   concede direitos nem modifica registros de negócio.
+6. Conferir a saída antes de alterar mapeamentos: unidades e membros são IDs
+   reais dessa instalação, diferentes dos IDs das entidades GLPI. Preservar os
+   mapeamentos existentes de SUPORTE; cadastrar raiz/SEDE pela configuração
+   administrativa e pelos fluxos nativos de estrutura, sem concessões automáticas
+   aos agentes. O cadastro não deve ser feito por SQL direto.
+7. Na interface, validar conexão, capacidades e as 21 entidades pretendidas;
+   selecionar GLPI como origem principal e iniciar a coleta. Acompanhar cobertura,
+   falhas e data. Comparar IDs e totais com consultas autorizadas da mesma origem.
+8. Homologar as telas com o administrador. Operações de escrita reais aguardam
+   registros de teste identificados e autorização; os testes do laboratório não
+   substituem essa homologação.
+
+Se houver falha de preparação, manter o erro exato e investigar antes de repetir.
+Não apagar volumes, banco, filas ou chaves. Reverter somente a imagem pode ser
+insuficiente após mudanças de esquema; verificar a compatibilidade das migrations.
+
+Enquanto o acesso automatizado ao painel estiver indisponível, os cliques acima
+são executados pelo operador no Dokploy e as saídas são conferidas em conjunto.
+O ambiente só pode ser registrado como atualizado depois das evidências da nova
+revisão e dos serviços em execução.
