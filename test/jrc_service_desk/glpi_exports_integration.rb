@@ -327,4 +327,42 @@ class GlpiExportsTest < GlpiIntegrationTest
     assert_includes parameters.fetch('criteria'), { 'field' => 14, 'searchtype' => 'equals', 'value' => 1, 'link' => 'AND' }
     assert_includes parameters.fetch('criteria'), { 'field' => 5, 'searchtype' => 'equals', 'value' => 55, 'link' => 'AND' }
   end
+
+  def test_support_only_agent_never_receives_root_or_sede_run_coverage
+    root_unit = JrcServiceDesk::Unit.create!(account: @account, operator_company: @operator, name: 'Private Root', code: 'private-root', active: true)
+    sede_unit = JrcServiceDesk::Unit.create!(account: @account, operator_company: @operator, name: 'Private SEDE', code: 'private-sede', active: true)
+    @connection.update!(entity_mappings: [{ entity_id: 0, unit_id: root_unit.id }, { entity_id: 7, unit_id: @unit.id },
+      { entity_id: 21, unit_id: sede_unit.id }], user_mappings: [{ account_user_id: @member.id, glpi_user_id: 77 }])
+    run = JrcServiceDesk::GlpiSyncRun.create!(account: @account, glpi_connection: @connection, account_user: @member,
+      connection_version: @connection.lock_version, state: 'partial', finished_at: Time.current,
+      coverage: { '0' => { 'state' => 'partial', 'observed' => 999, 'indexed' => 1, 'error' => 'ROOT_PRIVATE' },
+                  '7' => { 'state' => 'complete', 'observed' => 1, 'indexed' => 1 },
+                  '21' => { 'state' => 'partial', 'observed' => 888, 'indexed' => 1, 'error' => 'SEDE_PRIVATE' },
+                  'actors' => ['ROOT_ACTOR_SECRET'], 'error' => 'GLOBAL_PRIVATE' })
+    [[11, 0, root_unit], [12, 7, @unit], [13, 21, sede_unit]].each do |remote_id, entity_id, unit|
+      JrcServiceDesk::GlpiTicketSnapshot.create!(account: @account, glpi_connection: @connection, unit: unit,
+        glpi_sync_run: run, remote_id: remote_id, entity_id: entity_id, connection_version: @connection.lock_version,
+        observed_at: Time.current, payload: { 'id' => remote_id, 'title' => 'Scoped ticket', 'status' => 1,
+          'actor_scope_available' => true, 'actor_user_ids' => [77], 'assigned_user_ids' => [77] })
+    end
+    @member.update!(role: 'agent')
+    JrcServiceDesk::UnitMembership.create!(account: @account, unit: @unit, account_user: @member, active: true)
+    overview = JrcServiceDesk::Glpi::Overview.new
+    list = overview.list(access: access, filters: {})
+    report = overview.call(access: access, filters: {})
+    assert_equal [12], list.fetch(:items).map { |row| row.fetch('id') }
+    assert_equal 1, list.fetch(:meta).fetch(:total)
+    assert_equal 1, report.fetch(:total)
+    assert_equal({ 7 => 1 }, report.fetch(:by_entity))
+    [list.fetch(:coverage), report.fetch(:coverage)].each do |coverage|
+      assert_equal [7], coverage.fetch(:scope_entity_ids)
+      assert_equal ['7'], coverage.fetch(:entities).keys
+      assert_equal 'complete', coverage.fetch(:state)
+      assert_equal 1, coverage.fetch(:observed)
+      assert_equal 1, coverage.fetch(:indexed)
+      assert_empty coverage.fetch(:errors)
+      refute_includes coverage.to_json, 'ROOT_ACTOR_SECRET'
+      refute_includes coverage.to_json, 'GLOBAL_PRIVATE'
+    end
+  end
 end
