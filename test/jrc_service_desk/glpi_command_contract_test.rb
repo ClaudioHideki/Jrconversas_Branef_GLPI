@@ -39,4 +39,12 @@ class GlpiCommandContractTest < Minitest::Test
     assert_equal 'Group_Problem', JrcServiceDesk::Glpi::OperationCatalogue.fetch('problem_group.create').fetch(:type)
     assert_equal 'Change_Group', JrcServiceDesk::Glpi::OperationCatalogue.fetch('change_group.create').fetch(:type)
   end
+
+  def test_all_nine_template_verbs_use_the_real_inherited_itiltemplate_profile_right
+    operations = JrcServiceDesk::Glpi::OperationCatalogue::OPERATIONS.select { |name, _| name.start_with?('template') }
+    assert_equal 9, operations.size
+    operations.each do |name, descriptor|
+      assert_equal 'itiltemplate', descriptor[:source_right].first, name
+    end
+  end
 end
