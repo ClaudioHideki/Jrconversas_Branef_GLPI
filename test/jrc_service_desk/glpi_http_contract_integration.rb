@@ -54,4 +54,58 @@ class GlpiHttpContractTest < GlpiIntegrationTest
       assert_equal context['connection_version'], result['connection_version']
     end
   end
+
+  def test_multipart_document_reaches_dedicated_service_and_returns_receipt
+    service = Object.new
+    called = false
+    service.define_singleton_method(:upload) do |access:, ticket_id:, file:, idempotency_key:, name:|
+      raise 'Wrong account/parent' unless access.context.account.id && ticket_id == '101'
+      raise 'Multipart was not parsed' unless file.is_a?(ActionDispatch::Http::UploadedFile) && file.read == 'synthetic document bytes'
+      raise 'Wrong upload metadata' unless name == 'proof.txt' && idempotency_key == 'http-document-proof'
+
+      called = true
+      { id: '1', state: 'succeeded' }
+    end
+    Tempfile.create(['glpi-http-', '.txt']) do |file|
+      file.write('synthetic document bytes')
+      file.flush
+      upload = Rack::Test::UploadedFile.new(file.path, 'text/plain', original_filename: 'proof.txt')
+      JrcServiceDesk::Glpi::Documents.stub(:new, service) do
+        @http.post("#{@base}/tickets/101/documents", headers: bound_headers,
+          params: { file: upload, name: 'proof.txt', idempotency_key: 'http-document-proof' })
+      end
+    end
+    assert called
+    assert_equal 201, @http.response.status
+    assert_equal 'succeeded', JSON.parse(@http.response.body).dig('command', 'state')
+    assert_equal @connection.id.to_s, JSON.parse(@http.response.body)['connection_id']
+  end
+
+  def test_document_download_is_authenticated_attachment_without_public_redirect
+    source = Object.new
+    source.define_singleton_method(:session) { |&block| block.call(self) }
+    service = Object.new
+    service.define_singleton_method(:download) do |access:, client:, ticket_id:, document_id:|
+      raise 'Wrong download scope' unless access.context.account.id && client.equal?(source) && ticket_id == '101' && document_id == '7'
+
+      { bytes: 'synthetic document bytes', filename: 'proof.txt', content_type: 'text/plain' }
+    end
+    JrcServiceDesk::Glpi::Client.stub(:new, source) do
+      JrcServiceDesk::Glpi::Documents.stub(:new, service) do
+        @http.get("#{@base}/tickets/101/documents/7/download", headers: bound_headers)
+      end
+    end
+    assert_equal 200, @http.response.status
+    assert_equal 'synthetic document bytes', @http.response.body
+    assert_includes @http.response.headers['Content-Disposition'], 'attachment'
+    assert_equal 'nosniff', @http.response.headers['X-Content-Type-Options']
+    assert_nil @http.response.headers['Location']
+  end
+
+  private
+
+  def bound_headers
+    @headers.merge('X-JRC-GLPI-Connection-Id' => @connection.id.to_s,
+                   'X-JRC-GLPI-Connection-Version' => @connection.lock_version.to_s)
+  end
 end
