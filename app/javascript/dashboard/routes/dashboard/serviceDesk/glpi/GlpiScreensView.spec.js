@@ -11,7 +11,7 @@ vi.mock('../composables/useServiceDesk', () => ({
   useServiceDesk: () => holder.session,
 }));
 vi.mock('dashboard/api/serviceDeskGlpi', () => {
-  const api = { get: vi.fn() };
+  const api = { get: vi.fn(), execute: vi.fn() };
   return { default: api, createServiceDeskGlpiClient: () => api };
 });
 const envelope = data => ({
@@ -112,6 +112,141 @@ describe('GLPI operational workspace context', () => {
     expect(wrapper.find('[data-testid="remote-resource"]').exists()).toBe(
       false
     );
+    wrapper.unmount();
+  });
+  it('reaches category operations from the remote catalogue and updates the selected source record', async () => {
+    API.get.mockImplementation(async (_account, path) => {
+      if (path === 'context')
+        return envelope({
+          available: true,
+          entities: [{ id: 0, name: 'Root' }],
+        });
+      if (path === 'capabilities')
+        return envelope({
+          operations: ['create', 'update', 'delete'].map(action => ({
+            operation: `category.${action}`,
+            itemtype: 'ITILCategory',
+            verb: { create: 'post', update: 'patch', delete: 'delete' }[action],
+            supported: true,
+            permitted: true,
+            source_allowed: true,
+            fields: action === 'delete' ? [] : ['name'],
+            required: action === 'create' ? ['name'] : [],
+            parent: null,
+          })),
+        });
+      return envelope({
+        items:
+          path === 'resources/categories'
+            ? [
+                {
+                  id: 31,
+                  name: 'Remote category',
+                  entities_id: 0,
+                  date_mod: '2026-11-04 10:00:00',
+                },
+              ]
+            : [{ id: 42, name: 'Remote template' }],
+        meta: { page: 1, per_page: 25, total: 1 },
+        coverage: { complete: true, errors: [] },
+      });
+    });
+    API.execute.mockResolvedValue(
+      envelope({
+        command: { id: '81', state: 'indeterminate', technical_user_id: 9 },
+      })
+    );
+    const global = globals();
+    global.stubs.GlpiResourceBoard = false;
+    const wrapper = mount(GlpiServiceDesk, {
+      props: { screen: 'catalog' },
+      global,
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Remote template');
+    const categoriesButton = wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Categorias GLPI');
+    expect(
+      categoriesButton,
+      'remote categories must be reachable from the catalogue'
+    ).toBeDefined();
+    await categoriesButton.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Remote category');
+    expect(wrapper.text()).not.toContain('Remote template');
+    const form = wrapper.get('[data-testid="glpi-operation-form"]');
+    expect(
+      form
+        .findAll('select')[0]
+        .findAll('option')
+        .map(option => option.element.value)
+    ).toEqual(['category.create', 'category.update', 'category.delete']);
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('Remote category'))
+      .trigger('click');
+    await form.findAll('select')[0].setValue('category.update');
+    await form.get('input[type="text"]').setValue('Updated remote category');
+    await form.get('form').trigger('submit');
+    await flushPromises();
+    expect(API.execute.mock.calls[0][1]).toMatchObject({
+      operation: 'category.update',
+      target_id: 31,
+      entity_id: 0,
+      attributes: { name: 'Updated remote category' },
+      expected_version: '2026-11-04 10:00:00',
+    });
+    expect(
+      wrapper.get('[data-testid="glpi-command-receipt"]').text()
+    ).toContain(messages.JRC_GLPI.receipts.indeterminate);
+    wrapper.unmount();
+  });
+  it('shows a denied remote category collection without an empty success or template records', async () => {
+    API.get.mockImplementation(async (_account, path) => {
+      if (path === 'context')
+        return envelope({ available: true, entities: [] });
+      if (path === 'capabilities') return envelope({ operations: [] });
+      if (path === 'resources/categories')
+        throw Object.assign(new Error('Source denied categories'), {
+          response: {
+            status: 403,
+            data: { source_code: 'ERROR_RIGHT_MISSING' },
+          },
+        });
+      return envelope({
+        items: [{ id: 42, name: 'Remote template' }],
+        coverage: { complete: true, errors: [] },
+      });
+    });
+    const global = globals();
+    global.stubs.GlpiResourceBoard = false;
+    const wrapper = mount(GlpiServiceDesk, {
+      props: { screen: 'catalog' },
+      global,
+    });
+    await flushPromises();
+    const categoriesButton = wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Categorias GLPI');
+    expect(
+      categoriesButton,
+      'remote categories must be reachable from the catalogue'
+    ).toBeDefined();
+    await categoriesButton.trigger('click');
+    await flushPromises();
+    const categories = wrapper.get('[data-testid="glpi-resource-categories"]');
+    expect(categories.get('[role="alert"]').text()).toContain(
+      'ERROR_RIGHT_MISSING'
+    );
+    expect(categories.text()).not.toContain(messages.JRC_GLPI.empty_history);
+    expect(wrapper.text()).not.toContain('Remote template');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Modelos GLPI')
+      .trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Remote template');
     wrapper.unmount();
   });
 });

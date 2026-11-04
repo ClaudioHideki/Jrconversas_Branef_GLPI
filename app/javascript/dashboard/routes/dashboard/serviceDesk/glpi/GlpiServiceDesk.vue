@@ -20,6 +20,18 @@ const router = useRouter();
 const glpi = useGlpi();
 const { session, state, read } = glpi;
 const screenDefinition = computed(() => glpiScreen(props.screen));
+const catalogResource = ref('templates');
+watch(
+  () => props.screen,
+  () => {
+    catalogResource.value = 'templates';
+  }
+);
+const resource = computed(() =>
+  props.screen === 'catalog'
+    ? catalogResource.value
+    : screenDefinition.value?.resource
+);
 const initialized = ref(false);
 let generation = 0;
 onBeforeUnmount(() => {
@@ -99,6 +111,24 @@ watch(
         :glpi="glpi"
         @updated="initialize"
       />
+      <nav
+        v-if="screen === 'catalog'"
+        class="flex flex-wrap gap-2"
+        :aria-label="t('JRC_GLPI.workspace.catalog')"
+      >
+        <Button
+          :label="t('JRC_GLPI.resources.templates')"
+          :variant="catalogResource === 'templates' ? 'solid' : 'outline'"
+          :aria-pressed="catalogResource === 'templates'"
+          @click="catalogResource = 'templates'"
+        />
+        <Button
+          :label="t('JRC_GLPI.resources.categories')"
+          :variant="catalogResource === 'categories' ? 'solid' : 'outline'"
+          :aria-pressed="catalogResource === 'categories'"
+          @click="catalogResource = 'categories'"
+        />
+      </nav>
       <GlpiOverview
         v-if="screenDefinition?.kind === 'overview'"
         :key="screen"
@@ -115,9 +145,9 @@ watch(
       />
       <GlpiResourceBoard
         v-else-if="screenDefinition?.kind === 'resource'"
-        :key="screen"
+        :key="`${screen}:${resource}`"
         :glpi="glpi"
-        :resource="screenDefinition.resource"
+        :resource="resource"
       />
       <p
         v-else

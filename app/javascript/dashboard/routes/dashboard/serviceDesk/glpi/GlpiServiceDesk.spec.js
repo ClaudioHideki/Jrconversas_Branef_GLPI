@@ -92,11 +92,14 @@ describe('Service Desk primary source', () => {
     expect(wrapper.text()).not.toContain('Native ticket editor');
     wrapper.unmount();
   });
-  it('keeps JRC configuration clearly identified', async () => {
-    holder.session.state.context.capabilities.settings = { index: true };
-    const wrapper = await render('settings', 'glpi');
-    expect(wrapper.text()).toContain('Native ticket editor');
-    expect(wrapper.text()).toContain('JRC');
-    wrapper.unmount();
-  });
+  it.each(['settings', 'categories'])(
+    'keeps %s JRC configuration clearly identified',
+    async screen => {
+      holder.session.state.context.capabilities.settings = { index: true };
+      const wrapper = await render(screen, 'glpi');
+      expect(wrapper.text()).toContain('Native ticket editor');
+      expect(wrapper.text()).toContain('JRC');
+      wrapper.unmount();
+    }
+  );
 });
