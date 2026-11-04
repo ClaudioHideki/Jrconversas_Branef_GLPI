@@ -120,6 +120,7 @@ class GlpiHttpContractTest < GlpiIntegrationTest
       end
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
       while worker.alive? && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        ActiveRecord::Base.connection.select_value('SELECT pg_stat_clear_snapshot()')
         blocked = ActiveRecord::Base.connection.select_value(<<~SQL).to_i.positive?
           SELECT count(*) FROM pg_stat_activity
           WHERE datname = current_database() AND pid <> pg_backend_pid()
@@ -134,7 +135,7 @@ class GlpiHttpContractTest < GlpiIntegrationTest
     raise 'Configuration request did not finish after lock release' unless worker.join(10)
 
     worker.value
-    assert blocked, 'Configuration update must acquire the exclusive Account lock used against native mutations'
+    assert blocked, "Configuration update must acquire the exclusive Account lock (HTTP #{response_status})"
     assert_equal 200, response_status
     assert @connection.reload.primary_source?
   ensure
