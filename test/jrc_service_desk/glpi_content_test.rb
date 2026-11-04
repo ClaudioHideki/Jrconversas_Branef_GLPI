@@ -3,6 +3,7 @@
 require 'bundler/setup'
 require 'minitest/autorun'
 require 'active_support'
+require 'uri'
 require 'action_view'
 require 'cgi'
 
