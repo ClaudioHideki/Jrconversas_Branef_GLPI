@@ -22,6 +22,7 @@ class CreateServiceDeskGlpiExports < ActiveRecord::Migration[7.1]
       t.datetime :verified_from
       t.datetime :verified_until
       t.datetime :verification_expires_at
+      t.string :verification_nonce, limit: 64
       t.timestamps
     end
     add_index :jrc_service_desk_glpi_exports, [:glpi_connection_id, :account_user_id, :created_at], name: 'idx_sd_glpi_export_receipts'

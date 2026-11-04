@@ -38,7 +38,7 @@ class JrcServiceDesk::Glpi::Export
     record = find_record(access, id)
     current = authorize_record(record, access)
     record.with_lock do
-      record.update!(state: 'cancelled', verification_expires_at: nil) unless record.state == 'expired'
+      record.update!(state: 'cancelled', verification_expires_at: nil, verification_nonce: nil) unless record.state == 'expired'
     end
     record.artifact.purge
     audit(record, 'glpi_export_cancelled', current)
@@ -143,7 +143,7 @@ class JrcServiceDesk::Glpi::Export
       raise Cancelled unless record.state == 'verifying'
 
       record.update!(state: 'ready', verified_from: from, verified_until: Time.current,
-        verification_expires_at: 30.seconds.from_now, source_identity: identity)
+        verification_expires_at: 30.seconds.from_now, verification_nonce: SecureRandom.uuid, source_identity: identity)
     end
     record
   rescue Cancelled
@@ -173,34 +173,54 @@ class JrcServiceDesk::Glpi::Export
     return record if record.state == 'verifying'
     raise JrcServiceDesk::Glpi::Error.new('export_not_ready', 409) unless record.state == 'ready' && record.artifact.attached?
 
-    # Probe before the atomic claim, so two concurrent deliveries may both
-    # revalidate but only one can consume the same proof. No network under lock.
-    if record.verification_expires_at&.future?
-      with_client(current, nil) do |source|
-        unless source_identity(source, record.scope.fetch('entity_ids')) == record.source_identity
-          raise JrcServiceDesk::Glpi::Error.new('source_changed', 409)
+    # Bind each bounded source probe to the exact proof it observed. A worker
+    # may publish another proof before lock! reloads this row; that new proof
+    # must be probed independently, even if its timestamps happen to be equal.
+    2.times do
+      observed_nonce = usable_proof?(record) ? record.verification_nonce.dup : nil
+      if observed_nonce
+        with_client(current, nil) do |source|
+          unless source_identity(source, record.scope.fetch('entity_ids')) == record.source_identity
+            raise JrcServiceDesk::Glpi::Error.new('source_changed', 409)
+          end
+          verify_ticket(source, current, record.manifest.first) if record.manifest.any?
         end
-        verify_ticket(source, current, record.manifest.first) if record.manifest.any?
       end
-    end
-    claimed = false
-    record.with_lock do
-      current = authorize_record(record, access)
-      ensure_unexpired(record)
-      if record.state == 'ready' && record.verification_expires_at&.future?
-        record.update!(verification_expires_at: nil)
-        claimed = true
-      elsif record.state == 'ready'
-        record.update!(state: 'verifying', processed: 0, verified_from: nil, verified_until: nil, verification_expires_at: nil)
-        JrcServiceDesk::GlpiExportJob.perform_later(record.id, 'verify')
+      outcome = :retry
+      record.with_lock do
+        current = authorize_record(record, access)
+        ensure_unexpired(record)
+        if record.state == 'ready' && usable_proof?(record)
+          if observed_nonce && record.verification_nonce == observed_nonce
+            record.update!(verification_expires_at: nil, verification_nonce: nil)
+            outcome = :claimed
+          end
+        elsif record.state == 'ready'
+          record.update!(state: 'verifying', processed: 0, verified_from: nil, verified_until: nil,
+            verification_expires_at: nil, verification_nonce: nil)
+          JrcServiceDesk::GlpiExportJob.perform_later(record.id, 'verify')
+          outcome = :pending
+        elsif record.state == 'verifying'
+          outcome = :pending
+        elsif record.state == 'failed'
+          raise JrcServiceDesk::Glpi::Error.new(record.error_code, record.error_http_status || 409)
+        else
+          raise JrcServiceDesk::Glpi::Error.new('export_not_ready', 409)
+        end
       end
+      return record if outcome == :pending
+      next unless outcome == :claimed
+
+      audit(record, 'glpi_export_downloaded', current, count: record.total)
+      return record
     end
-    return record unless claimed
-    audit(record, 'glpi_export_downloaded', current, count: record.total)
-    record
+    # Continuous proof rotation is recoverable. Preserve the artifact and the
+    # newly published proof, but never deliver bytes using a previous probe.
+    raise JrcServiceDesk::Glpi::Error.new('export_verification_changed', 409)
   rescue Pundit::NotAuthorizedError, JrcServiceDesk::Glpi::Error => error
     pending = error.respond_to?(:code) && error.code == 'export_not_ready' && record && %w[queued running].include?(record.state)
-    fail_record(record, error) if record && record.state != 'expired' && !pending
+    changed = error.respond_to?(:code) && error.code == 'export_verification_changed'
+    fail_record(record, error) if record && record.state != 'expired' && !pending && !changed
     raise
   end
 
@@ -209,13 +229,17 @@ class JrcServiceDesk::Glpi::Export
     record.with_lock do
       return record unless record.expires_at && record.expires_at <= Time.current
 
-      record.update!(state: 'expired', verification_expires_at: nil)
+      record.update!(state: 'expired', verification_expires_at: nil, verification_nonce: nil)
     end
     record.artifact.purge
     record
   end
 
   private
+
+  def usable_proof?(record)
+    record.verification_nonce.present? && record.verification_expires_at&.future?
+  end
 
   def fresh_access(access)
     current = JrcServiceDesk::Glpi::Access.new(access.context.to_h).ready!
@@ -332,7 +356,7 @@ class JrcServiceDesk::Glpi::Export
     status = code == 'access_revoked' ? 403 : error.respond_to?(:http_status) ? error.http_status : 500
     record.with_lock do
       record.update!(state: 'failed', error_code: code, error_http_status: status,
-        verification_expires_at: nil) unless %w[cancelled expired].include?(record.state)
+        verification_expires_at: nil, verification_nonce: nil) unless %w[cancelled expired].include?(record.state)
     end
     record.artifact.purge
     Rails.logger.warn("GLPI export #{record.id} failed (#{code})")

@@ -224,6 +224,53 @@ class GlpiExportsTest < GlpiIntegrationTest
     refute record.reload.receipt.fetch(:can_download)
   end
 
+  def test_download_revalidates_a_proof_published_after_its_initial_read
+    assert_replaced_download_proof_rechecks_source(existing_proof: false)
+  end
+
+  def test_download_revalidates_a_replacement_proof_even_when_expiry_is_identical
+    assert_replaced_download_proof_rechecks_source(existing_proof: true)
+  end
+
+  def assert_replaced_download_proof_rechecks_source(existing_proof:)
+    record = prepare_export
+    source = Source.new
+    service.generate(id: record.id, client: source)
+    fixed_time = Time.current.change(usec: 0)
+    Time.stub(:current, fixed_time) do
+      if existing_proof
+        service.download(access: access, id: record.id)
+        service.verify(id: record.id, client: source)
+      end
+      stale = JrcServiceDesk::GlpiExport.find(record.id)
+      original_lock = stale.method(:with_lock)
+      interleaved = false
+      operator_access = access
+      worker = JrcServiceDesk::Glpi::Export.new
+      stale.define_singleton_method(:with_lock) do |*arguments, &block|
+        unless interleaved
+          interleaved = true
+          if existing_proof
+            JrcServiceDesk::GlpiExport.find(record.id).update!(state: 'verifying', verification_expires_at: nil)
+          else
+            worker.download(access: operator_access, id: record.id)
+          end
+          worker.verify(id: record.id, client: source)
+          source.denied = 1
+        end
+        original_lock.call(*arguments, &block)
+      end
+      downloader = JrcServiceDesk::Glpi::Export.new
+      downloader.define_singleton_method(:find_record) { |*| stale }
+      JrcServiceDesk::Glpi::Client.stub(:new, source) do
+        error = assert_raises(JrcServiceDesk::Glpi::Error) { downloader.download(access: operator_access, id: record.id) }
+        assert_equal 403, error.http_status
+      end
+      assert_equal 'failed', record.reload.state
+      refute record.artifact.attached?
+    end
+  end
+
   def test_source_change_during_background_download_verification_invalidates_file
     record = prepare_export
     source = Source.new
