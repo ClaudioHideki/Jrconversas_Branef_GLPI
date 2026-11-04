@@ -321,4 +321,25 @@ class GlpiCommandsTest < GlpiIntegrationTest
     end
     assert_empty @remote.writes
   end
+
+  def test_partial_task_planning_patch_validates_source_before_values_without_sending_unchanged_end
+    @remote.rows['TicketTask/501'] = { 'id' => 501, 'tickets_id' => 101, 'begin' => '2026-11-04 10:00:00',
+      'end' => '2026-11-04 11:00:00', 'date_mod' => 'v1' }
+    receipt = execute('task.update', target: 501, attributes: { 'parent_id' => 101, 'begin' => '2026-11-04 10:15:00' }, expected_version: 'v1')
+    assert_equal 'succeeded', receipt[:state]
+    refute @remote.writes.last.last.key?('end')
+    assert_equal '2026-11-04 11:00:00', @remote.rows['TicketTask/501']['end']
+  end
+
+  def test_partial_task_planning_patch_rejects_chronology_against_current_source_without_writing
+    @remote.rows['TicketTask/501'] = { 'id' => 501, 'tickets_id' => 101, 'begin' => '2026-11-04 10:00:00',
+      'end' => '2026-11-04 11:00:00', 'date_mod' => 'v1' }
+    %w[begin end].each do |field|
+      invalid = field == 'begin' ? '2026-11-04 11:30:00' : '2026-11-04 09:30:00'
+      receipt = execute('task.update', target: 501, attributes: { 'parent_id' => 101, field => invalid })
+      assert_equal 'rejected', receipt[:state]
+      assert_equal 'invalid_planning', receipt[:error_code]
+    end
+    assert_empty @remote.writes
+  end
 end

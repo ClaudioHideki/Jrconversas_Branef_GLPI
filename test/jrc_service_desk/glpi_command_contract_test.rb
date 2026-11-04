@@ -1,11 +1,16 @@
 # frozen_string_literal: true
 
 require 'minitest/autorun'
+require 'date'
+require 'active_support/core_ext/object/blank'
 
 module JrcServiceDesk
   module Glpi; end
 end
 require_relative '../../app/services/jrc_service_desk/glpi/operation_catalogue'
+require_relative '../../app/services/jrc_service_desk/input'
+require_relative '../../app/services/jrc_service_desk/glpi/identifiers'
+require_relative '../../app/services/jrc_service_desk/glpi/command_input'
 
 class GlpiCommandContractTest < Minitest::Test
   def test_ticket_assignment_and_priority_use_glpi_ten_rights
@@ -38,5 +43,16 @@ class GlpiCommandContractTest < Minitest::Test
   def test_problem_and_change_group_relations_use_the_installed_glpi_classes
     assert_equal 'Group_Problem', JrcServiceDesk::Glpi::OperationCatalogue.fetch('problem_group.create').fetch(:type)
     assert_equal 'Change_Group', JrcServiceDesk::Glpi::OperationCatalogue.fetch('change_group.create').fetch(:type)
+  end
+
+  def test_planning_patch_accepts_only_the_dirty_endpoint_but_creation_requires_both
+    input = JrcServiceDesk::Glpi::CommandInput.new(operation: 'task.update', target_id: 501, entity_id: 0,
+      attributes: { 'parent_id' => 101, 'begin' => '2026-11-04 10:15:00' })
+    assert_equal '2026-11-04 10:15:00', input.input['begin']
+    refute input.input.key?('end')
+    assert_raises(ArgumentError) do
+      JrcServiceDesk::Glpi::CommandInput.new(operation: 'task.create', target_id: nil, entity_id: 0,
+        attributes: { 'parent_id' => 101, 'content' => 'Task', 'begin' => '2026-11-04 10:15:00' })
+    end
   end
 end
