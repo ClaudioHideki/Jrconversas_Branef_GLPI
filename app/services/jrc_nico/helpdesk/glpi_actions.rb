@@ -63,8 +63,10 @@ class JrcNico::Helpdesk::GlpiActions
       entity_id: destination.values.fetch('entity_id'), attributes: attributes, partial: true)
     selector = attributes['template_id']
     selector = JrcServiceDesk::Glpi::Identifiers.remote(selector) unless selector.nil? || selector == ''
-    { 'entity_id' => destination.values.fetch('entity_id'), 'type' => contract.input.fetch('type', 1),
+    selection = { 'entity_id' => destination.values.fetch('entity_id'),
       'category_id' => contract.input.fetch('itilcategories_id', 0), 'template_id' => selector.presence }
+    selection['type'] = contract.input['type'] if contract.input.key?('type')
+    selection
   end
 
   def initialize(access, command: nil)
