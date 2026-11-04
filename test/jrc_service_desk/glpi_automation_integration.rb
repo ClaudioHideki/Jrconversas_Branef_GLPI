@@ -240,4 +240,18 @@ class GlpiAutomationTest < GlpiIntegrationTest
       assert_empty @remote.writes
     end
   end
+
+  def test_nico_disabled_during_remote_preflight_prevents_a_confirmed_remote_write
+    @remote.on_profile = -> { @account.update!(custom_attributes: @account.custom_attributes.merge('nico_enabled' => false)) }
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      operator = JrcNico::OperatorSession.new(account: @account, user: @user)
+      command = operator.ask(message: 'Synthetic revocation', request_id: SecureRandom.uuid,
+        prepared: { 'tool' => 'execute_glpi_operation', 'arguments' => { 'reference' => @reference,
+          'operation' => 'ticket.update', 'attributes' => { 'name' => 'Must not be written' } } })
+      operator.execute(command)
+      assert_equal 'failed', command.reload.status
+      assert_equal 'not_authorized', command.result.dig('command', 'error_code')
+      assert_empty @remote.writes
+    end
+  end
 end
