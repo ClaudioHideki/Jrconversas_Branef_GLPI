@@ -8,6 +8,9 @@ const props = defineProps({
   resource: { type: String, required: true },
   required: Boolean,
   disabled: Boolean,
+  filters: { type: Object, default: () => ({}) },
+  placeholder: { type: String, default: '' },
+  showSelectedReference: Boolean,
 });
 const emit = defineEmits(['update:modelValue']);
 const { t } = useI18n();
@@ -15,6 +18,13 @@ const glpi = useGlpi();
 const search = ref('');
 const page = ref(1);
 const result = computed(() => glpi.state.data.lookup);
+const rows = computed(() => result.value?.items || result.value?.fields || []);
+const selectedOutsidePage = computed(
+  () =>
+    props.showSelectedReference &&
+    Number(props.modelValue) > 0 &&
+    !rows.value.some(row => String(row.id) === String(props.modelValue))
+);
 const load = () =>
   glpi.read(
     'lookup',
@@ -23,12 +33,18 @@ const load = () =>
       : `resources/${props.resource}`,
     props.resource === 'ticket_fields'
       ? undefined
-      : { page: page.value, per_page: 25, search: search.value }
+      : {
+          ...props.filters,
+          page: page.value,
+          per_page: 25,
+          search: search.value,
+        }
   );
 watch(
-  () => props.resource,
+  [() => props.resource, () => JSON.stringify(props.filters)],
   () => {
     page.value = 1;
+    glpi.discard('lookup');
     load();
   },
   { immediate: true }
@@ -64,13 +80,23 @@ watch(
     <select
       :value="modelValue"
       :required="required"
-      :disabled="disabled || !!glpi.state.errors.lookup"
+      :disabled="
+        disabled || glpi.state.loading.lookup || !!glpi.state.errors.lookup
+      "
       class="!mb-0 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-2 text-sm"
       @change="emit('update:modelValue', $event.target.value)"
     >
-      <option value="">{{ t('JRC_SERVICE_DESK.COMMON.select') }}</option>
+      <option value="">
+        {{ placeholder || t('JRC_SERVICE_DESK.COMMON.select') }}
+      </option>
       <option
-        v-for="row in result?.items || result?.fields || []"
+        v-if="selectedOutsidePage"
+        :value="modelValue"
+      >
+        {{ t('JRC_GLPI.workspace.record_number', { id: modelValue }) }}
+      </option>
+      <option
+        v-for="row in rows"
         :key="row.id"
         :value="row.id"
       >

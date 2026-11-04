@@ -37,4 +37,17 @@ describe('GLPI rich content editor', () => {
     );
     wrapper.unmount();
   });
+  it('updates accessible required state when the source model changes its content requirement', async () => {
+    const wrapper = mount(Editor, {
+      props: { label: 'Content', modelValue: '<p>Draft</p>' },
+    });
+    expect(wrapper.get('[role="textbox"]').attributes('aria-required')).toBe(
+      'false'
+    );
+    await wrapper.setProps({ required: true });
+    expect(wrapper.get('[role="textbox"]').attributes('aria-required')).toBe(
+      'true'
+    );
+    wrapper.unmount();
+  });
 });

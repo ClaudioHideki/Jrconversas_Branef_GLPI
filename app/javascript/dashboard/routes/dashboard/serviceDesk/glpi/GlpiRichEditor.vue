@@ -12,6 +12,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   label: { type: String, required: true },
   disabled: Boolean,
+  required: Boolean,
 });
 const emit = defineEmits(['update:modelValue']);
 const host = ref(null);
@@ -70,6 +71,7 @@ onMounted(() => {
       role: 'textbox',
       'aria-label': props.label,
       'aria-multiline': 'true',
+      'aria-required': String(props.required),
     },
     dispatchTransaction(transaction) {
       view.updateState(view.state.apply(transaction));
@@ -81,6 +83,10 @@ onMounted(() => {
 watch(
   () => props.disabled,
   () => view?.setProps({ editable: () => !props.disabled })
+);
+watch(
+  () => props.required,
+  value => view?.dom.setAttribute('aria-required', String(value))
 );
 watch(
   () => props.modelValue,
