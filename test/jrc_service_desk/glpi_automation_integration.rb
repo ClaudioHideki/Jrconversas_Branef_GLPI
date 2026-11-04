@@ -302,4 +302,21 @@ class GlpiAutomationTest < GlpiIntegrationTest
     scope = JrcNico::Helpdesk::ReportingScope.new(context, policy, {}, historical: true).tickets
     assert_equal 0, scope.count
   end
+
+  def test_first_reference_rechecks_connection_revision_after_remote_proof_before_persisting
+    reference = JrcServiceDesk::Glpi::Reference.new(@reference)
+    proof = reference.method(:authorize!)
+    changed = lambda do |**arguments|
+      row = proof.call(**arguments)
+      @account.with_lock { @connection.update!(base_url: 'https://replacement.example.invalid/apirest.php') }
+      row
+    end
+    reference.stub(:authorize!, changed) do
+      error = assert_raises(JrcServiceDesk::Glpi::Error) do
+        reference.record!(access: JrcServiceDesk::Glpi::Access.new(@identity), client: @remote)
+      end
+      assert_equal 'configuration_changed', error.code
+    end
+    assert_equal 0, JrcServiceDesk::GlpiReference.where(account: @account).count
+  end
 end
