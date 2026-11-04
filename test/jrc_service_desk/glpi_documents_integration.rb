@@ -4,7 +4,7 @@ require_relative 'glpi_commands_integration'
 require 'stringio'
 
 class GlpiDocumentSource < GlpiCommandSource
-  attr_accessor :upload_timeout, :link_timeout, :skip_link, :download_hook, :link_denied
+  attr_accessor :upload_timeout, :link_timeout, :skip_link, :download_hook, :link_denied, :file_metadata_override
   attr_reader :downloads
 
   def initialize
@@ -17,7 +17,8 @@ class GlpiDocumentSource < GlpiCommandSource
     command = JrcServiceDesk::GlpiCommand.where(state: 'sending').last!
     raise 'Missing durable upload stage' unless command.result['stage'] == 'upload_sending'
 
-    rows['Document/601'] = input.merge('id' => 601, 'filename' => filename, 'mime' => content_type)
+    rows['Document/601'] = input.merge('id' => 601, 'filename' => filename, 'mime' => content_type,
+      'filepath' => "TXT/#{Digest::SHA1.hexdigest(bytes)}.txt", 'sha1sum' => Digest::SHA1.hexdigest(bytes)).merge(file_metadata_override || {})
     raise JrcServiceDesk::Glpi::Error.new('source_unavailable') if upload_timeout
 
     { 'id' => 601 }
@@ -210,5 +211,42 @@ class GlpiDocumentsTest < GlpiIntegrationTest
     result = @documents.download(access: access, client: @remote, ticket_id: 101, document_id: 601)
     assert_equal 'SYNTHETIC FILE', result[:bytes]
     assert_equal [601], @remote.downloads
+  end
+
+  def test_upload_requires_source_guard_against_creating_a_document_without_a_file
+    assert_equal 'succeeded', upload[:state]
+    assert_equal true, @remote.writes.first.last['_only_if_upload_succeed']
+  end
+
+  def test_acknowledged_upload_with_missing_or_mismatched_file_proof_never_links_or_succeeds
+    [{ 'sha1sum' => nil }, { 'sha1sum' => 'f' * 40 }, { 'filepath' => '' }, { 'filename' => '' }, { 'mime' => '' }].each_with_index do |override, index|
+      ticket_id = 110 + index
+      @remote.rows["Ticket/#{ticket_id}"] = @remote.rows.fetch('Ticket/101').merge('id' => ticket_id)
+      @remote.file_metadata_override = override
+      receipt = @documents.upload(access: @access, ticket_id: ticket_id, file: @file,
+        idempotency_key: "invalid-proof-#{index}")
+      assert_equal 'indeterminate', receipt[:state], override.inspect
+      assert_equal '601', receipt[:remote_id]
+      assert_equal 'write_not_confirmed', receipt[:error_code]
+    end
+    assert_equal 5, @remote.writes.size
+    assert @remote.writes.all? { |write| write.first == :upload }
+  end
+
+  def test_known_id_reconciliation_requires_stored_file_proof_and_never_resends
+    @remote.link_timeout = true
+    receipt = upload
+    assert_equal 'indeterminate', receipt[:state]
+    command = JrcServiceDesk::GlpiCommand.find(receipt[:id])
+    original = @remote.rows.fetch('Document/601').deep_dup
+    [{ 'sha1sum' => nil }, { 'sha1sum' => 'f' * 40 }, { 'filepath' => '' }, { 'filename' => '' }, { 'mime' => '' }].each do |override|
+      @remote.rows['Document/601'] = original.merge(override)
+      error = assert_raises(JrcServiceDesk::Glpi::Error) do
+        JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(access: @access, command: command)
+      end
+      assert_equal 'reconciliation_unverifiable', error.code
+      assert_equal 'indeterminate', command.reload.state
+      assert_equal 2, @remote.writes.size
+    end
   end
 end

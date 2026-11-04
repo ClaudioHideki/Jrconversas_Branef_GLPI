@@ -98,8 +98,8 @@ class JrcServiceDesk::Glpi::Documents
         document = client.get("Document/#{id}")
         @executor.verify_id!(document, id)
         @executor.verify_entity!(document, command.entity_id)
-        if !command.remote_id && (document['sha1sum'] != command.request_payload['sha1'] ||
-            !document['comment'].to_s.include?(command.correlation_marker))
+        verify_stored_file!(command, document, 'reconciliation_unverifiable')
+        if !command.remote_id && !document['comment'].to_s.include?(command.correlation_marker)
           raise JrcServiceDesk::Glpi::Error.new('reconciliation_unverifiable', 409)
         end
         link = exact_link(client, command.parent_id, id)
@@ -136,12 +136,14 @@ class JrcServiceDesk::Glpi::Documents
       payload = command.request_payload
       sent = true
       response = client.upload_document({ 'name' => payload.fetch('name'), 'entities_id' => command.entity_id,
-        'comment' => command.correlation_marker }, bytes: bytes, filename: payload.fetch('upload_filename'), content_type: payload.fetch('mime'))
+        'comment' => command.correlation_marker, '_only_if_upload_succeed' => true },
+        bytes: bytes, filename: payload.fetch('upload_filename'), content_type: payload.fetch('mime'))
       id = JrcServiceDesk::Input.id(response.fetch('id'))
       command.update!(remote_id: id, result: { 'stage' => 'document_created', 'document_id' => id.to_s })
       document = client.get("Document/#{id}")
       @executor.verify_id!(document, id)
       @executor.verify_entity!(document, command.entity_id)
+      verify_stored_file!(command, document, 'write_not_confirmed')
       access = @executor.fresh_access(access, command.connection_version)
       @executor.authorize_local!(access, descriptor)
       ticket = authorized_ticket!(access, client, command.parent_id)
@@ -178,6 +180,14 @@ class JrcServiceDesk::Glpi::Documents
     scope = JrcServiceDesk::GlpiCommand.where(glpi_connection_id: command.glpi_connection_id, state: %w[sending indeterminate]).where.not(id: command.id)
     scope = scope.where(parent_type: 'Ticket', parent_id: command.parent_id).or(scope.where(itemtype: 'Ticket', target_id: command.parent_id))
     raise JrcServiceDesk::Glpi::Error.new('unresolved_previous_command', 409) if scope.exists?
+  end
+
+  def verify_stored_file!(command, document, error_code)
+    digest = command.request_payload['sha1']
+    stored = %w[filename filepath mime].all? { |field| document[field].is_a?(String) && document[field].present? }
+    valid = digest.is_a?(String) && digest.match?(/\A[0-9a-f]{40}\z/) && document['sha1sum'] == digest && stored &&
+      safe_mime(document['mime']) == document['mime']
+    raise JrcServiceDesk::Glpi::Error.new(error_code, error_code == 'reconciliation_unverifiable' ? 409 : 502) unless valid
   end
 
   def authorized_ticket!(access, client, id)
