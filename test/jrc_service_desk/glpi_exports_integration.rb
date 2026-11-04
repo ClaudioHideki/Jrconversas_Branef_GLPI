@@ -6,7 +6,7 @@ require 'csv'
 class GlpiExportsTest < GlpiIntegrationTest
   # Only HTTP is synthetic: permissions, memberships, receipts, jobs and storage are real.
   class Source
-    attr_accessor :count, :denied, :duplicate, :change_total, :on_detail
+    attr_accessor :count, :denied, :denied_code, :duplicate, :change_total, :on_detail
     attr_reader :ranges
 
     def initialize(count = 3)
@@ -33,7 +33,7 @@ class GlpiExportsTest < GlpiIntegrationTest
       end
       id = path.delete_prefix('Ticket/').to_i
       on_detail&.call(id)
-      raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if denied == id
+      raise JrcServiceDesk::Glpi::Error.new(denied_code || 'ERROR_RIGHT_MISSING', 403) if denied == id
 
       { 'id' => id, 'entities_id' => 0, 'date_mod' => '2026-01-02 10:00:00', 'status' => 1 }
     end
@@ -93,6 +93,15 @@ class GlpiExportsTest < GlpiIntegrationTest
     assert_equal 1, CSV.parse(record.artifact.download).size
   end
 
+  def test_premature_download_does_not_abort_the_queued_job
+    record = prepare_export
+    error = assert_raises(JrcServiceDesk::Glpi::Error) { service.download(access: access, id: record.id) }
+    assert_equal 'export_not_ready', error.code
+    assert_equal 'queued', record.reload.state
+    service.generate(id: record.id, client: Source.new)
+    assert_equal 'ready', record.reload.state
+  end
+
   def test_source_denial_mid_generation_never_delivers_partial_file
     record = prepare_export
     source = Source.new
@@ -145,6 +154,19 @@ class GlpiExportsTest < GlpiIntegrationTest
     assert_equal 403, error.http_status
     assert_equal 'failed', record.reload.state
     refute record.artifact.attached?
+  end
+
+  def test_any_background_source403_remains_forbidden_on_delivery
+    record = prepare_export
+    source = Source.new
+    service.generate(id: record.id, client: source)
+    service.download(access: access, id: record.id)
+    source.denied = 1
+    source.denied_code = 'ERROR_LOGIN_FAILED'
+    service.verify(id: record.id, client: source)
+    error = assert_raises(JrcServiceDesk::Glpi::Error) { service.download(access: access, id: record.id) }
+    assert_equal 403, error.http_status
+    refute record.reload.artifact.attached?
   end
 
   def test_download_proof_is_single_use_and_source403_purges_artifact

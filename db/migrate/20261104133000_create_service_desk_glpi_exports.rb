@@ -16,6 +16,7 @@ class CreateServiceDeskGlpiExports < ActiveRecord::Migration[7.1]
       t.bigint :processed, null: false, default: 0
       t.bigint :total
       t.string :error_code
+      t.integer :error_http_status
       t.datetime :finished_at
       t.datetime :expires_at
       t.datetime :verified_from

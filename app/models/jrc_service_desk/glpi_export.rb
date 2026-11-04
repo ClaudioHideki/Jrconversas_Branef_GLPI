@@ -6,6 +6,7 @@ class JrcServiceDesk::GlpiExport < JrcServiceDesk::AccountRecord
   has_one_attached :artifact
   validates :state, inclusion: { in: %w[queued running ready verifying failed cancelled expired] }
   validates :connection_version, :processed, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :error_http_status, numericality: { only_integer: true, greater_than_or_equal_to: 400, less_than_or_equal_to: 599 }, allow_nil: true
   validate do
     %i[glpi_connection account_user].each { |name| validate_account_reference(name) }
   end

@@ -166,7 +166,8 @@ class JrcServiceDesk::Glpi::Export
       raise JrcServiceDesk::Glpi::Error.new('export_expired', 410)
     end
     if record.state == 'failed'
-      status = record.error_code == 'access_revoked' || record.error_code.to_s.start_with?('ERROR_RIGHT', 'ERROR_SESSION') ? 403 : 409
+      status = record.error_http_status || (record.error_code == 'access_revoked' ||
+        record.error_code.to_s.start_with?('ERROR_RIGHT', 'ERROR_SESSION') ? 403 : 409)
       raise JrcServiceDesk::Glpi::Error.new(record.error_code, status)
     end
     return record if record.state == 'verifying'
@@ -198,7 +199,8 @@ class JrcServiceDesk::Glpi::Export
     audit(record, 'glpi_export_downloaded', current, count: record.total)
     record
   rescue Pundit::NotAuthorizedError, JrcServiceDesk::Glpi::Error => error
-    fail_record(record, error) if record && record.state != 'expired'
+    pending = error.respond_to?(:code) && error.code == 'export_not_ready' && record && %w[queued running].include?(record.state)
+    fail_record(record, error) if record && record.state != 'expired' && !pending
     raise
   end
 
@@ -327,8 +329,10 @@ class JrcServiceDesk::Glpi::Export
   def fail_record(record, error)
     code = error.is_a?(Pundit::NotAuthorizedError) || error.is_a?(ActiveRecord::RecordNotFound) ? 'access_revoked' :
       error.respond_to?(:code) ? error.code : 'export_failed'
+    status = code == 'access_revoked' ? 403 : error.respond_to?(:http_status) ? error.http_status : 500
     record.with_lock do
-      record.update!(state: 'failed', error_code: code, verification_expires_at: nil) unless %w[cancelled expired].include?(record.state)
+      record.update!(state: 'failed', error_code: code, error_http_status: status,
+        verification_expires_at: nil) unless %w[cancelled expired].include?(record.state)
     end
     record.artifact.purge
     Rails.logger.warn("GLPI export #{record.id} failed (#{code})")
