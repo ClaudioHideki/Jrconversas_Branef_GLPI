@@ -2,6 +2,8 @@
 
 The projection is derived from GLPI and never creates an editable native Ticket. List, overview and export use the same account/connection/version, explicitly mapped entities, currently granted units, actor restriction, and validated filters. They expose the latest collection time and scoped coverage. Missing entity labels never identify scope. A changed connection version invalidates its projection and export receipts.
 
+For restricted operators and mine filters, coverage counts come only from their authorized filtered projection (`count_scope: authorized_filtered_projection`). Shared run totals, nested actor errors and actor IDs are redacted, including those for other actors in the same unit. Incomplete source collection remains labeled partial. If actor metadata is unavailable, `projection_filter_unavailable` is returned without record counts or identifiers. Administrators querying all permitted tickets receive their authorized entity coverage (`count_scope: authorized_entities`).
+
 `Overview#list(access:, filters:)` returns `items`, `meta` (page, per_page, total), `coverage`, `observed_at`, and `generated_at`. `Overview#call(access:, filters:)` returns the report metrics, the same coverage, and timestamps. Supported filters: entity_id (including 0), status, priority, search (title), from, to, mine, type, page, per_page. Mine uses the authenticated GLPI mapping and assigned technician actors only; the base restricted read permission accepts requester or technician actors. Missing actor coverage must not broaden the result.
 
 Suggested authenticated endpoints under the existing account GLPI prefix:

@@ -42,8 +42,8 @@ class JrcServiceDesk::Glpi::Overview
       .where(entity_id: query.entity_ids, unit_id: access.context.unit_scope.select(:id), glpi_sync_run_id: run&.id)
     scope = scope.none unless run
     coverage = coverage_for(access, query, run, scope)
-    observed_at = scope.minimum(:observed_at)&.iso8601
     scope = filtered(scope, query)
+    observed_at = scope.minimum(:observed_at)&.iso8601
     Selection.new(access: access, query: query, scope: scope, coverage: coverage, observed_at: observed_at)
   end
 
@@ -54,10 +54,21 @@ class JrcServiceDesk::Glpi::Overview
     complete = run && %w[complete partial].include?(run.state) && entries.values.all? { |entry| entry && entry['state'] == 'complete' }
     indexed = scope.group(:entity_id).count
     complete &&= entries.all? { |id, entry| indexed.fetch(id.to_i, 0) == entry['indexed'].to_i }
+    restricted = !access.all_tickets? || query.mine?
+    if restricted
+      # A shared synchronization run may include other actors in the same unit.
+      # Its totals, nested errors and actor metadata are not a permitted report.
+      indexed = filtered(scope, query).group(:entity_id).count
+      entries = entries.to_h do |id, entry|
+        count = indexed.fetch(id.to_i, 0)
+        [id, { 'state' => entry&.fetch('state', 'partial') || 'unavailable', 'observed' => count, 'indexed' => count }]
+      end
+    end
     { state: run.nil? ? 'unavailable' : complete ? 'complete' : 'partial', source: 'glpi_projection',
       connection_version: access.connection.lock_version, scope_entity_ids: query.entity_ids, run_id: run&.id&.to_s,
       observed: entries.values.compact.sum { |entry| entry['observed'].to_i }, indexed: indexed.values.sum,
-      errors: entries.filter_map { |id, entry| [id, entry ? entry['error'] : 'coverage_missing'] if !entry || entry['error'] }.to_h,
+      errors: restricted ? {} : entries.filter_map { |id, entry| [id, entry ? entry['error'] : 'coverage_missing'] if !entry || entry['error'] }.to_h,
+      count_scope: restricted ? 'authorized_filtered_projection' : 'authorized_entities',
       entities: entries, collected_at: run&.finished_at&.iso8601 }
   end
 

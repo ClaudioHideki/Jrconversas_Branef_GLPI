@@ -365,4 +365,32 @@ class GlpiExportsTest < GlpiIntegrationTest
       refute_includes coverage.to_json, 'GLOBAL_PRIVATE'
     end
   end
+
+  def test_restricted_and_mine_coverage_never_disclose_other_actors_in_same_unit
+    @connection.update!(user_mappings: [{ account_user_id: @member.id, glpi_user_id: 55 }])
+    seed_projection(2)
+    JrcServiceDesk::GlpiTicketSnapshot.where(glpi_connection: @connection).each do |row|
+      actor = row.remote_id == 1 ? 55 : 66
+      row.update!(payload: row.payload.merge('actor_scope_available' => true, 'actor_user_ids' => [actor], 'assigned_user_ids' => [actor]))
+    end
+    JrcServiceDesk::GlpiSyncRun.where(glpi_connection: @connection).update_all(state: 'partial',
+      coverage: { '0' => { 'state' => 'partial', 'observed' => 2, 'indexed' => 2,
+        'error' => 'OTHER_ACTOR_PRIVATE', 'actors' => [9999], 'errors' => { 'OTHER_ACTOR_PRIVATE' => 1 } } })
+    overview = JrcServiceDesk::Glpi::Overview.new
+    mine = overview.call(access: access, filters: { 'mine' => 'true' })
+    @member.update!(role: 'agent')
+    JrcServiceDesk::UnitMembership.create!(account: @account, unit: @unit, account_user: @member, active: true)
+    restricted = overview.call(access: access, filters: {})
+    assert_equal [1], overview.list(access: access, filters: {}).fetch(:items).map { |row| row.fetch('id') }
+    [mine, restricted].each do |report|
+      assert_equal 1, report.fetch(:total)
+      coverage = report.fetch(:coverage)
+      assert_equal 1, coverage.fetch(:observed)
+      assert_equal 1, coverage.fetch(:indexed)
+      assert_equal 'partial', coverage.fetch(:state)
+      assert_equal 1, coverage.fetch(:entities).fetch('0').fetch('indexed')
+      refute_includes coverage.to_json, 'OTHER_ACTOR_PRIVATE'
+      refute_includes coverage.to_json, '9999'
+    end
+  end
 end
