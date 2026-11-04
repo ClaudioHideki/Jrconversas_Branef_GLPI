@@ -125,6 +125,47 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
     GlpiLabEvidence::CHECKS << 'actual derived projection, root mapping, dated consistent overview, no native copies'
   end
 
+  def test_raw_api_narrow_default_is_different_from_all_permitted_entities
+    @connection.update!(user_token: @fixtures.fetch('narrow_token'))
+    client = JrcServiceDesk::Glpi::Client.new(@connection)
+    # Deliberately use raw initSession here to observe GLPI's own default before
+    # any future Client.session selection logic. This still uses the real Client
+    # HTTP/parser and the exact-host laboratory transport.
+    session = client.send(:request, :get, 'initSession/', auth: true)
+    client.instance_variable_set(:@session_token, session.fetch('session_token'))
+    begin
+      active = client.get('getActiveEntities/').fetch('active_entity')
+      assert_equal @fixtures.fetch('entities').fetch('support'), active.fetch('id').to_i
+      refute_includes active.fetch('active_entities').map { |row| row.fetch('id').to_i }, 0
+      permitted = client.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities').map { |row| row.fetch('id').to_i }
+      assert_includes permitted, 0
+      narrow = JrcServiceDesk::Glpi::TicketQuery.new(access, {}).all(client).map { |row| row.fetch('id').to_i }
+      refute_includes narrow, @fixtures.fetch('tickets').fetch('root')
+      # GLPI 10.0.18 uses omitted entities_id for the literal internal 'all';
+      # sending the string 'all' is cast to integer0 by its API implementation.
+      assert_equal true, client.send(:request, :post, 'changeActiveEntities/', body: { 'is_recursive' => true })
+      broad = JrcServiceDesk::Glpi::TicketQuery.new(access, {}).all(client).map { |row| row.fetch('id').to_i }
+      assert_includes broad, @fixtures.fetch('tickets').fetch('root')
+      refute_includes broad, @fixtures.fetch('tickets').fetch('foreign')
+      GlpiLabEvidence::CHECKS << 'raw narrow default excludes root despite permitted-root list; explicit all restores locally scoped query'
+    ensure
+      client.get('killSession/')
+      client.instance_variable_set(:@session_token, nil)
+    end
+  end
+
+  def test_short_lived_client_session_covers_explicit_mappings_from_narrow_default
+    @connection.update!(user_token: @fixtures.fetch('narrow_token'))
+    source do |client|
+      allowed = client.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities').map { |row| row.fetch('id').to_i }
+      assert_includes allowed, 0
+      rows = JrcServiceDesk::Glpi::TicketQuery.new(access, {}).all(client).map { |row| row.fetch('id').to_i }
+      assert_includes rows, @fixtures.fetch('tickets').fetch('root'), 'A fresh session must cover every authorized mapped entity, not only the source user default'
+      refute_includes rows, @fixtures.fetch('tickets').fetch('foreign')
+    end
+    GlpiLabEvidence::CHECKS << 'short-lived Client session includes all explicitly mapped permitted entities from narrow user default'
+  end
+
   def test_all_required_named_commands_against_real_glpi
     assert_equal GlpiLabEvidence::REQUIRED.sort, JrcServiceDesk::Glpi::OperationCatalogue::OPERATIONS.keys.sort
     failures = []
