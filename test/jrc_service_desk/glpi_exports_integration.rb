@@ -45,12 +45,29 @@ class GlpiExportsTest < GlpiIntegrationTest
     JrcServiceDesk::Glpi::Access.new(@identity)
   end
 
-  def prepare_export
+  def seed_projection(count)
+    @connection.update!(primary_source: true) unless @connection.primary_source?
+    JrcServiceDesk::GlpiTicketSnapshot.where(glpi_connection: @connection).delete_all
+    run = JrcServiceDesk::GlpiSyncRun.create!(account: @account, glpi_connection: @connection, account_user: @member,
+      connection_version: @connection.lock_version, state: 'complete', finished_at: Time.current,
+      coverage: { '0' => { state: 'complete', observed: count, indexed: count } })
+    rows = count.times.map do |index|
+      { account_id: @account.id, glpi_connection_id: @connection.id, unit_id: @unit.id, glpi_sync_run_id: run.id,
+        remote_id: index + 1, entity_id: 0, connection_version: @connection.lock_version, observed_at: Time.current,
+        payload: { 'id' => index + 1, 'entities_id' => 0, 'title' => index.zero? ? '=SUM(A1)' : "Ticket #{index + 1}",
+          'status' => 1, 'priority' => 3, 'opened_at' => '2026-01-01 10:00:00', 'updated_at' => '2026-01-02 10:00:00' },
+        active: true, created_at: Time.current, updated_at: Time.current }
+    end
+    JrcServiceDesk::GlpiTicketSnapshot.insert_all!(rows) if rows.any?
+  end
+
+  def prepare_export(count = 3)
+    seed_projection(count)
     service.prepare(access: access, filters: {})
   end
 
   def test_complete_10205_rows_without_silent_cap_and_with_durable_progress
-    record = prepare_export
+    record = prepare_export(10_205)
     assert_equal 'queued', record.state
     assert ActiveJob::Base.queue_adapter.enqueued_jobs.any? { |job| job[:job] == JrcServiceDesk::GlpiExportJob && job[:args].first == record.id }
     source = Source.new(10_205)
@@ -67,7 +84,7 @@ class GlpiExportsTest < GlpiIntegrationTest
   end
 
   def test_empty_export_has_only_header
-    record = prepare_export
+    record = prepare_export(0)
     service.generate(id: record.id, client: Source.new(0))
     assert_equal 'ready', record.reload.state
     assert_equal 1, CSV.parse(record.artifact.download).size
@@ -85,7 +102,7 @@ class GlpiExportsTest < GlpiIntegrationTest
 
   def test_duplicate_or_changing_page_count_is_failed_not_ready
     %i[duplicate change_total].each do |fault|
-      record = prepare_export
+      record = prepare_export(205)
       source = Source.new(205)
       source.public_send("#{fault}=", true)
       service.generate(id: record.id, client: source)
@@ -119,10 +136,33 @@ class GlpiExportsTest < GlpiIntegrationTest
     source = Source.new
     service.generate(id: record.id, client: source)
     source.denied = 2
-    error = assert_raises(JrcServiceDesk::Glpi::Error) { service.download(access: access, id: record.id, client: source) }
+    assert_equal 'verifying', service.download(access: access, id: record.id).state
+    service.verify(id: record.id, client: source)
+    error = assert_raises(JrcServiceDesk::Glpi::Error) { service.download(access: access, id: record.id) }
     assert_equal 403, error.http_status
     assert_equal 'failed', record.reload.state
     refute record.artifact.attached?
+  end
+
+  def test_download_proof_is_single_use_and_source403_purges_artifact
+    record = prepare_export
+    source = Source.new
+    service.generate(id: record.id, client: source)
+    assert_equal 'verifying', service.download(access: access, id: record.id).state
+    service.verify(id: record.id, client: source)
+    assert record.reload.receipt.fetch(:can_download)
+    assert record.verified_from <= record.verified_until
+    JrcServiceDesk::Glpi::Client.stub(:new, source) do
+      assert_equal record.id, service.download(access: access, id: record.id).id
+    end
+    refute record.reload.receipt.fetch(:can_download)
+    assert_equal 'verifying', service.download(access: access, id: record.id).state
+    service.verify(id: record.id, client: source)
+    source.denied = 1
+    JrcServiceDesk::Glpi::Client.stub(:new, source) do
+      assert_raises(JrcServiceDesk::Glpi::Error) { service.download(access: access, id: record.id) }
+    end
+    refute record.reload.artifact.attached?
   end
 
   def test_disabled_unit_or_configuration_change_invalidates_download
@@ -131,7 +171,7 @@ class GlpiExportsTest < GlpiIntegrationTest
       service.generate(id: record.id, client: Source.new)
       change == :unit ? @unit.update!(active: false) : @connection.update!(timezone: 'America/Sao_Paulo')
       assert_raises(Pundit::NotAuthorizedError, JrcServiceDesk::Glpi::Error) do
-        service.download(access: access, id: record.id, client: Source.new)
+        service.download(access: access, id: record.id)
       end
       refute record.reload.artifact.attached?
       @unit.update!(active: true) if change == :unit
@@ -157,7 +197,7 @@ class GlpiExportsTest < GlpiIntegrationTest
     expired = prepare_export
     service.generate(id: expired.id, client: Source.new)
     expired.update!(expires_at: 1.second.ago)
-    assert_raises(JrcServiceDesk::Glpi::Error) { service.download(access: access, id: expired.id, client: Source.new) }
+    assert_raises(JrcServiceDesk::Glpi::Error) { service.download(access: access, id: expired.id) }
     assert_equal 'expired', expired.reload.state
     refute expired.artifact.attached?
   end
