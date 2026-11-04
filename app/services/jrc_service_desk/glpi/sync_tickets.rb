@@ -45,6 +45,7 @@ class JrcServiceDesk::Glpi::SyncTickets
   def collect_entity(client, entity)
     observed = 0
     indexed = 0
+    failures = []
     query = JrcServiceDesk::Glpi::TicketQuery.new(@access, 'entity_id' => entity)
     client.collection('search/Ticket/', query.parameters(offset: 0, size: 200)).each do |row|
       access = current_access!
@@ -53,20 +54,25 @@ class JrcServiceDesk::Glpi::SyncTickets
 
       @seen[id] = true
       observed += 1
-      detail = client.get("Ticket/#{id}")
-      actual_entity = JrcServiceDesk::Glpi::Identifiers.remote(detail.fetch('entities_id'))
-      unless actual_entity == entity && JrcServiceDesk::Input.id(detail.fetch('id')) == id
-        raise JrcServiceDesk::Glpi::Error.new('entity_mismatch', 409)
+      begin
+        detail = client.get("Ticket/#{id}")
+        actual_entity = JrcServiceDesk::Glpi::Identifiers.remote(detail.fetch('entities_id'))
+        unless actual_entity == entity && JrcServiceDesk::Input.id(detail.fetch('id')) == id
+          raise JrcServiceDesk::Glpi::Error.new('entity_mismatch', 409)
+        end
+        access.authorize_ticket!(client, detail)
+        snapshot = JrcServiceDesk::GlpiTicketSnapshot.find_or_initialize_by(account: @connection.account,
+          glpi_connection: @connection, remote_id: id)
+        snapshot.update!(unit_id: access.unit_for(actual_entity), entity_id: actual_entity, connection_version: @version,
+          payload: JrcServiceDesk::Glpi::Normalize.search(row).merge(JrcServiceDesk::Glpi::Normalize.detail(detail)),
+          observed_at: Time.current, glpi_sync_run: @run, active: true)
+        indexed += 1
+      rescue JrcServiceDesk::Glpi::Error, Pundit::NotAuthorizedError, KeyError => e
+        failures << (e.respond_to?(:code) ? e.code : e.is_a?(KeyError) ? 'invalid_response' : 'access_revoked')
       end
-      access.authorize_ticket!(client, detail)
-      snapshot = JrcServiceDesk::GlpiTicketSnapshot.find_or_initialize_by(account: @connection.account,
-        glpi_connection: @connection, remote_id: id)
-      snapshot.update!(unit_id: access.unit_for(actual_entity), entity_id: actual_entity, connection_version: @version,
-        payload: JrcServiceDesk::Glpi::Normalize.search(row).merge(JrcServiceDesk::Glpi::Normalize.detail(detail)),
-        observed_at: Time.current, glpi_sync_run: @run, active: true)
-      indexed += 1
     end
-    { 'state' => 'complete', 'observed' => observed, 'indexed' => indexed }
+    { 'state' => failures.empty? ? 'complete' : 'partial', 'observed' => observed, 'indexed' => indexed,
+      'error' => failures.first, 'errors' => failures.tally }
   rescue JrcServiceDesk::Glpi::Error, Pundit::NotAuthorizedError, KeyError => e
     { 'state' => 'partial', 'observed' => observed, 'indexed' => indexed,
       'error' => e.respond_to?(:code) ? e.code : e.is_a?(KeyError) ? 'invalid_response' : 'access_revoked' }

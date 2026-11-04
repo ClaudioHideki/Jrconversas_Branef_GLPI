@@ -73,4 +73,31 @@ class GlpiResourcesTest < GlpiIntegrationTest
     assert operation.fetch(:source_checked)
     refute operation.fetch(:homologated)
   end
+
+  def test_a_reused_reader_cannot_reuse_a_parent_from_another_account
+    query = JrcServiceDesk::Glpi::ResourceQuery.new
+    client = Minitest::Mock.new
+    client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
+    client.expect(:collection, [], ['Ticket/101/ITILFollowup/'])
+    query.related(access: JrcServiceDesk::Glpi::Access.new(@identity), client: client, kind: 'followups', ticket_id: 101)
+    other = Account.create!(name: 'Foreign reader', status: 'active')
+    other.enable_features!('jrc_service_desk')
+    member = AccountUser.create!(account: other, user: @user, role: 'administrator')
+    company = JrcServiceDesk::OperatorCompany.create!(account: other, name: 'Other', code: SecureRandom.hex(4), active: true)
+    unit = JrcServiceDesk::Unit.create!(account: other, operator_company: company, name: 'Other', code: 'other', active: true)
+    JrcServiceDesk::GlpiConnection.create!(account: other, base_url: 'https://other.example.invalid/apirest.php',
+      user_token: 'other-synthetic', app_token: 'other-synthetic', enabled: true, timezone: 'UTC',
+      entity_mappings: [{ entity_id: 7, unit_id: unit.id }], user_mappings: [])
+    foreign = Object.new
+    def foreign.get(*)
+      { 'id' => 101, 'entities_id' => 0 }
+    end
+    def foreign.collection(*)
+      [{ 'id' => 1, 'items_id' => 101, 'itemtype' => 'Ticket', 'content' => 'Foreign' }]
+    end
+    assert_raises(Pundit::NotAuthorizedError) do
+      query.related(access: JrcServiceDesk::Glpi::Access.new(account: other, user: @user, account_user: member),
+        client: foreign, kind: 'followups', ticket_id: 101)
+    end
+  end
 end
