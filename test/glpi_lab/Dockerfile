@@ -13,6 +13,7 @@ RUN tar -xzf /tmp/glpi.tgz -C /var/www && rm /tmp/glpi.tgz && chown -R www-data:
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
 COPY entrypoint.sh /usr/local/bin/branef-glpi-lab
 COPY bootstrap.php /usr/local/lib/branef-glpi-bootstrap.php
+COPY template_fixtures.php /usr/local/lib/branef-glpi-template-fixtures.php
 RUN printf 'memory_limit=256M\nupload_max_filesize=20M\npost_max_size=25M\nmax_execution_time=120\n' > /usr/local/etc/php/conf.d/branef-lab.ini
 WORKDIR /var/www/glpi
 ENTRYPOINT ["bash", "/usr/local/bin/branef-glpi-lab"]

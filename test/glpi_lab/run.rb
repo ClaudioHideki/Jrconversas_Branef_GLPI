@@ -388,13 +388,15 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
   end
 end
 
+require_relative 'template_application'
+
 Minitest.after_run do
   missing = GlpiLabEvidence::REQUIRED - GlpiLabEvidence::RESULTS.keys
   evidence = { version: GlpiLabEvidence::FIXTURES.fetch('version'), source_sha: ENV.fetch('GITHUB_SHA', 'local-unpublished'), customer_requests: 0, synthetic_only: true,
     required_operations: GlpiLabEvidence::REQUIRED.size, operations: GlpiLabEvidence::RESULTS,
     untested_operations: missing, checks: GlpiLabEvidence::CHECKS, observations: GlpiLabEvidence::OBSERVATIONS, transport_requests: GlpiLabTransport::COUNTS,
     item_mutations: GlpiLabTransport::ITEM_MUTATIONS, session_control_posts: GlpiLabTransport::SESSION_CONTROL_POSTS,
-    actual_jrc_components: %w[Client TicketQuery ResourceQuery SyncTickets Overview Execute Documents Export] }
+    actual_jrc_components: %w[Client TicketQuery ResourceQuery SyncTickets Overview Execute Documents Export TicketForm TicketCreationPolicy] }
   File.write(File.expand_path('.runtime/laboratory-results.json', __dir__), JSON.pretty_generate(evidence))
   puts JSON.generate(version: evidence[:version], required_operations: evidence[:required_operations],
     recorded_operations: evidence[:operations].size, untested: missing.size, customer_requests: 0, observations: evidence[:observations])
