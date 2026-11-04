@@ -122,6 +122,8 @@ class GlpiAutomationTest < GlpiIntegrationTest
     native_names = JrcNico::ToolCatalog.new(access).available.map { |tool| tool[:name] }
     assert_includes native_names, 'update_service_ticket'
     refute_includes native_names, 'execute_glpi_operation'
+    assert JrcNico::ToolCatalog.new(access).validate!('create_service_ticket_task',
+      'ticket_id' => 101, 'title' => 'Native priority contract', 'priority' => 'normal')
   end
 
   def test_actual_nico_confirmation_commits_intent_before_remote_io_and_preserves_unknown_results

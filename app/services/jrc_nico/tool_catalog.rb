@@ -162,7 +162,7 @@ class JrcNico::ToolCatalog
 
   def extension_validity(name, key, value)
     if JrcNico::HelpdeskToolCatalog::TOOLS.key?(name)
-      valid = JrcNico::HelpdeskToolCatalog.valid_value?(key, value)
+      valid = JrcNico::HelpdeskToolCatalog.valid_value?(key, value, tool: name)
       return valid unless valid.nil?
     end
     return unless JrcNico::DomainToolCatalog::TOOLS.key?(name) || JrcNico::ModuleActions::PROJECT_TASK_TOOLS.include?(name)

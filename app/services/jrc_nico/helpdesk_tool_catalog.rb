@@ -48,7 +48,7 @@ class JrcNico::HelpdeskToolCatalog
     allowed
   end
 
-  def self.valid_value?(key, value)
+  def self.valid_value?(key, value, tool: nil)
     case key
     when 'destination'
       JrcServiceDesk::Glpi::Destination.new(value)
@@ -57,7 +57,11 @@ class JrcNico::HelpdeskToolCatalog
       JrcServiceDesk::Glpi::Identifiers.remote(value)
       true
     when 'status', 'priority'
-      value.is_a?(Integer) && value.between?(1, 6)
+      if GLPI_TOOLS.include?(tool)
+        value.is_a?(Integer) && value.between?(1, 6)
+      elsif key == 'priority'
+        %w[low normal high urgent].include?(value)
+      end
     when 'reference'
       JrcServiceDesk::Glpi::Reference.new(value)
       true

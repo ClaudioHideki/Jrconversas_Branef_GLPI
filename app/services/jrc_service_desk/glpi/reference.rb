@@ -25,6 +25,9 @@ class JrcServiceDesk::Glpi::Reference
            fresh.connection.primary_source?
       raise Pundit::NotAuthorizedError
     end
+    unless fresh.connection.lock_version == access.connection.lock_version
+      raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409)
+    end
     unit = fresh.context.unit_scope.find(fresh.unit_for(values['entity_id']))
     raise Pundit::NotAuthorizedError if operational && !fresh.context.operational_unit_allowed?(unit)
 
@@ -48,9 +51,10 @@ class JrcServiceDesk::Glpi::Reference
 
   def record!(access:, client:)
     authorize!(access: access, client: client)
-    JrcServiceDesk::GlpiReference.find_or_create_by!(account_id: values['account_id'], glpi_connection_id: values['connection_id'],
-      itemtype: values['itemtype'], remote_id: values['remote_id'], entity_id: values['entity_id']) do |record|
-      record.unit_id = access.unit_for(values['entity_id'])
-    end
+    record = JrcServiceDesk::GlpiReference.find_or_initialize_by(account_id: values['account_id'], glpi_connection_id: values['connection_id'],
+      itemtype: values['itemtype'], remote_id: values['remote_id'], entity_id: values['entity_id'])
+    record.unit_id = access.unit_for(values['entity_id'])
+    record.save! if record.new_record? || record.changed?
+    record
   end
 end

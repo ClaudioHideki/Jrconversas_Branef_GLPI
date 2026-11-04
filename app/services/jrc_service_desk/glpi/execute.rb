@@ -9,8 +9,9 @@ class JrcServiceDesk::Glpi::Execute
     'knowbaseitems_id' => 'KnowbaseItem', 'documents_id' => 'Document', 'itilcategories_id' => 'ITILCategory',
     'taskcategories_id' => 'TaskCategory', 'solutiontypes_id' => 'SolutionType', 'tickettemplates_id' => 'TicketTemplate' }.freeze
 
-  def initialize(client_factory: ->(connection) { JrcServiceDesk::Glpi::Client.new(connection) })
+  def initialize(client_factory: ->(connection) { JrcServiceDesk::Glpi::Client.new(connection) }, access_authorizer: nil)
     @client_factory = client_factory
+    @access_authorizer = access_authorizer
   end
 
   def call(access:, operation:, target_id:, entity_id:, attributes:, idempotency_key:, expected_version: nil, reason: nil,
@@ -62,6 +63,7 @@ class JrcServiceDesk::Glpi::Execute
     unless fresh.connection.id == access.connection.id && fresh.connection.lock_version == version
       raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409)
     end
+    @access_authorizer&.call(fresh)
     fresh
   end
 
