@@ -116,6 +116,19 @@
     "reconcile_help": "Para um envio de resultado indeterminado, localize no GLPI o chamado com a referência JRC: conta/envio. O vínculo será confirmado pelo conteúdo e pela entidade, sem criar outro chamado.",
     "command_number": "Número do envio JRC",
     "by_technician": "Chamados por técnico",
+    "ticket_form": {
+      "template": "Modelo para abertura",
+      "automatic": "Seleção automática pela origem",
+      "select_entity": "Selecione a entidade para consultar as regras de abertura na origem.",
+      "loading": "Conferindo modelo, valores e campos obrigatórios no GLPI…",
+      "unavailable": "As regras de abertura estão indisponíveis ou não são compatíveis. O envio permanece bloqueado.",
+      "unsupported": "Campos obrigatórios ainda sem correspondência: {fields}.",
+      "effective": "Modelo GLPI {id} aplicado às regras de abertura.",
+      "no_template": "A origem confirmou as regras de abertura sem um modelo efetivo.",
+      "replace_placeholder": "Substitua a descrição predefinida pelos detalhes deste atendimento antes de enviar.",
+      "required_fields": "Preencha os campos obrigatórios: {fields}.",
+      "required": "Obrigatório"
+    },
     "workspace": {
       "catalog": "Catálogo da origem GLPI",
       "source": "Origem oficial GLPI · mesmo escopo autorizado nas telas operacionais.",

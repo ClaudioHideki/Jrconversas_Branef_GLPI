@@ -5,6 +5,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import GlpiLookup from './GlpiLookup.vue';
 import GlpiRichEditor from './GlpiRichEditor.vue';
 import { commandMatchesBinding } from '../helpers/glpiBinding';
+import { useGlpiTicketPolicy } from './useGlpiTicketPolicy';
 import {
   operationBlock,
   operationAttributes,
@@ -42,9 +43,10 @@ const blocked = computed(() =>
   descriptor.value ? operationBlock(descriptor.value) : 'unsupported'
 );
 const busy = computed(() => !!props.glpi.state.loading.operation);
-const fields = computed(() => descriptor.value?.fields || []);
-const unknownField = computed(() =>
-  fields.value.some(field => !te(`JRC_GLPI.fields.${field}`))
+const policyMode = computed(
+  () =>
+    operation.value === 'ticket.create' &&
+    props.glpi.session?.state.context?.data_source === 'glpi'
 );
 const missingTarget = computed(
   () => descriptor.value?.verb !== 'post' && !props.record?.id
@@ -61,7 +63,7 @@ const reset = () => {
   idempotencyKey.value = crypto.randomUUID();
   confirmed.value = false;
   Object.keys(values).forEach(key => delete values[key]);
-  fields.value.forEach(field => {
+  (descriptor.value?.fields || []).forEach(field => {
     const aliases = { name: 'title', content: 'description' };
     const html =
       props.record?.[`${field}_html`] ||
@@ -83,6 +85,43 @@ watch(
   { immediate: true }
 );
 watch([operation, () => props.record?.id], reset, { immediate: true });
+const ticketPolicy = useGlpiTicketPolicy({
+  glpi: props.glpi,
+  active: policyMode,
+  entityId,
+  values,
+  rich,
+});
+const {
+  form: ticketForm,
+  templateId,
+  pending: policyPending,
+  failed: policyFailed,
+  limitations,
+  missing: missingPolicyFields,
+  placeholder: unchangedPlaceholder,
+  available: policyAvailable,
+  blocked: policyBlocked,
+} = ticketPolicy;
+const fields = computed(() =>
+  policyMode.value ? ticketPolicy.fields.value : descriptor.value?.fields || []
+);
+const unknownField = computed(() =>
+  fields.value.some(field => !te(`JRC_GLPI.fields.${field}`))
+);
+const required = field =>
+  policyMode.value
+    ? ticketPolicy.required.value.includes(field)
+    : descriptor.value.required.includes(field);
+const fieldDisabled = field =>
+  busy.value ||
+  !!receipt.value ||
+  (policyMode.value &&
+    policyPending.value &&
+    !['type', 'itilcategories_id'].includes(field));
+const lookupFilters = computed(() =>
+  policyMode.value ? { entity_id: Number(entityId.value) } : {}
+);
 const multiline = field =>
   [
     'content',
@@ -194,12 +233,20 @@ const submit = async () => {
     busy.value ||
     receipt.value ||
     unknownField.value ||
-    missingTarget.value
+    missingTarget.value ||
+    (policyMode.value && policyBlocked.value)
   )
     return;
   if (entityId.value === '' || (descriptor.value.parent && !parent.value))
     return;
-  const attributes = operationAttributes(descriptor.value, values);
+  const attributes = operationAttributes(
+    policyMode.value
+      ? { fields: fields.value.filter(field => field !== 'status') }
+      : descriptor.value,
+    values
+  );
+  if (policyMode.value && templateId.value)
+    attributes.template_id = Number(templateId.value);
   if (descriptor.value.verb === 'patch')
     Object.keys(attributes).forEach(field => {
       if (String(attributes[field]) === String(initial[field]))
@@ -230,6 +277,7 @@ const submit = async () => {
     idempotency_key: idempotencyKey.value,
     ...(reason.value.trim() ? { reason: reason.value.trim() } : {}),
     ...(expectedVersion ? { expected_version: expectedVersion } : {}),
+    ...(policyMode.value ? { template_version: ticketForm.value.version } : {}),
   };
   const response = await props.glpi.run('operation', (account, signal) =>
     props.glpi.API.execute(account, payload, signal)
@@ -340,6 +388,92 @@ const submit = async () => {
             </option>
           </select>
         </label>
+        <template v-if="policyMode">
+          <label
+            v-if="entityId !== ''"
+            class="grid gap-1 text-xs"
+            data-testid="glpi-template-selector"
+          >
+            {{ t('JRC_GLPI.ticket_form.template') }}
+            <GlpiLookup
+              v-model="templateId"
+              resource="templates"
+              show-selected-reference
+              :filters="lookupFilters"
+              :placeholder="t('JRC_GLPI.ticket_form.automatic')"
+              :disabled="busy || !!receipt"
+            />
+          </label>
+          <p
+            v-if="entityId === ''"
+            role="status"
+            class="text-sm sm:col-span-2"
+          >
+            {{ t('JRC_GLPI.ticket_form.select_entity') }}
+          </p>
+          <p
+            v-else-if="policyPending"
+            role="status"
+            class="text-sm sm:col-span-2"
+          >
+            {{ t('JRC_GLPI.ticket_form.loading') }}
+          </p>
+          <p
+            v-else-if="policyFailed || !policyAvailable"
+            role="alert"
+            class="text-sm text-n-ruby-11 sm:col-span-2"
+          >
+            {{ t('JRC_GLPI.ticket_form.unavailable') }}
+            <span v-if="glpi.state.errors.ticket_form">
+              {{
+                t('JRC_GLPI.source_code', {
+                  code: glpi.state.errors.ticket_form.code,
+                })
+              }}
+            </span>
+            <span v-if="limitations.length">
+              {{
+                t('JRC_GLPI.ticket_form.unsupported', {
+                  fields: limitations.join(', '),
+                })
+              }}
+            </span>
+          </p>
+          <p
+            v-else
+            class="text-xs text-n-slate-11 sm:col-span-2"
+          >
+            {{
+              ticketForm.template_id
+                ? t('JRC_GLPI.ticket_form.effective', {
+                    id: ticketForm.template_id,
+                  })
+                : t('JRC_GLPI.ticket_form.no_template')
+            }}
+          </p>
+          <p
+            v-if="unchangedPlaceholder && !policyPending"
+            role="status"
+            class="text-sm text-n-amber-11 sm:col-span-2"
+          >
+            {{ t('JRC_GLPI.ticket_form.replace_placeholder') }}
+          </p>
+          <p
+            v-if="
+              missingPolicyFields.length && policyAvailable && !policyPending
+            "
+            role="status"
+            class="text-xs sm:col-span-2"
+          >
+            {{
+              t('JRC_GLPI.ticket_form.required_fields', {
+                fields: missingPolicyFields
+                  .map(field => t(`JRC_GLPI.fields.${field}`))
+                  .join(', '),
+              })
+            }}
+          </p>
+        </template>
         <p
           v-if="descriptor.parent && !parent"
           class="text-sm"
@@ -350,22 +484,34 @@ const submit = async () => {
         <label
           v-for="field in fields"
           :key="`${operation}:${field}`"
+          :data-field="field"
           class="grid gap-1 text-xs"
           :class="multiline(field) ? 'sm:col-span-2' : ''"
         >
           {{ t(`JRC_GLPI.fields.${field}`) }}
+          <span v-if="policyMode && required(field)">
+            {{ t('JRC_GLPI.ticket_form.required') }}
+          </span>
+          <span
+            v-if="policyMode && field === 'status'"
+            class="text-sm"
+          >
+            {{ t(`JRC_GLPI.statuses.${values.status || 1}`) }}
+          </span>
           <GlpiLookup
-            v-if="fieldResource(field)"
+            v-else-if="fieldResource(field)"
             v-model="values[field]"
             :resource="fieldResource(field)"
-            :required="descriptor.required.includes(field)"
-            :disabled="busy || !!receipt"
+            :filters="lookupFilters"
+            :show-selected-reference="policyMode"
+            :required="required(field)"
+            :disabled="fieldDisabled(field)"
           />
           <select
             v-else-if="field === 'entities_id'"
             v-model="values[field]"
-            :required="descriptor.required.includes(field)"
-            :disabled="busy || !!receipt"
+            :required="required(field)"
+            :disabled="fieldDisabled(field)"
             class="!mb-0 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
           >
             <option value="">{{ t('JRC_SERVICE_DESK.COMMON.select') }}</option>
@@ -380,8 +526,8 @@ const submit = async () => {
           <select
             v-else-if="choices(field).length"
             v-model="values[field]"
-            :required="descriptor.required.includes(field)"
-            :disabled="busy || !!receipt"
+            :required="required(field)"
+            :disabled="fieldDisabled(field)"
             class="!mb-0 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
           >
             <option value="">{{ t('JRC_SERVICE_DESK.COMMON.select') }}</option>
@@ -398,13 +544,14 @@ const submit = async () => {
             :key="`${operation}:${record?.id || ''}:${field}`"
             v-model="values[field]"
             :label="t(`JRC_GLPI.fields.${field}`)"
-            :disabled="busy || !!receipt"
+            :required="required(field)"
+            :disabled="fieldDisabled(field)"
           />
           <textarea
             v-else-if="multiline(field)"
             v-model="values[field]"
-            :required="descriptor.required.includes(field)"
-            :disabled="busy || !!receipt"
+            :required="required(field)"
+            :disabled="fieldDisabled(field)"
             rows="4"
             class="!mb-0 w-full rounded-lg border border-n-weak px-3 py-2 text-sm"
           />
@@ -412,8 +559,8 @@ const submit = async () => {
             v-else
             v-model="values[field]"
             :type="fieldType(field)"
-            :required="descriptor.required.includes(field)"
-            :disabled="busy || !!receipt"
+            :required="required(field)"
+            :disabled="fieldDisabled(field)"
             :min="numericField(field) ? 0 : undefined"
             class="!mb-0 w-full rounded-lg border border-n-weak px-3 py-2 text-sm"
           />
@@ -456,6 +603,7 @@ const submit = async () => {
             busy ||
             !!receipt ||
             missingTarget ||
+            (policyMode && policyBlocked) ||
             (descriptor.parent && !parent) ||
             (descriptor.verb === 'delete' && !confirmed)
           "
