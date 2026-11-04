@@ -77,6 +77,13 @@ class GlpiAutomationTest < GlpiIntegrationTest
       assert_equal 101, one.glpi_reference.remote_id
       assert_equal incident.id, case_link.incident_id
       assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
+      access = JrcNico::OperationalAccess.new(account: @account, user: @user).authorize!
+      read = JrcNico::ToolExecutor.new(access).call('read_conversation', 'conversation_id' => conversation.display_id)
+      assert_equal @reference, read.fetch(:glpi_references).fetch(:items).first.fetch(:reference)
+      http = ActionDispatch::Integration::Session.new(Rails.application)
+      http.get("/api/v1/accounts/#{@account.id}/conversations/#{conversation.display_id}", headers: @user.create_new_auth_token)
+      assert_equal 200, http.response.status
+      assert_equal 101, JSON.parse(http.response.body).dig('glpi_references', 'items', 0, 'reference', 'remote_id')
       @unit_member.update!(active: false)
       assert_raises(Pundit::NotAuthorizedError) do
         service.call(user_context: @identity, reference: @reference, conversation_id: conversation.id)
