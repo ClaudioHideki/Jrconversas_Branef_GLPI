@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_04_135000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -4746,11 +4746,27 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.string "error_code"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "operation", default: "ticket.create", null: false
+    t.string "itemtype", default: "Ticket", null: false
+    t.bigint "target_id"
+    t.bigint "parent_id"
+    t.string "parent_type"
+    t.bigint "technical_user_id"
+    t.integer "connection_version"
+    t.string "expected_version"
+    t.string "content_format", default: "plain", null: false
+    t.text "reason"
+    t.text "request_payload"
+    t.text "before_values"
+    t.jsonb "result", default: {}, null: false
+    t.string "template_version"
+    t.text "template_policy"
     t.index ["account_id"], name: "index_jrc_service_desk_glpi_commands_on_account_id"
     t.index ["account_user_id"], name: "index_jrc_service_desk_glpi_commands_on_account_user_id"
     t.index ["glpi_connection_id", "account_user_id", "idempotency_key"], name: "idx_sd_glpi_command_idempotency", unique: true
+    t.index ["glpi_connection_id", "itemtype", "target_id", "state"], name: "idx_sd_glpi_command_target"
     t.index ["unit_id"], name: "index_jrc_service_desk_glpi_commands_on_unit_id"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'sending'::character varying, 'succeeded'::character varying, 'rejected'::character varying, 'indeterminate'::character varying]::text[])", name: "sd_glpi_command_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'sending'::character varying::text, 'succeeded'::character varying::text, 'rejected'::character varying::text, 'indeterminate'::character varying::text])", name: "sd_glpi_command_state"
   end
 
   create_table "jrc_service_desk_glpi_connections", force: :cascade do |t|
@@ -4770,6 +4786,70 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id"], name: "index_jrc_service_desk_glpi_connections_on_account_id", unique: true
   end
 
+  create_table "jrc_service_desk_glpi_exports", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "glpi_connection_id", null: false
+    t.bigint "account_user_id", null: false
+    t.integer "connection_version", null: false
+    t.string "state", default: "queued", null: false
+    t.jsonb "filters", default: {}, null: false
+    t.jsonb "scope", default: {}, null: false
+    t.jsonb "coverage", default: {}, null: false
+    t.jsonb "manifest", default: [], null: false
+    t.jsonb "source_identity", default: {}, null: false
+    t.bigint "processed", default: 0, null: false
+    t.bigint "total"
+    t.string "error_code"
+    t.integer "error_http_status"
+    t.datetime "finished_at"
+    t.datetime "expires_at"
+    t.datetime "verified_from"
+    t.datetime "verified_until"
+    t.datetime "verification_expires_at"
+    t.string "verification_nonce", limit: 64
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_service_desk_glpi_exports_on_account_id"
+    t.index ["account_user_id"], name: "index_jrc_service_desk_glpi_exports_on_account_user_id"
+    t.index ["expires_at"], name: "index_jrc_service_desk_glpi_exports_on_expires_at"
+    t.index ["glpi_connection_id", "account_user_id", "created_at"], name: "idx_sd_glpi_export_receipts"
+    t.check_constraint "processed >= 0 AND (total IS NULL OR total >= 0)", name: "sd_glpi_export_progress"
+    t.check_constraint "state::text = ANY (ARRAY['queued'::character varying, 'running'::character varying, 'ready'::character varying, 'verifying'::character varying, 'failed'::character varying, 'cancelled'::character varying, 'expired'::character varying]::text[])", name: "sd_glpi_export_state"
+  end
+
+  create_table "jrc_service_desk_glpi_reference_links", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "unit_id", null: false
+    t.bigint "glpi_reference_id", null: false
+    t.bigint "conversation_id"
+    t.bigint "incident_id"
+    t.bigint "account_user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_service_desk_glpi_reference_links_on_account_id"
+    t.index ["account_user_id"], name: "index_jrc_service_desk_glpi_reference_links_on_account_user_id"
+    t.index ["conversation_id"], name: "index_jrc_service_desk_glpi_reference_links_on_conversation_id"
+    t.index ["glpi_reference_id", "conversation_id"], name: "idx_sd_glpi_conversation_link", unique: true, where: "(conversation_id IS NOT NULL)"
+    t.index ["glpi_reference_id", "incident_id"], name: "idx_sd_glpi_case_link", unique: true, where: "(incident_id IS NOT NULL)"
+    t.index ["incident_id"], name: "index_jrc_service_desk_glpi_reference_links_on_incident_id"
+    t.index ["unit_id"], name: "index_jrc_service_desk_glpi_reference_links_on_unit_id"
+    t.check_constraint "(conversation_id IS NULL) <> (incident_id IS NULL)", name: "sd_glpi_link_one_local_target"
+  end
+
+  create_table "jrc_service_desk_glpi_references", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "glpi_connection_id", null: false
+    t.bigint "unit_id", null: false
+    t.string "itemtype", null: false
+    t.bigint "remote_id", null: false
+    t.bigint "entity_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_service_desk_glpi_references_on_account_id"
+    t.index ["glpi_connection_id", "itemtype", "remote_id", "entity_id"], name: "idx_sd_glpi_reference_identity", unique: true
+    t.index ["unit_id"], name: "index_jrc_service_desk_glpi_references_on_unit_id"
+  end
+
   create_table "jrc_service_desk_glpi_sync_runs", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "glpi_connection_id", null: false
@@ -4784,7 +4864,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_user_id"], name: "index_jrc_service_desk_glpi_sync_runs_on_account_user_id"
     t.index ["glpi_connection_id", "created_at"], name: "idx_sd_glpi_sync_history"
     t.index ["glpi_connection_id"], name: "idx_sd_glpi_sync_running", unique: true, where: "((state)::text = 'running'::text)"
-    t.check_constraint "state::text = ANY (ARRAY['running'::character varying, 'complete'::character varying, 'partial'::character varying, 'failed'::character varying]::text[])", name: "sd_glpi_sync_state"
+    t.check_constraint "state::text = ANY (ARRAY['running'::character varying::text, 'complete'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text])", name: "sd_glpi_sync_state"
   end
 
   create_table "jrc_service_desk_glpi_ticket_snapshots", force: :cascade do |t|
@@ -4805,6 +4885,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["glpi_connection_id", "remote_id"], name: "idx_sd_glpi_ticket_remote", unique: true
     t.index ["unit_id"], name: "index_jrc_service_desk_glpi_ticket_snapshots_on_unit_id"
   end
+
+
+
 
   create_table "jrc_service_desk_incident_entries", force: :cascade do |t|
     t.bigint "account_id", null: false
@@ -6177,6 +6260,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["inbox_id"], name: "index_working_hours_on_inbox_id"
   end
 
+  add_foreign_key "jrc_service_desk_glpi_commands", "account_users"
+  add_foreign_key "jrc_service_desk_glpi_commands", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
+  add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_units", column: "unit_id"
+  add_foreign_key "jrc_service_desk_glpi_connections", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_exports", "account_users"
+  add_foreign_key "jrc_service_desk_glpi_exports", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_exports", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
+  add_foreign_key "jrc_service_desk_glpi_reference_links", "account_users"
+  add_foreign_key "jrc_service_desk_glpi_reference_links", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_reference_links", "jrc_service_desk_glpi_references", column: "glpi_reference_id"
+  add_foreign_key "jrc_service_desk_glpi_reference_links", "jrc_service_desk_incidents", column: "incident_id"
+  add_foreign_key "jrc_service_desk_glpi_reference_links", "jrc_service_desk_units", column: "unit_id"
+  add_foreign_key "jrc_service_desk_glpi_references", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_references", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
+  add_foreign_key "jrc_service_desk_glpi_references", "jrc_service_desk_units", column: "unit_id"
   add_foreign_key "jrc_service_desk_glpi_sync_runs", "account_users"
   add_foreign_key "jrc_service_desk_glpi_sync_runs", "accounts"
   add_foreign_key "jrc_service_desk_glpi_sync_runs", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
@@ -6750,11 +6849,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
   add_foreign_key "jrc_service_desk_clock_alert_deliveries", "jrc_service_desk_ticket_events", column: ["account_id", "unit_id", "ticket_id", "ticket_event_id"], primary_key: ["account_id", "unit_id", "ticket_id", "id"], name: "jrc_sd_clock_alert_origin"
   add_foreign_key "jrc_service_desk_clock_alert_deliveries", "jrc_service_desk_tickets", column: ["account_id", "unit_id", "ticket_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_clock_alert_ticket"
   add_foreign_key "jrc_service_desk_clock_alert_deliveries", "notifications", on_delete: :nullify
-  add_foreign_key "jrc_service_desk_glpi_commands", "account_users"
-  add_foreign_key "jrc_service_desk_glpi_commands", "accounts"
-  add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
-  add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_units", column: "unit_id"
-  add_foreign_key "jrc_service_desk_glpi_connections", "accounts"
   add_foreign_key "jrc_service_desk_incident_entries", "jrc_service_desk_incidents", column: ["account_id", "unit_id", "incident_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_case_entry_incident_fk"
   add_foreign_key "jrc_service_desk_incident_entries", "jrc_service_desk_unit_memberships", column: ["account_id", "unit_id", "actor_membership_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_case_entry_actor_fk"
   add_foreign_key "jrc_service_desk_incidents", "companies", column: ["account_id", "approval_issuer_company_id"], primary_key: ["account_id", "id"], name: "jrc_sd_problem_issuer_fk"
