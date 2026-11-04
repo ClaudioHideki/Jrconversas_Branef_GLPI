@@ -26,6 +26,7 @@ class GlpiTemplateLaboratoryTest < GlpiIntegrationTest
       ['profile', { 'type' => 1 }, 'profile', 'profile', 1, 0, 5],
       ['profile', { 'type' => 1, 'category_id' => category }, 'incident', 'category', 1, category, 2],
       ['base', { 'type' => 2, 'category_id' => category }, 'request', 'category', 2, category, 1],
+      ['base', { 'category_id' => category }, 'request', 'category', 2, category, 1],
       ['redirect', { 'type' => 1 }, 'request', 'category_predefined', 1, 0, 1]
     ]
     cases.each do |user, filters, model, provenance, type, category_id, urgency|
@@ -96,6 +97,7 @@ class GlpiTemplateLaboratoryTest < GlpiIntegrationTest
     valid = { 'template_id' => model, 'name' => 'Synthetic blocked model', 'content' => 'Real changed issue', '_users_id_requester' => requester }
     cases = [
       [valid.except('_users_id_requester'), 'required_fields_missing'],
+      [valid.except('content').merge('template_id' => @fixtures.fetch('models').fetch('entity')), 'required_fields_missing'],
       [valid.merge('content' => '<p>Describe the synthetic issue</p>', 'content_format' => 'rich'), 'required_content_unchanged'],
       [valid.merge('urgency' => 5), 'hidden_field_override'],
       [valid.merge('template_id' => @fixtures.fetch('models').fetch('unsupported')), 'template_fields_unsupported'],
