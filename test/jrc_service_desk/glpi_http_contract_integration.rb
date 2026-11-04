@@ -11,9 +11,9 @@ class GlpiHttpContractTest < GlpiIntegrationTest
   end
 
   def test_all_new_operational_routes_require_identity_before_remote_io
-    routes = [[:post, 'operations'], [:get, 'overview'], [:get, 'search-fields/tickets'],
+    routes = [[:post, 'operations'], [:get, 'overview'], [:get, 'search_fields/tickets'],
               [:post, 'exports'], [:get, 'exports/1'], [:post, 'exports/1/cancel'], [:get, 'exports/1/download'],
-              [:post, 'sync'], [:get, 'sync/latest'], [:get, 'sync/1'], [:post, 'sync/1/cancel'],
+              [:post, 'sync'], [:get, 'sync'], [:get, 'sync/1'], [:post, 'sync/1/cancel'],
               [:post, 'tickets/1/documents'], [:get, 'tickets/1/documents/2/download']]
     JrcServiceDesk::Glpi::Client.stub(:new, ->(*) { flunk 'Unbound browser contacted GLPI' }) do
       routes.each do |verb, route|
