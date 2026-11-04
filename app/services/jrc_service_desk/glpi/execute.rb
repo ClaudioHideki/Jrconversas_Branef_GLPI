@@ -69,7 +69,7 @@ class JrcServiceDesk::Glpi::Execute
     raise Pundit::NotAuthorizedError if descriptor[:admin] && !access.context.administrator?
   end
 
-  def authorize_objects!(access, client, command, descriptor)
+  def authorize_objects!(access, client, command, descriptor, after_write: false)
     query = JrcServiceDesk::Glpi::ResourceQuery.new
     parent = nil
     if descriptor[:parent]
@@ -90,13 +90,14 @@ class JrcServiceDesk::Glpi::Execute
           end
           raise Pundit::NotAuthorizedError unless visible
         else
-          verify_entity!(row, command.entity_id)
+          expected_entity = after_write ? command.request_payload.fetch('entities_id', command.entity_id) : command.entity_id
+          verify_entity!(row, expected_entity)
         end
       end
       if [1, '1', true].include?(row['is_private']) && !access.context.capability?(:technical_notes)
         raise Pundit::NotAuthorizedError
       end
-      if command.expected_version && row['date_mod'].to_s != command.expected_version
+      if !after_write && command.expected_version && row['date_mod'].to_s != command.expected_version
         raise JrcServiceDesk::Glpi::Error.new('version_conflict', 409)
       end
     end
@@ -206,7 +207,7 @@ class JrcServiceDesk::Glpi::Execute
       if descriptor[:verb] == 'post' && (field = %w[content answer].find { |key| payload.key?(key) })
         payload[field] += "<p>#{command.correlation_marker}</p>"
       end
-      command.update!(state: 'sending', before_values: before&.slice(*payload.keys), request_payload: payload)
+      command.update!(state: 'sending', before_values: before&.slice('date_mod', *payload.keys), request_payload: payload)
       # All reads above can take time; refresh identity/configuration immediately before send.
       access = fresh_access(access, command.connection_version)
       authorize_local!(access, descriptor)

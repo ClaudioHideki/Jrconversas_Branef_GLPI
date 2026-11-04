@@ -4,7 +4,7 @@ require_relative 'glpi_test_helper'
 
 # Synthetic GLPI state, behind the real command service; never connects to a server.
 class GlpiCommandSource
-  attr_accessor :failure, :on_profile, :ignore_write, :denied
+  attr_accessor :failure, :on_profile, :ignore_write, :denied, :skip_solution_status
   attr_reader :writes, :rows
 
   def initialize
@@ -66,6 +66,9 @@ class GlpiCommandSource
         rows.delete("#{type}/#{id}")
       else
         rows["#{type}/#{id}"] = (rows["#{type}/#{id}"] || {}).merge(input).merge('id' => id, 'date_mod' => 'v2')
+        if type == 'ITILSolution' && !skip_solution_status
+          rows["#{input.fetch('itemtype')}/#{input.fetch('items_id')}"]['status'] = 5
+        end
       end
     end
     raise JrcServiceDesk::Glpi::Error.new(failure, failure == 'ERROR_RIGHT_MISSING' ? 403 : 502) if failure
@@ -223,5 +226,35 @@ class GlpiCommandsTest < GlpiIntegrationTest
       access: JrcServiceDesk::Glpi::Access.new(@identity), command: JrcServiceDesk::GlpiCommand.find(receipt[:id]))
     assert_equal 'succeeded', reconciled[:state]
     assert_equal 1, @remote.writes.size
+  end
+
+  def test_task_planning_executor_duration_and_private_state_are_confirmed
+    @remote.rows['User/77'] = { 'id' => 77 }
+    @remote.rows['Group/701'] = { 'id' => 701, 'entities_id' => 0 }
+    receipt = execute('task.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Planned',
+      'begin' => '2026-11-04 10:00:00', 'end' => '2026-11-04 11:00:00', 'actiontime' => 3600,
+      'state' => 1, 'users_id_tech' => 77, 'groups_id_tech' => 701, 'is_private' => 1 })
+    assert_equal 'succeeded', receipt[:state]
+    assert_equal 3600, @remote.rows['TicketTask/501']['actiontime']
+    assert_equal 1, @remote.rows['TicketTask/501']['is_private']
+  end
+
+  def test_audit_payload_is_encrypted_and_public_receipt_contains_no_description
+    receipt = execute(attributes: { 'content' => 'Private audit contents' })
+    record = JrcServiceDesk::GlpiCommand.find(receipt[:id])
+    assert_equal 'Private audit contents', record.request_payload['content']
+    stored = JrcServiceDesk::GlpiCommand.connection.select_value(
+      "SELECT request_payload FROM jrc_service_desk_glpi_commands WHERE id=#{record.id}")
+    refute_includes stored, 'Private audit contents'
+    refute_includes record.receipt.to_json, 'Private audit contents'
+    assert_equal 900, record.technical_user_id
+  end
+
+  def test_solution_receipt_never_claims_success_if_parent_remains_open
+    @remote.rows['Ticket/101']['status'] = 2
+    @remote.skip_solution_status = true
+    receipt = execute('ticket.solve', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Solution' })
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal 'write_not_confirmed', receipt[:error_code]
   end
 end

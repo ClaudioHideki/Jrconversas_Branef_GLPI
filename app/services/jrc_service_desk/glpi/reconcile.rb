@@ -40,7 +40,7 @@ class JrcServiceDesk::Glpi::Reconcile
           raise JrcServiceDesk::Glpi::Error.new('reconciliation_unverifiable', 409) unless correlated
         end
         if command.request_payload
-          @executor.authorize_objects!(access, client, command, descriptor)
+          @executor.authorize_objects!(access, client, command, descriptor, after_write: true)
           result = @executor.verify_readback!(access, client, command, descriptor, id)
         else
           # Receipts created before the extended schema retain their correlation proof.
