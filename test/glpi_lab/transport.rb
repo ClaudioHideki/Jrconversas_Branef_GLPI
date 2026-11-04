@@ -12,6 +12,8 @@ module GlpiLabTransport
   HOST = 'glpi.example.invalid'
   PORT = 14_443
   COUNTS = Hash.new(0)
+  ITEM_MUTATIONS = Hash.new(0)
+  SESSION_CONTROL_POSTS = Hash.new(0)
 
   def self.target!(value)
     uri = URI.parse(value)
@@ -41,6 +43,11 @@ module GlpiLabTransport
     request = request_class.new(uri.request_uri, headers)
     request.body = body if body
     COUNTS[method] += 1
+    if method == :post && uri.path == '/apirest.php/changeActiveEntities/'
+      SESSION_CONTROL_POSTS[method] += 1
+    elsif %i[post patch delete].include?(method)
+      ITEM_MUTATIONS[method] += 1
+    end
     http.start { |connection| connection.request(request) { |response| yield response } }
   end
 
