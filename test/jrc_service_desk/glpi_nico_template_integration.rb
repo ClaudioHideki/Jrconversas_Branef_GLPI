@@ -60,9 +60,9 @@ class GlpiNicoTemplateTest < GlpiIntegrationTest
       assert_operator @remote.policy_reads, :>, 0
       assert_equal 'awaiting_confirmation', command.status
       form = JrcServiceDesk::Glpi::TicketForm.new.call(access: JrcServiceDesk::Glpi::Access.new(@identity), client: @remote,
-        filters: { 'entity_id' => 0, 'type' => 1 })
+        filters: { 'entity_id' => 0 })
       assert_equal form[:version], command.execution_context['glpi_template_version']
-      assert_equal({ 'entity_id' => 0, 'type' => 1, 'category_id' => 0, 'template_id' => nil },
+      assert_equal({ 'entity_id' => 0, 'category_id' => 0, 'template_id' => nil },
         command.execution_context['glpi_template_selection'])
       refute command.arguments.fetch('attributes').key?('urgency')
       refute command.arguments.fetch('attributes').key?('template_id')
@@ -81,6 +81,19 @@ class GlpiNicoTemplateTest < GlpiIntegrationTest
       assert_equal 'template_changed', command.result.dig('command', 'error_code')
       assert_empty @remote.writes
       assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
+    end
+  end
+
+  def test_omitted_operator_type_stays_omitted_so_the_source_entity_default_is_preserved
+    @remote.rows['Entity/0']['tickettype'] = 2
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      command = prepare
+      refute command.execution_context.fetch('glpi_template_selection').key?('type')
+      refute command.arguments.fetch('attributes').key?('type')
+      @operator.execute(command)
+      assert_equal 'succeeded', command.reload.status
+      assert_equal 2, @remote.rows.fetch('Ticket/501')['type']
+      assert_equal 1, @remote.writes.size
     end
   end
 
