@@ -25,6 +25,12 @@ class JrcServiceDesk::Glpi::MetadataScope
     row
   end
 
+  def recheck!
+    @access = JrcServiceDesk::Glpi::Execute.new.fresh_access(@access)
+    @access.unit_for(entity_id)
+    self
+  end
+
   def entity(id)
     @entities[id] ||= @client.get("Entity/#{id}").tap do |row|
       unless row.is_a?(Hash) && row['id'].to_s == id.to_s
