@@ -12,7 +12,8 @@ class JrcServiceDesk::UiContextService
     capabilities = JrcServiceDesk::UiCapabilityProjection.new(@context).call
     effective_permissions = @context.effective_capabilities.map { |key| "#{JrcServiceDesk::Capabilities::PREFIX}#{key}" }
     { contract_version: 1, account_id: @context.account.id.to_s, user_id: @context.user.id.to_s,
-      available: true, units: units, capabilities: capabilities, effective_permissions: effective_permissions }
+      available: true, units: units, capabilities: capabilities, effective_permissions: effective_permissions,
+      data_source: JrcServiceDesk::Glpi::PrimarySource.for(@context.to_h) }
   end
 
   private

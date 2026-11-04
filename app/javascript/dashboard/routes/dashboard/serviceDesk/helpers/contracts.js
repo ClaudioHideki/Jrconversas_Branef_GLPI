@@ -68,10 +68,15 @@ export function decodeContext(payload, identity) {
     };
   });
   requireValue(new Set(units.map(unit => unit.id)).size === units.length);
+  requireValue(
+    payload.data_source === undefined ||
+      ['native', 'glpi'].includes(payload.data_source)
+  );
   return {
     account_id: identity.accountId,
     user_id: identity.userId,
     available: payload.available,
+    data_source: payload.data_source || 'native',
     units,
     effective_permissions: Array.isArray(payload.effective_permissions)
       ? payload.effective_permissions.filter(

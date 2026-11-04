@@ -82,8 +82,33 @@ jobs:
         run: |
           bundle exec ruby test/jrc_service_desk/glpi_transport_test.rb
           bundle exec rails db:schema:load
+          bundle exec rails db:migrate
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
           bundle exec ruby test/jrc_service_desk/glpi_projection_integration.rb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glpi-schema-${{ github.sha }}
+          path: db/schema.rb
+
+  glpi-frontend:
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run app/javascript/dashboard/routes/dashboard/serviceDesk --maxWorkers=2 --no-file-parallelism
+      - run: pnpm exec eslint app/javascript/dashboard/routes/dashboard/serviceDesk/glpi app/javascript/dashboard/api/serviceDeskGlpi.js app/javascript/dashboard/routes/dashboard/serviceDesk/helpers/contracts.js
 
   build-and-push:
     if: github.event_name == 'workflow_dispatch'

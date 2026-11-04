@@ -8,10 +8,11 @@ class JrcServiceDesk::GlpiConnection < JrcServiceDesk::AccountRecord
   validates :base_url, :user_token, :app_token, :timezone, presence: true
   validates :account_id, uniqueness: true
   validates :enabled, inclusion: { in: [true, false] }
+  validates :primary_source, inclusion: { in: [true, false] }
   validate :configuration_is_valid
 
   def public_configuration
-    attributes.slice('base_url', 'enabled', 'timezone', 'entity_mappings', 'user_mappings', 'categories', 'lock_version').merge(
+    attributes.slice('base_url', 'enabled', 'primary_source', 'timezone', 'entity_mappings', 'user_mappings', 'categories', 'lock_version').merge(
       'configured' => persisted?, 'user_token_configured' => user_token.present?, 'app_token_configured' => app_token.present?
     )
   end

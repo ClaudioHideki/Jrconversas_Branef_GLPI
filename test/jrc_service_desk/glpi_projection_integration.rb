@@ -8,7 +8,7 @@ class GlpiProjectionTest < GlpiIntegrationTest
     @connection.update!(primary_source: true)
     assert_equal 'glpi', JrcServiceDesk::Glpi::PrimarySource.for(@identity)
     @connection.update!(enabled: false)
-    assert_equal 'native', JrcServiceDesk::Glpi::PrimarySource.for(@identity)
+    assert_equal 'glpi', JrcServiceDesk::Glpi::PrimarySource.for(@identity)
   end
 
   def test_root_without_label_is_indexed_by_verified_entity_id
@@ -48,5 +48,24 @@ class GlpiProjectionTest < GlpiIntegrationTest
       remote_id: 101, entity_id: 0, connection_version: 0, payload: {}, observed_at: Time.current)
     refute row.valid?
     assert row.errors[:glpi_connection].any?
+  end
+
+  def test_duplicate_ticket_prevents_complete_coverage
+    client = Minitest::Mock.new
+    client.expect(:collection, [{ '2' => 101 }, { '2' => 101 }], ['search/Ticket/', Hash])
+    client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
+    run = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: client)
+    assert_equal 'partial', run.state
+    assert_equal 'source_changed', run.coverage.fetch('0').fetch('error')
+  end
+
+  def test_remote_denial_is_not_an_empty_success
+    client = Object.new
+    def client.collection(*)
+      raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403)
+    end
+    run = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: client)
+    assert_equal 'partial', run.state
+    assert_equal 'ERROR_RIGHT_MISSING', run.coverage.fetch('0').fetch('error')
   end
 end

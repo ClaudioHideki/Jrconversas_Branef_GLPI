@@ -34,7 +34,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
 
   def update_configuration
     permit!(:manage?)
-    allowed = %w[base_url user_token app_token enabled timezone entity_mappings user_mappings categories lock_version]
+    allowed = %w[base_url user_token app_token enabled primary_source timezone entity_mappings user_mappings categories lock_version]
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters, allowed)
     connection = access.connection || ::JrcServiceDesk::GlpiConnection.new(account: access.context.account)
     raise ActiveRecord::StaleObjectError if connection.persisted? && values['lock_version'] != connection.lock_version
