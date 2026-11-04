@@ -9,6 +9,9 @@ class JrcServiceDesk::Glpi::ResourceQuery
                   'actor_suppliers' => 'Supplier_Ticket', 'documents' => 'Document_Item', 'assets' => 'Item_Ticket',
                   'problem_links' => 'Problem_Ticket', 'change_links' => 'Change_Ticket', 'knowledge_links' => 'KnowbaseItem_Item',
                   'history' => 'Log', 'satisfaction' => 'TicketSatisfaction' }.freeze
+  TEMPLATE_TYPES = { 'template_mandatory' => 'TicketTemplateMandatoryField', 'template_hidden' => 'TicketTemplateHiddenField',
+                     'template_predefined' => 'TicketTemplatePredefinedField' }.freeze
+  GROUP_TYPES = { 'Ticket' => 'Group_Ticket', 'Problem' => 'Group_Problem', 'Change' => 'Change_Group' }.freeze
   POLYMORPHIC = %w[ITILFollowup ITILSolution Document_Item KnowbaseItem_Item Log].freeze
   ASSET_TYPES = %w[Computer Monitor NetworkEquipment Peripheral Phone Printer Software].freeze
   PUBLIC_FIELDS = %w[id name content answer comment date date_mod date_creation begin end status state type priority urgency impact
@@ -84,19 +87,23 @@ class JrcServiceDesk::Glpi::ResourceQuery
 
   def related(access:, client:, kind:, ticket_id:, parent_type: 'Ticket')
     access = authorize_kind!(access, kind)
-    raise ArgumentError unless %w[Ticket Problem Change].include?(parent_type)
+    raise ArgumentError unless %w[Ticket Problem Change TicketTemplate].include?(parent_type)
 
     id = JrcServiceDesk::Input.id(ticket_id)
     parent!(access, client, parent_type, id)
-    type = CHILD_TYPES.fetch(kind)
-    if kind == 'tasks' && parent_type != 'Ticket'
+    type = CHILD_TYPES.merge(TEMPLATE_TYPES).fetch(kind)
+    if parent_type == 'TicketTemplate'
+      raise JrcServiceDesk::Glpi::Error.new('unsupported_relation', 422) unless TEMPLATE_TYPES.key?(kind)
+    elsif TEMPLATE_TYPES.key?(kind)
+      raise JrcServiceDesk::Glpi::Error.new('unsupported_relation', 422)
+    elsif kind == 'tasks' && parent_type != 'Ticket'
       type = "#{parent_type}Task"
     elsif kind == 'validations' && parent_type != 'Ticket'
       type = "#{parent_type}Validation"
     elsif kind == 'actors' && parent_type != 'Ticket'
       type = "#{parent_type}_User"
     elsif kind == 'actor_groups' && parent_type != 'Ticket'
-      type = "#{parent_type}_Group"
+      type = GROUP_TYPES.fetch(parent_type)
     elsif parent_type != 'Ticket' && !POLYMORPHIC.include?(type)
       raise JrcServiceDesk::Glpi::Error.new('unsupported_relation', 422)
     end
@@ -130,11 +137,11 @@ class JrcServiceDesk::Glpi::ResourceQuery
         access.entity_ids.include?(JrcServiceDesk::Glpi::Identifiers.remote(link.fetch('entities_id')))
       end
       raise Pundit::NotAuthorizedError unless visible
-    elsif CHILD_TYPES.value?(type)
-      parent_type = POLYMORPHIC.include?(type) ? row.fetch('itemtype') : 'Ticket'
-      raise Pundit::NotAuthorizedError unless %w[Ticket Problem Change].include?(parent_type)
+    elsif CHILD_TYPES.value?(type) || TEMPLATE_TYPES.value?(type)
+      parent_type = TEMPLATE_TYPES.value?(type) ? 'TicketTemplate' : POLYMORPHIC.include?(type) ? row.fetch('itemtype') : 'Ticket'
+      raise Pundit::NotAuthorizedError unless %w[Ticket Problem Change TicketTemplate].include?(parent_type)
 
-      field = POLYMORPHIC.include?(type) ? 'items_id' : 'tickets_id'
+      field = TEMPLATE_TYPES.value?(type) ? 'tickettemplates_id' : POLYMORPHIC.include?(type) ? 'items_id' : 'tickets_id'
       parent!(access, client, parent_type, JrcServiceDesk::Input.id(row.fetch(field)))
       authorize_linked!(access, client, type, row)
     else
@@ -149,7 +156,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
   private
 
   def resource_type(kind)
-    ({ 'tickets' => 'Ticket', 'users' => 'User', 'knowledge' => 'KnowbaseItem' }.merge(ENTITY_TYPES).merge(CHILD_TYPES)).fetch(kind)
+    ({ 'tickets' => 'Ticket', 'users' => 'User', 'knowledge' => 'KnowbaseItem' }.merge(ENTITY_TYPES).merge(CHILD_TYPES).merge(TEMPLATE_TYPES)).fetch(kind)
   end
 
   def authorize_kind!(access, kind)
@@ -174,7 +181,8 @@ class JrcServiceDesk::Glpi::ResourceQuery
   def parent!(access, client, type, id)
     return @parents[[type, id]] if @parents.key?([type, id])
 
-    raw(access: access, client: client, kind: { 'Ticket' => 'tickets', 'Problem' => 'problems', 'Change' => 'changes' }.fetch(type), id: id)
+    raw(access: access, client: client, kind: { 'Ticket' => 'tickets', 'Problem' => 'problems', 'Change' => 'changes',
+                                              'TicketTemplate' => 'templates' }.fetch(type), id: id)
   end
 
   def check_parent!(type, row, parent_type, id)

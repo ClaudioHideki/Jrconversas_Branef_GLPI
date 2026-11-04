@@ -11,9 +11,12 @@ class JrcServiceDesk::UiContextService
     units = @context.view_unit_scope.includes(:operator_company).order(:name, :id).map { |unit| unit_payload(unit) }
     capabilities = JrcServiceDesk::UiCapabilityProjection.new(@context).call
     effective_permissions = @context.effective_capabilities.map { |key| "#{JrcServiceDesk::Capabilities::PREFIX}#{key}" }
+    connection = JrcServiceDesk::GlpiConnection.find_by(account_id: @context.account.id)
     { contract_version: 1, account_id: @context.account.id.to_s, user_id: @context.user.id.to_s,
       available: true, units: units, capabilities: capabilities, effective_permissions: effective_permissions,
-      data_source: JrcServiceDesk::Glpi::PrimarySource.for(@context.to_h) }
+      data_source: connection&.primary_source? ? 'glpi' : 'native' }.tap do |payload|
+      payload.merge!(connection_id: connection.id.to_s, connection_version: connection.lock_version) if connection
+    end
   end
 
   private

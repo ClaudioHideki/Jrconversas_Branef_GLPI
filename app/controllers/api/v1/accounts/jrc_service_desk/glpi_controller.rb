@@ -3,6 +3,7 @@
 class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::JrcServiceDesk::BaseController
   wrap_parameters false
   before_action { response.headers['Cache-Control'] = 'no-store' }
+  before_action :verify_connection_binding!, except: %i[context configuration update_configuration validate_connection]
   rescue_from ::JrcServiceDesk::Glpi::Error, with: :source_error
   rescue_from ArgumentError, KeyError, ActionController::ParameterMissing, with: :invalid_input
   rescue_from ::JrcServiceDesk::IdempotencyConflict, ActiveRecord::StaleObjectError, with: :conflict
@@ -192,7 +193,20 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   end
 
   def envelope
-    { contract_version: 1, account_id: Current.account.id.to_s, user_id: access.context.user.id.to_s, source: 'glpi' }
+    { contract_version: 1, account_id: Current.account.id.to_s, user_id: access.context.user.id.to_s, source: 'glpi' }.tap do |payload|
+      connection = access.connection
+      payload.merge!(connection_id: connection.id.to_s, connection_version: connection.lock_version) if connection
+    end
+  end
+
+  def verify_connection_binding!
+    modern = %w[operate capabilities resources resource relations search_fields upload_document download_document overview
+                prepare_export export_status cancel_export download_export start_sync sync_status latest_sync cancel_sync]
+    ::JrcServiceDesk::Glpi::ReferenceBinding.verify!(
+      access: access, connection_id: request.headers['X-JRC-GLPI-Connection-Id'],
+      connection_version: request.headers['X-JRC-GLPI-Connection-Version'],
+      required: modern.include?(action_name) || access.connection&.primary_source? == true
+    )
   end
 
   def with_client(&block)

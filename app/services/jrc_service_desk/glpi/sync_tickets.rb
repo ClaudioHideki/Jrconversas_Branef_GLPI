@@ -1,16 +1,23 @@
 # frozen_string_literal: true
 
 class JrcServiceDesk::Glpi::SyncTickets
-  def call(connection:, actor:, client: nil)
+  def call(connection:, actor:, client: nil, run: nil)
     @connection = connection
+    if run && (run.account_id != connection.account_id || run.glpi_connection_id != connection.id || run.account_user_id != actor.id)
+      raise Pundit::NotAuthorizedError
+    end
+    @run = run
+    return @run if @run && @run.reload.state != 'running'
+
     @identity = { account: connection.account, user: actor.user, account_user: actor }
     @access = JrcServiceDesk::Glpi::Access.new(@identity).ready!
     raise Pundit::NotAuthorizedError unless @access.context.administrator? && @access.connection.id == connection.id
 
-    @version = connection.lock_version
+    @version = @run ? @run.connection_version : connection.lock_version
     @seen = {}
-    @run = JrcServiceDesk::GlpiSyncRun.create!(account: connection.account, glpi_connection: connection,
+    @run ||= JrcServiceDesk::GlpiSyncRun.create!(account: connection.account, glpi_connection: connection,
       account_user: actor, connection_version: @version)
+    current_access!
     if client
       collect(client)
     else
@@ -21,7 +28,7 @@ class JrcServiceDesk::Glpi::SyncTickets
     raise unless @run
 
     @run.update!(state: 'failed', finished_at: Time.current,
-                 coverage: @run.coverage.merge('error' => e.respond_to?(:code) ? e.code : 'access_revoked'))
+                 coverage: @run.coverage.merge('phase' => 'failed', 'error' => e.respond_to?(:code) ? e.code : 'access_revoked'))
     @run
   end
 
@@ -37,7 +44,7 @@ class JrcServiceDesk::Glpi::SyncTickets
     complete = coverage.values.all? { |entry| entry['state'] == 'complete' }
     if complete
       JrcServiceDesk::GlpiTicketSnapshot.where(account_id: @connection.account_id, glpi_connection_id: @connection.id)
-        .where.not(glpi_sync_run_id: @run.id).update_all(active: false)
+        .where('glpi_sync_run_id IS DISTINCT FROM ?', @run.id).update_all(active: false)
     end
     @run.update!(state: complete ? 'complete' : 'partial', finished_at: Time.current)
   end
@@ -82,6 +89,7 @@ class JrcServiceDesk::Glpi::SyncTickets
   end
 
   def current_access!
+    raise JrcServiceDesk::Glpi::Error.new('sync_cancelled', 409) unless @run.reload.state == 'running'
     raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409) unless @connection.reload.lock_version == @version
 
     access = JrcServiceDesk::Glpi::Access.new(@identity).ready!

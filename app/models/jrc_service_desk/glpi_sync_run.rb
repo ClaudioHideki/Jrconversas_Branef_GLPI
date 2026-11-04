@@ -10,7 +10,7 @@ class JrcServiceDesk::GlpiSyncRun < JrcServiceDesk::AccountRecord
   end
 
   def receipt
-    { id: id.to_s, state: state, coverage: coverage, started_at: created_at.iso8601,
+    { id: id.to_s, state: state, dataset: 'tickets', coverage: coverage, started_at: created_at.iso8601,
       finished_at: finished_at&.iso8601, connection_version: connection_version }
   end
 end
