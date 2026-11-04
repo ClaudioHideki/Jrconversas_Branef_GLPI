@@ -11,7 +11,7 @@ class GlpiHttpContractTest < GlpiIntegrationTest
   end
 
   def test_all_new_operational_routes_require_identity_before_remote_io
-    routes = [[:post, 'operations'], [:get, 'overview'], [:get, 'search_fields/tickets'],
+    routes = [[:post, 'operations'], [:get, 'ticket_form'], [:get, 'overview'], [:get, 'search_fields/tickets'],
               [:post, 'exports'], [:get, 'exports/1'], [:post, 'exports/1/cancel'], [:get, 'exports/1/download'],
               [:post, 'sync'], [:get, 'sync'], [:get, 'sync/1'], [:post, 'sync/1/cancel'],
               [:post, 'tickets/1/documents'], [:get, 'tickets/1/documents/2/download']]
@@ -33,6 +33,24 @@ class GlpiHttpContractTest < GlpiIntegrationTest
       assert_equal 409, @http.response.status
       assert_equal 'configuration_changed', JSON.parse(@http.response.body)['source_code']
     end
+  end
+
+  def test_operation_preserves_the_reviewed_creation_policy_version
+    service = Object.new
+    received = nil
+    service.define_singleton_method(:call) do |**values|
+      received = values
+      { id: '1', state: 'succeeded' }
+    end
+    version = 'a' * 64
+    JrcServiceDesk::Glpi::Execute.stub(:new, service) do
+      @http.post("#{@base}/operations", headers: bound_headers,
+        params: { operation: 'ticket.create', entity_id: 0, attributes: { name: 'Synthetic form proof', template_id: 7 },
+                  idempotency_key: 'http-form-version', template_version: version }, as: :json)
+    end
+    assert_equal 200, @http.response.status
+    assert_equal version, received.fetch(:template_version, nil)
+    assert_equal 7, received.fetch(:attributes).fetch('template_id')
   end
 
   def test_authenticated_context_and_projection_share_binding_without_source_io
