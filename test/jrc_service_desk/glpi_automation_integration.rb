@@ -187,4 +187,34 @@ class GlpiAutomationTest < GlpiIntegrationTest
       assert_equal 20, result.fetch(:meta).fetch(:per_page)
     end
   end
+
+  def test_nico_ticket_creation_uses_a_bound_destination_and_human_confirmation_without_native_copy
+    destination = { 'connection_id' => @connection.id, 'connection_version' => @connection.lock_version, 'entity_id' => 0 }
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      operator = JrcNico::OperatorSession.new(account: @account, user: @user)
+      command = operator.ask(message: 'Create synthetic GLPI ticket', request_id: SecureRandom.uuid,
+        prepared: { 'tool' => 'create_glpi_ticket', 'arguments' => { 'destination' => destination,
+          'attributes' => { 'name' => 'Synthetic remote', 'content' => 'Description', 'type' => 1, 'urgency' => 3, 'impact' => 3 } } })
+      assert_equal 'awaiting_confirmation', command.status
+      assert_empty @remote.writes
+      operator.execute(command)
+      assert_equal 'succeeded', command.reload.status
+      assert_equal 'ticket.create', command.result.dig('command', 'operation')
+      assert_equal '501', command.result.dig('command', 'remote_id')
+      assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
+      operator.execute(command)
+      assert_equal 1, @remote.writes.size
+    end
+  end
+
+  def test_creation_destination_version_change_is_rejected_before_network
+    destination = { 'connection_id' => @connection.id, 'connection_version' => @connection.lock_version, 'entity_id' => 0 }
+    @connection.update!(timezone: 'Europe/London')
+    error = assert_raises(JrcServiceDesk::Glpi::Error) do
+      JrcServiceDesk::Glpi::AutomationCommand.new.create(user_context: @identity, destination: destination,
+        attributes: { 'name' => 'No write', 'content' => 'Description', 'type' => 1, 'urgency' => 3, 'impact' => 3 }, idempotency_key: 'stale-destination')
+    end
+    assert_equal 'configuration_changed', error.code
+    assert_empty @remote.writes
+  end
 end
