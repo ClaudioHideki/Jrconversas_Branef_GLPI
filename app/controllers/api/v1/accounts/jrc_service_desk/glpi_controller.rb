@@ -114,6 +114,14 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     render json: envelope.merge(result)
   end
 
+  def ticket_form
+    permit!(:create?)
+    form = with_client do |client|
+      ::JrcServiceDesk::Glpi::TicketForm.new.call(access: access, client: client, filters: request.query_parameters)
+    end
+    render json: envelope.merge(form: form)
+  end
+
   def resources
     permit!(:read?)
     result = with_client do |client|
@@ -150,11 +158,11 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   def operate
     permit!(:operate?)
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters,
-      %w[operation target_id entity_id attributes idempotency_key expected_version reason])
+      %w[operation target_id entity_id attributes idempotency_key expected_version reason template_version])
     receipt = ::JrcServiceDesk::Glpi::Execute.new.call(access: access,
       operation: values.fetch('operation'), target_id: values['target_id'], entity_id: values.fetch('entity_id'),
       attributes: values.fetch('attributes'), idempotency_key: values.fetch('idempotency_key'),
-      expected_version: values['expected_version'], reason: values['reason'])
+      expected_version: values['expected_version'], reason: values['reason'], template_version: values['template_version'])
     render json: envelope.merge(command: receipt), status: receipt[:state] == 'succeeded' ? :ok : :accepted
   end
 
@@ -316,7 +324,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   end
 
   def verify_connection_binding!
-    modern = %w[operate capabilities resources resource relations search_fields upload_document download_document overview
+    modern = %w[operate capabilities ticket_form resources resource relations search_fields upload_document download_document overview
                 prepare_export export_status cancel_export download_export start_sync sync_status latest_sync cancel_sync]
     ::JrcServiceDesk::Glpi::ReferenceBinding.verify!(
       access: access, connection_id: request.headers['X-JRC-GLPI-Connection-Id'],
