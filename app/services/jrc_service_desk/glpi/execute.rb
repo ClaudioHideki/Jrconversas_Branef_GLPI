@@ -15,18 +15,27 @@ class JrcServiceDesk::Glpi::Execute
   end
 
   def call(access:, operation:, target_id:, entity_id:, attributes:, idempotency_key:, expected_version: nil, reason: nil,
-           legacy_fingerprint: nil, prepared: false)
+           legacy_fingerprint: nil, prepared: false, template_version: nil)
     if JrcServiceDesk::Glpi::OperationCatalogue.fetch(operation)[:multipart]
       raise JrcServiceDesk::Glpi::Error.new('multipart_required', 422)
     end
 
+    if template_version && (operation != 'ticket.create' || !template_version.is_a?(String) || !template_version.match?(/\A[0-9a-f]{64}\z/))
+      raise ArgumentError
+    end
+    primary_creation = operation == 'ticket.create' && access.connection&.primary_source?
     contract = JrcServiceDesk::Glpi::CommandInput.new(operation: operation, target_id: target_id, entity_id: entity_id,
-      attributes: attributes, expected_version: expected_version, reason: reason, prepared: prepared)
+      attributes: attributes, expected_version: expected_version, reason: reason, prepared: prepared, partial: primary_creation)
+    if operation == 'ticket.create' && !primary_creation &&
+        (contract.template_selector_provided || template_version || contract.input.key?('status'))
+      raise ArgumentError
+    end
     access = fresh_access(access)
     authorize_local!(access, contract.descriptor)
     unit = access.unit_for(contract.entity_id)
     key = JrcServiceDesk::Input.request_key(idempotency_key)
     fingerprint = legacy_fingerprint || contract.fingerprint(access.connection.lock_version)
+    fingerprint = JrcServiceDesk::CanonicalJson.digest(intent: fingerprint, template_version: template_version) if template_version
     scope = JrcServiceDesk::GlpiCommand.where(account_id: access.context.account.id, glpi_connection: access.connection,
       account_user: access.context.account_user)
     if (existing = scope.find_by(idempotency_key: key))
@@ -39,7 +48,10 @@ class JrcServiceDesk::Glpi::Execute
       operation: operation, itemtype: contract.descriptor[:type], target_id: contract.target_id, parent_id: contract.parent_id,
       parent_type: contract.descriptor[:parent], connection_version: access.connection.lock_version,
       expected_version: expected_version, reason: reason, content_format: contract.content_format,
-      request_payload: contract.input, correlation_id: SecureRandom.uuid)
+      request_payload: contract.input, correlation_id: SecureRandom.uuid,
+      template_policy: primary_creation ? { 'requested_version' => template_version, 'selection' => {
+        'entity_id' => contract.entity_id, 'type' => contract.input['type'],
+        'category_id' => contract.input.fetch('itilcategories_id', 0), 'template_id' => contract.template_id }.compact } : nil)
     with_object_lock(command) { perform(command, access, contract.descriptor) }
     command.reload.receipt
   rescue ActiveRecord::RecordNotUnique
@@ -131,6 +143,9 @@ class JrcServiceDesk::Glpi::Execute
     reference_values = linked_types.include?(command.itemtype) && row ? row.slice(*REFERENCES.keys).merge(payload) : payload
     REFERENCES.each do |field, type|
       next unless reference_values[field].to_i.positive?
+      # Contextual form metadata was validated against the Ticket entity, including
+      # recursive ancestors, by the shared template policy scope.
+      next if command.operation == 'ticket.create' && command.template_version && %w[itilcategories_id _users_id_requester].include?(field)
 
       related = client.get("#{type}/#{reference_values[field]}")
       verify_id!(related, reference_values[field])
@@ -178,6 +193,8 @@ class JrcServiceDesk::Glpi::Execute
       verify_entity!(row, command.request_payload.fetch('entities_id', command.entity_id))
     end
     command.request_payload.each do |field, expected|
+      next if field == '_tickettemplate' && command.operation == 'ticket.create' && command.template_version
+
       matched = if field == '_visibility'
                   client.collection("KnowbaseItem/#{id}/Entity_KnowbaseItem/").any? do |link|
                     link['knowbaseitems_id'].to_s == id.to_s && link['entities_id'].to_s == command.entity_id.to_s
@@ -233,6 +250,8 @@ class JrcServiceDesk::Glpi::Execute
         permitted = entities.any? { |row| JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('id')) == command.entity_id }
         raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) unless permitted
       end
+      ticket_policy = JrcServiceDesk::Glpi::TicketCreationPolicy.new if command.operation == 'ticket.create' && access.connection.primary_source?
+      ticket_policy&.prepare!(access: access, client: client, command: command)
       before, parent = authorize_objects!(access, client, command, descriptor)
       authorize_source!(profile, command, descriptor, before, parent, technical_id)
       payload = command.request_payload.deep_dup
@@ -240,10 +259,12 @@ class JrcServiceDesk::Glpi::Execute
         payload[field] += "<p>#{command.correlation_marker}</p>"
       end
       command.update!(state: 'sending', before_values: before&.slice('date_mod', *payload.keys), request_payload: payload)
+      ticket_policy&.recheck!(access: access, client: client, command: command)
       # All reads above can take time; refresh identity/configuration immediately before send.
       access = fresh_access(access, command.connection_version)
       authorize_local!(access, descriptor)
       access.unit_for(command.entity_id)
+      ticket_policy&.authorize_status!(access: access, command: command)
       sent = true
       response = case descriptor[:verb]
                  when 'post' then client.create_item(command.itemtype, payload)
