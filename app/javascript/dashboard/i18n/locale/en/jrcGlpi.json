@@ -117,6 +117,7 @@
     "command_number": "Número do envio JRC",
     "by_technician": "Chamados por técnico",
     "workspace": {
+      "catalog": "Catálogo da origem GLPI",
       "source": "Origem oficial GLPI · mesmo escopo autorizado nas telas operacionais.",
       "unavailable": "A origem GLPI está selecionada, mas está indisponível. Revise a conexão, o mapeamento e as permissões.",
       "not_applicable": "Este recurso nativo não tem correspondência GLPI integrada. Nenhuma operação equivalente será executada.",
