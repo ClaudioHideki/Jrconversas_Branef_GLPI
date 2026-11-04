@@ -276,10 +276,11 @@ class GlpiCommandsTest < GlpiIntegrationTest
 
   def test_confirmation_denial_after_accepted_post_remains_reconcilable_without_reposting
     @remote.confirmation_error = 'ERROR_RIGHT_MISSING'
-    receipt = execute('followup.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Accepted remotely' })
+    receipt = execute('followup.create', target: nil, attributes: { 'parent_id' => 101, 'content' => 'Accepted remotely' }, expected_version: 'v1')
     assert_equal 'indeterminate', receipt[:state]
     assert_equal '501', receipt[:remote_id]
     @remote.confirmation_error = nil
+    @remote.rows['Ticket/101']['date_mod'] = 'v2'
     reconciled = JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
       access: JrcServiceDesk::Glpi::Access.new(@identity), command: JrcServiceDesk::GlpiCommand.find(receipt[:id]))
     assert_equal 'succeeded', reconciled[:state]

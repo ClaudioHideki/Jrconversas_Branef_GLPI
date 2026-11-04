@@ -76,6 +76,9 @@ class JrcServiceDesk::Glpi::Execute
     if descriptor[:parent]
       parent = query.raw(access: access, client: client, kind: ENTITY_KINDS.fetch(descriptor[:parent]), id: command.parent_id)
       verify_entity!(parent, command.entity_id) unless descriptor[:parent] == 'KnowbaseItem'
+      if !after_write && !command.target_id && command.expected_version && parent['date_mod'].to_s != command.expected_version
+        raise JrcServiceDesk::Glpi::Error.new('version_conflict', 409)
+      end
     end
     row = nil
     if command.target_id
@@ -108,7 +111,7 @@ class JrcServiceDesk::Glpi::Execute
       raise Pundit::NotAuthorizedError
     end
     linked_types = %w[Ticket_User Group_Ticket Supplier_Ticket Problem_Ticket Change_Ticket KnowbaseItem_Item Document_Item Item_Ticket
-                      Problem_User Problem_Group Change_User Change_Group]
+                      Problem_User Group_Problem Change_User Change_Group]
     reference_values = linked_types.include?(command.itemtype) && row ? row.slice(*REFERENCES.keys).merge(payload) : payload
     REFERENCES.each do |field, type|
       next unless reference_values[field].to_i.positive?
@@ -199,6 +202,7 @@ class JrcServiceDesk::Glpi::Execute
 
   def perform(command, access, descriptor)
     sent = false
+    write_acknowledged = false
     @client_factory.call(access.connection).session do |client|
       access = fresh_access(access, command.connection_version)
       authorize_local!(access, descriptor)
@@ -228,6 +232,7 @@ class JrcServiceDesk::Glpi::Execute
       id = descriptor[:verb] == 'post' ? JrcServiceDesk::Input.id(response.fetch('id')) : command.target_id
       command.update!(remote_id: id)
       acknowledge!(response, id, descriptor[:verb])
+      write_acknowledged = true
       access = fresh_access(access, command.connection_version)
       authorize_local!(access, descriptor)
       result = verify_readback!(access, client, command, descriptor, id, acknowledged: true)
@@ -236,7 +241,7 @@ class JrcServiceDesk::Glpi::Execute
   rescue Pundit::NotAuthorizedError
     command.update!(state: sent ? 'indeterminate' : 'rejected', error_code: 'not_authorized')
   rescue JrcServiceDesk::Glpi::Error => error
-    definitive = !sent || error.http_status == 403 || error.code == 'source_write_rejected'
+    definitive = !sent || (!write_acknowledged && (error.http_status == 403 || error.code == 'source_write_rejected'))
     command.update!(state: definitive ? 'rejected' : 'indeterminate', error_code: error.code)
   rescue KeyError, ArgumentError, TypeError
     command.update!(state: sent ? 'indeterminate' : 'rejected', error_code: 'invalid_response')
@@ -286,7 +291,7 @@ class JrcServiceDesk::Glpi::Execute
 
   def actor_matches?(client, type, id, field, expected)
     group = field == '_groups_id_assign'
-    relation = group ? (type == 'Ticket' ? 'Group_Ticket' : "#{type}_Group") : "#{type}_User"
+    relation = group ? JrcServiceDesk::Glpi::OperationCatalogue::GROUP_RELATIONS.fetch(type) : "#{type}_User"
     key = group ? 'groups_id' : 'users_id'
     actor_type = field == '_users_id_requester' ? 1 : 2
     actors = client.collection("#{type}/#{id}/#{relation}/").to_a

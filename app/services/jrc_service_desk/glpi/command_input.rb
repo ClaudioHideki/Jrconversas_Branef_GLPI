@@ -12,6 +12,9 @@ class JrcServiceDesk::Glpi::CommandInput
     @target_id = target_id.nil? ? nil : JrcServiceDesk::Input.id(target_id)
     raise ArgumentError unless (descriptor[:verb] == 'post') == @target_id.nil?
     raise ArgumentError unless expected_version.nil? || (expected_version.is_a?(String) && expected_version.length.between?(1, 100))
+    if expected_version && descriptor[:verb] == 'post' && !descriptor[:parent]
+      raise ArgumentError, 'Creation without a parent does not support an expected version'
+    end
     raise ArgumentError unless reason.nil? || (reason.is_a?(String) && reason.strip.length.between?(1, 2000))
     raise ArgumentError, 'Deletion requires a reason' if descriptor[:admin] && descriptor[:verb] == 'delete' && reason.blank?
 

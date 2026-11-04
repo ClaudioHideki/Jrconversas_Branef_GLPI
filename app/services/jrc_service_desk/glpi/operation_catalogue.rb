@@ -8,6 +8,7 @@ class JrcServiceDesk::Glpi::OperationCatalogue
   ARTICLE_FIELDS = %w[name answer is_faq knowbaseitemcategories_id begin_date end_date].freeze
   CATEGORY_FIELDS = %w[name comment itilcategories_id entities_id is_recursive is_incident is_request is_problem is_change].freeze
   TEMPLATE_FIELDS = %w[name comment entities_id is_recursive].freeze
+  GROUP_RELATIONS = { 'Ticket' => 'Group_Ticket', 'Problem' => 'Group_Problem', 'Change' => 'Change_Group' }.freeze
 
   OPERATIONS = {}.tap do |operations|
     add = lambda do |key, type, verb, capability, fields, options = {}|
@@ -74,7 +75,7 @@ class JrcServiceDesk::Glpi::OperationCatalogue
       { 'task' => ["#{type}Task", TASK_FIELDS, "#{key}s_id"],
         'followup' => ['ITILFollowup', %w[content is_private], 'items_id'],
         'actor' => ["#{type}_User", %w[users_id type], "#{key}s_id"],
-        'group' => ["#{type}_Group", %w[groups_id type], "#{key}s_id"] }.each do |family, data|
+        'group' => [GROUP_RELATIONS.fetch(type), %w[groups_id type], "#{key}s_id"] }.each do |family, data|
         %w[create update delete].each do |verb|
           next if %w[actor group].include?(family) && verb == 'update'
 
