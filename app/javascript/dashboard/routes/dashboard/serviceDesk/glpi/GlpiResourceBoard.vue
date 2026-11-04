@@ -12,6 +12,8 @@ const props = defineProps({
   glpi: { type: Object, required: true },
   resource: { type: String, required: true },
   parentId: { type: [String, Number], default: null },
+  parentEntityId: { type: [String, Number], default: null },
+  parentVersion: { type: String, default: '' },
   parentKind: { type: String, default: 'tickets' },
 });
 const { t } = useI18n();
@@ -266,6 +268,8 @@ const summaryFields = [
       :operations="operations"
       :record="selected"
       :parent-id="parent"
+      :authorized-entity-id="parentEntityId"
+      :parent-version="parentVersion"
       :source-version="selected?.date_mod || ''"
       @succeeded="load"
     />
@@ -303,6 +307,8 @@ const summaryFields = [
         :resource="relation"
         :parent-kind="resource"
         :parent-id="selected.id"
+        :parent-entity-id="selected.entities_id"
+        :parent-version="selected.date_mod || ''"
       />
     </section>
   </section>

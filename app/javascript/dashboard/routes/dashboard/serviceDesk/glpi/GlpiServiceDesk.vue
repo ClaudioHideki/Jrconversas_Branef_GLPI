@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useGlpi } from './useGlpi';
 import { glpiScreen } from '../helpers/glpiScreens';
@@ -8,21 +9,39 @@ import GlpiTicketWorkspace from './GlpiTicketWorkspace.vue';
 import GlpiOverview from './GlpiOverview.vue';
 import GlpiResourceBoard from './GlpiResourceBoard.vue';
 import GlpiSync from './GlpiSync.vue';
+import { serviceDeskRouteName } from '../routeDefinitions';
 
 const props = defineProps({
   screen: { type: String, default: 'tickets' },
   ticketId: { type: [String, Number], default: null },
 });
 const { t } = useI18n();
+const router = useRouter();
 const glpi = useGlpi();
 const { session, state, read } = glpi;
 const screenDefinition = computed(() => glpiScreen(props.screen));
 const initialized = ref(false);
+let generation = 0;
+onBeforeUnmount(() => {
+  generation += 1;
+});
 const initialize = async () => {
+  generation += 1;
+  const epoch = generation;
   initialized.value = false;
   const context = await read('context', 'context');
+  if (epoch !== generation) return;
+  if (!context && state.errors.context?.code === 'configuration_changed') {
+    await session.revalidate();
+    if (epoch !== generation) return;
+    await router.replace({
+      name: serviceDeskRouteName('overview'),
+      params: { accountId: session.accountId.value },
+    });
+    return;
+  }
   if (context?.available) await read('capabilities', 'capabilities');
-  initialized.value = !!context?.available;
+  if (epoch === generation) initialized.value = !!context?.available;
 };
 watch(
   [session.accountId, session.userId, () => session.state.status],

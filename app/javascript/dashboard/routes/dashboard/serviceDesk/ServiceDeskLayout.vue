@@ -20,7 +20,7 @@ const { t, tm } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const session = provideServiceDesk();
-const { state, enabled, accountId, userId } = session;
+const { state, enabled, accountId, userId, sourceTransitioning } = session;
 const groups = ['operation', 'governance', 'management'];
 const screenLabels = computed(() => tm('JRC_SERVICE_DESK.SCREENS'));
 const glpiLabels = computed(() => ({
@@ -189,8 +189,9 @@ const blocked = computed(() =>
           v-if="session.operations.state.notice"
           :status="session.operations.state.notice"
         />
+        <ServiceDeskState v-if="sourceTransitioning" status="loading" />
         <ServiceDeskState
-          v-if="blocked"
+          v-else-if="blocked"
           :status="state.status"
           retry
           @retry="session.retry()"

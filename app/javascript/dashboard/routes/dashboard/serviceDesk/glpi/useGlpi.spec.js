@@ -9,7 +9,10 @@ const holder = vi.hoisted(() => ({ session: null }));
 vi.mock('../composables/useServiceDesk', () => ({
   useServiceDesk: () => holder.session,
 }));
-vi.mock('dashboard/api/serviceDeskGlpi', () => ({ default: { get: vi.fn() } }));
+vi.mock('dashboard/api/serviceDeskGlpi', () => {
+  const api = { get: vi.fn() };
+  return { default: api, createServiceDeskGlpiClient: () => api };
+});
 
 const envelope = values => ({
   contract_version: 1,
@@ -110,6 +113,27 @@ describe('GLPI request isolation', () => {
       status: 403,
       code: 'ERROR_RIGHT_MISSING',
     });
+    wrapper.unmount();
+  });
+  it('rejects a new connection response before it can render a colliding remote id', async () => {
+    const { glpi, wrapper } = setup();
+    holder.session.state.context = {
+      data_source: 'glpi',
+      connection_id: '9',
+      connection_version: 1,
+    };
+    API.get.mockResolvedValueOnce({
+      data: envelope({
+        connection_id: '10',
+        connection_version: 1,
+        available: true,
+        items: [{ id: 20, title: 'New connection ticket' }],
+      }),
+    });
+    expect(await glpi.read('context', 'context')).toBeNull();
+    expect(glpi.state.context).toBeNull();
+    expect(glpi.state.data.context).toBeUndefined();
+    expect(glpi.state.errors.context.code).toBe('configuration_changed');
     wrapper.unmount();
   });
   it('rejects a response for another authenticated user', async () => {

@@ -6,7 +6,13 @@ import messages from 'dashboard/i18n/locale/en/jrcGlpi.json';
 import serviceMessages from 'dashboard/i18n/locale/en/jrcServiceDesk.json';
 import Form from './GlpiOperationForm.vue';
 
-const render = (operation, record = null, parentId = null) => {
+const render = (
+  operation,
+  record = null,
+  parentId = null,
+  authorizedEntityId = null,
+  parentVersion = ''
+) => {
   const execute = vi.fn(async () => ({
     data: { command: { id: '81', state: 'indeterminate' } },
   }));
@@ -23,7 +29,14 @@ const render = (operation, record = null, parentId = null) => {
       (await action('1', new AbortController().signal)).data,
   };
   const wrapper = mount(Form, {
-    props: { glpi, operations: [operation], record, parentId },
+    props: {
+      glpi,
+      operations: [operation],
+      record,
+      parentId,
+      authorizedEntityId,
+      parentVersion,
+    },
     global: {
       plugins: [
         createI18n({
@@ -106,6 +119,142 @@ describe('GLPI human operation forms', () => {
     expect(wrapper.emitted('succeeded')).toBeUndefined();
     await wrapper.get('form').trigger('submit');
     expect(execute).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+  it('edits planning dates in the source timezone and sends canonical seconds', async () => {
+    const { wrapper, execute } = render(
+      descriptor({
+        operation: 'task.update',
+        fields: ['begin'],
+        parent: 'Ticket',
+      }),
+      {
+        id: 5,
+        entities_id: 0,
+        tickets_id: 20,
+        begin: '2026-11-04 10:00:00',
+        date_mod: '2026-11-04 09:00:00',
+      },
+      20
+    );
+    expect(wrapper.get('input[type="datetime-local"]').element.value).toBe(
+      '2026-11-04T10:00'
+    );
+    await wrapper
+      .get('input[type="datetime-local"]')
+      .setValue('2026-11-04T11:30');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(execute.mock.calls[0][1].attributes).toEqual({
+      begin: '2026-11-04 11:30:00',
+      parent_id: 20,
+    });
+    wrapper.unmount();
+  });
+  it.each([
+    ['Problem', 'problem.update', [1, 7, 2, 3, 4, 5, 8, 6]],
+    ['Change', 'change.update', [1, 9, 10, 7, 4, 11, 12, 5, 8, 6, 14, 13]],
+  ])(
+    'uses the source status family for %s',
+    (itemtype, operation, expected) => {
+      const { wrapper } = render(
+        descriptor({ itemtype, operation, fields: ['status'] }),
+        { id: 5, entities_id: 0 }
+      );
+      expect(
+        wrapper
+          .findAll('select')
+          .at(-1)
+          .findAll('option')
+          .slice(1)
+          .map(option => Number(option.element.value))
+      ).toEqual(expected);
+      wrapper.unmount();
+    }
+  );
+  it('offers urgency only through the source maximum five', () => {
+    const { wrapper } = render(descriptor({ fields: ['urgency'] }), {
+      id: 5,
+      entities_id: 0,
+    });
+    expect(
+      wrapper
+        .findAll('select')
+        .at(-1)
+        .findAll('option')
+        .slice(1)
+        .map(option => Number(option.element.value))
+    ).toEqual([1, 2, 3, 4, 5]);
+    wrapper.unmount();
+  });
+  it('preserves a known root parent entity for a child operation without asking for a different entity', () => {
+    const { wrapper } = render(
+      descriptor({
+        operation: 'followup.create',
+        fields: ['content'],
+        parent: 'Ticket',
+        verb: 'post',
+      }),
+      null,
+      20,
+      0
+    );
+    const entity = wrapper.findAll('select')[1];
+    expect(entity.element.value).toBe('0');
+    expect(entity.attributes('disabled')).toBeDefined();
+    wrapper.unmount();
+  });
+  it('sends a known parent revision for child creation without a child target', async () => {
+    const { wrapper, execute } = render(
+      descriptor({
+        operation: 'followup.create',
+        fields: ['content'],
+        parent: 'Ticket',
+        verb: 'post',
+      }),
+      null,
+      20,
+      0,
+      '2026-11-04 10:00:00'
+    );
+    await wrapper.get('textarea').setValue('New followup');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(execute.mock.calls[0][1]).toMatchObject({
+      target_id: null,
+      attributes: { parent_id: 20 },
+      expected_version: '2026-11-04 10:00:00',
+    });
+    wrapper.unmount();
+  });
+  it('does not reopen a historical command remote id under a different connection', async () => {
+    const { wrapper, glpi } = render(descriptor(), {
+      id: 20,
+      entities_id: 0,
+      title: 'Old',
+    });
+    glpi.binding = () => ({ connection_id: '9', connection_version: 1 });
+    glpi.read.mockResolvedValue({
+      command: {
+        id: '81',
+        state: 'succeeded',
+        remote_id: 20,
+        connection_id: '8',
+        connection_version: 0,
+      },
+    });
+    await wrapper.get('input[type="text"]').setValue('New title');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === messages.JRC_GLPI.check_send)
+      .trigger('click');
+    await flushPromises();
+    expect(wrapper.emitted('succeeded')).toBeUndefined();
+    expect(wrapper.text()).toContain(
+      messages.JRC_GLPI.workspace.receipt_other_source
+    );
     wrapper.unmount();
   });
   it('explains a denied source operation and cannot send it', () => {

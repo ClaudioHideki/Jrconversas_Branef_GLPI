@@ -101,4 +101,60 @@ describe('GLPI export delivery', () => {
     wrapper.unmount();
     click.mockRestore();
   });
+  it('preserves the original export filter scope when the current report filters change', async () => {
+    const state = reactive({
+      context: { entities: [], can_export: true },
+      loading: {},
+      errors: {},
+      data: {},
+    });
+    const read = vi.fn(async () => null);
+    const startExport = vi.fn(async () => ({
+      export: { id: '9', state: 'ready', processed: 2, total: 2 },
+    }));
+    const run = async (_key, action) => {
+      const response = await action('1');
+      state.data.export = response;
+      return response;
+    };
+    const wrapper = mount(Overview, {
+      props: { glpi: { state, read, run, API: { startExport } } },
+      global: {
+        plugins: [
+          createI18n({
+            legacy: false,
+            locale: 'en',
+            messages: { en: { ...messages, ...serviceMessages } },
+          }),
+        ],
+        stubs: {
+          GlpiFilters: true,
+          GlpiCoverage: true,
+          Button: {
+            props: ['label', 'disabled'],
+            template: '<button :disabled="disabled">{{ label }}</button>',
+          },
+        },
+      },
+    });
+    wrapper
+      .findComponent({ name: 'GlpiFilters' })
+      .vm.$emit('apply', { search: 'Original export query' });
+    await flushPromises();
+    await wrapper
+      .findAll('button')
+      .find(
+        button =>
+          button.text() === serviceMessages.JRC_SERVICE_DESK.COMMON.export
+      )
+      .trigger('click');
+    await flushPromises();
+    wrapper
+      .findComponent({ name: 'GlpiFilters' })
+      .vm.$emit('apply', { search: 'Different report query' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Original export query');
+    expect(wrapper.text()).not.toContain('Different report query');
+    wrapper.unmount();
+  });
 });

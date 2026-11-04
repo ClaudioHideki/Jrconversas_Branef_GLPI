@@ -10,9 +10,10 @@ const holder = vi.hoisted(() => ({ session: null }));
 vi.mock('../composables/useServiceDesk', () => ({
   useServiceDesk: () => holder.session,
 }));
-vi.mock('dashboard/api/serviceDeskGlpi', () => ({
-  default: { get: vi.fn(), save: vi.fn() },
-}));
+vi.mock('dashboard/api/serviceDeskGlpi', () => {
+  const api = { get: vi.fn(), save: vi.fn() };
+  return { default: api, createServiceDeskGlpiClient: () => api };
+});
 const configuration = () => ({
   data: {
     contract_version: 1,
@@ -40,6 +41,7 @@ beforeEach(() => {
     accountId: ref('1'),
     userId: ref('7'),
     state: reactive({ status: 'ready' }),
+    revalidate: vi.fn(async () => {}),
   };
   API.get.mockResolvedValue(configuration());
   API.save.mockResolvedValue(configuration());
@@ -75,6 +77,7 @@ describe('GLPI account source configuration', () => {
       categories: [],
     });
     expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(holder.session.revalidate).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 });
