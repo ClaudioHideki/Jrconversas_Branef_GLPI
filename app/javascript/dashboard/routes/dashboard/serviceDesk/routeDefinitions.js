@@ -1,6 +1,22 @@
 // UI routes only. No role/capability grants or domain records live in this map.
 export const SERVICE_DESK_ROUTES = Object.freeze([
   {
+    key: 'documents',
+    path: 'documents',
+    page: 'glpiServiceDesk',
+    icon: 'i-lucide-paperclip',
+    group: 'governance',
+    resource: 'tickets',
+  },
+  {
+    key: 'native_history',
+    path: 'jrc-history',
+    page: 'nativeHistory',
+    icon: 'i-lucide-archive',
+    group: 'management',
+    resource: 'tickets',
+  },
+  {
     key: 'glpi',
     path: 'glpi',
     page: 'glpi',

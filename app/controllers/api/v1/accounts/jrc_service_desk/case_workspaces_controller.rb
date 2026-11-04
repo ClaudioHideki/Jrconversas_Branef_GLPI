@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Api::V1::Accounts::JrcServiceDesk::CaseWorkspacesController < Api::V1::Accounts::JrcServiceDesk::OperationsController
+  skip_around_action :consistent_reads, only: :show
   rescue_from ArgumentError, with: :case_invalid
   rescue_from ::JrcProjects::Errors::WipLimit do
     render json: { code: 'project_wip_limit', error: 'O limite de tarefas da coluna foi atingido. Revise o quadro de Projetos.' },
@@ -24,9 +25,14 @@ class Api::V1::Accounts::JrcServiceDesk::CaseWorkspacesController < Api::V1::Acc
   def show
     raise ArgumentError unless query_values.empty?
 
-    row = scoped_case
-    authorize row, :show?
-    render json: base_payload.merge(record: case_presenter.call(row))
+    case_id, record = ActiveRecord::Base.transaction(isolation: :repeatable_read) do
+      row = scoped_case
+      authorize row, :show?
+      [row.id, case_presenter.call(row)]
+    end
+    # Source authorization/reads must not retain the native consistent snapshot.
+    references = ::JrcServiceDesk::Glpi::LinkedReferences.new.call(user_context: pundit_user, incident_id: case_id)
+    render json: base_payload.merge(record: record.merge(glpi_references: references))
   end
 
   def create

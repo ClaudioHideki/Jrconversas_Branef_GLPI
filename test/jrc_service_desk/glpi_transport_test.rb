@@ -53,6 +53,41 @@ class GlpiTransportTest < Minitest::Test
     end
   end
 
+  def test_primary_source_session_selects_all_permitted_entities_before_reading
+    @client.connection.define_singleton_method(:primary_source?) { true }
+    @responses = [Response.new('200', { 'session_token' => 'synthetic-session' }, {}),
+                  Response.new('200', true, {}), Response.new('200', { 'id' => 101 }, {}), Response.new('200', true, {})]
+    SsrfFilter.stub(:get, @transport) do
+      SsrfFilter.stub(:post, @transport) do
+        @client.session { |client| assert_equal 101, client.get('Ticket/101')['id'] }
+      end
+    end
+    assert_equal %w[initSession/ changeActiveEntities/ Ticket/101 killSession/], @requests.map { |request| request[:url].split('/apirest.php/').last }
+    assert_equal({ 'is_recursive' => true }, JSON.parse(@requests[1][:body]))
+    assert_nil @requests[1][:headers]['Authorization']
+    assert_equal 'synthetic-session', @requests[1][:headers]['Session-Token']
+  end
+
+  def test_failed_entity_selection_does_not_yield_but_still_ends_session
+    @client.connection.define_singleton_method(:primary_source?) { true }
+    @responses = [Response.new('200', { 'session_token' => 'synthetic-session' }, {}),
+                  Response.new('200', false, {}), Response.new('200', true, {})]
+    SsrfFilter.stub(:get, @transport) do
+      SsrfFilter.stub(:post, @transport) do
+        error = assert_raises(JrcServiceDesk::Glpi::Error) { @client.session { flunk 'Unselected source session must not be used' } }
+        assert_equal 'entity_selection_failed', error.code
+      end
+    end
+    assert @requests.last[:url].end_with?('/killSession/')
+  end
+
+  def test_legacy_optional_connector_retains_its_existing_session_contract
+    @responses = [Response.new('200', { 'session_token' => 'synthetic-session' }, {}), Response.new('200', true, {})]
+    SsrfFilter.stub(:get, @transport) { @client.session { |client| assert_same @client, client } }
+    assert_equal 2, @requests.size
+    assert @requests.last[:url].end_with?('/killSession/')
+  end
+
   def test_collection_propagates_access_denial_on_a_later_page
     @responses = [Response.new('206', [{ 'id' => 1 }], { 'content-range' => '0-0/2' }),
                   Response.new('403', ['ERROR_RIGHT_MISSING', 'Denied'], {})]

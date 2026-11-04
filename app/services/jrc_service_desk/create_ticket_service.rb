@@ -7,9 +7,11 @@ class JrcServiceDesk::CreateTicketService < JrcServiceDesk::BaseService
   CLASSIFICATION_FIELDS = %w[ticket_type_id subcategory_id contract_id impact_code urgency_code].freeze
 
   def call(unit_id:, attributes:, idempotency_key:, service_id: nil, origin_channel: 'manual', intake_conversation: nil)
+    JrcServiceDesk::NativeSourceGuard.call(@native_context)
     raise ArgumentError unless %w[manual portal].include?(origin_channel)
 
     with_unit(unit_id) do |unit|
+      JrcServiceDesk::NativeSourceGuard.call(context.to_h)
       fields = creation_fields
       values = JrcServiceDesk::Input.attributes(attributes, fields)
       normalized = (FIELDS - CLASSIFICATION_FIELDS).index_with { |name| values[name] }

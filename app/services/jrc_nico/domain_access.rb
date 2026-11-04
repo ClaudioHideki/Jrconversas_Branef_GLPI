@@ -14,7 +14,7 @@ class JrcNico::DomainAccess
                       JrcServiceDesk::Unit JrcServiceDesk::OperatorCompany JrcServiceDesk::Queue
                       JrcServiceDesk::Priority JrcServiceDesk::Category JrcServiceDesk::TicketStatus
                       JrcServiceDesk::TicketTask JrcServiceDesk::TicketApproval JrcServiceDesk::Incident
-                      JrcNico::KnowledgeDocument].freeze
+                      JrcNico::KnowledgeDocument JrcServiceDesk::GlpiReference JrcServiceDesk::GlpiCommand].freeze
 
   def initialize(access)
     @access = access.authorize!
@@ -67,6 +67,20 @@ class JrcNico::DomainAccess
     return reader.authorize!(type, id) if reader.supported?(type)
 
     case type
+    when 'JrcServiceDesk::GlpiReference'
+      record = JrcServiceDesk::GlpiReference.where(account_id: access.account.id).find(JrcServiceDesk::Input.id(id))
+      glpi_access = JrcServiceDesk::Glpi::Access.new(domain.context).ready!
+      JrcServiceDesk::Glpi::Client.new(glpi_access.connection).session do |client|
+        JrcServiceDesk::Glpi::Reference.new(record.reference).authorize!(access: glpi_access, client: client)
+      end
+      record
+    when 'JrcServiceDesk::GlpiCommand'
+      record = JrcServiceDesk::GlpiCommand.where(account_id: access.account.id, account_user_id: access.membership.id).find(JrcServiceDesk::Input.id(id))
+      glpi_access = JrcServiceDesk::Glpi::Access.new(domain.context).ready!
+      raise Pundit::NotAuthorizedError unless glpi_access.connection.id == record.glpi_connection_id && glpi_access.connection.primary_source?
+
+      glpi_access.unit_for(record.entity_id)
+      record
     when 'Contact' then access.contact(id)
     when 'JrcNico::KnowledgeDocument'
       JrcNico::KnowledgeDocument.where(account: access.account).approved.find(id)

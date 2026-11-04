@@ -5,10 +5,11 @@ class JrcNico::Helpdesk::ReportingScope
   COLUMNS = { 'unit_ids' => :unit_id, 'company_ids' => :company_id, 'service_ids' => :service_id, 'ticket_ids' => :id }.freeze
   attr_reader :filters
 
-  def initialize(context, policy, filters = {})
+  def initialize(context, policy, filters = {}, historical: false)
     @context = context.refresh!
     @policy = policy
     @filters = filters.stringify_keys
+    @historical = historical
     raise Pundit::NotAuthorizedError unless policy.account_id == @context.account.id
     raise ArgumentError, 'Unsupported reporting filters' unless (@filters.keys - KEYS).empty?
 
@@ -16,6 +17,7 @@ class JrcNico::Helpdesk::ReportingScope
   end
 
   def tickets
+    JrcServiceDesk::NativeSourceGuard.call(@context.native.to_h) unless @historical
     scope = @context.tickets.where(unit_id: @policy.definition.fetch('unit_ids'), company_id: @policy.definition.fetch('company_ids'))
     COLUMNS.each do |key, column|
       next unless filters.key?(key)

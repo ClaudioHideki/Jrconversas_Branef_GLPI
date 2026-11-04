@@ -7,6 +7,9 @@ class JrcNico::HelpdeskToolActions
 
   def call(name, arguments)
     JrcNico::ToolCatalog.new(@access).validate!(name, arguments)
+    if JrcNico::HelpdeskToolCatalog::GLPI_TOOLS.include?(name)
+      return JrcNico::Helpdesk::GlpiActions.new(@access, command: @command).call(name, arguments)
+    end
     case name
     when 'prepare_incident_campaign', 'prepare_closed_case_knowledge'
       JrcNico::Helpdesk::GroupDraftActions.new(@access, @command).call

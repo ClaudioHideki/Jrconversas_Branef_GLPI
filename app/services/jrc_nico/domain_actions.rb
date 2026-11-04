@@ -16,6 +16,10 @@ class JrcNico::DomainActions
 
   def call(name, arguments)
     raise ArgumentError, 'Operação não disponível.' unless JrcNico::DomainToolCatalog::TOOLS.key?(name)
+    if (JrcNico::DomainToolCatalog::TOOLS.fetch(name)[1] == 'service_desk' && name != 'service_desk_context') ||
+       (arguments.keys & %w[ticket_id ticket_ids]).any?
+      JrcServiceDesk::NativeSourceGuard.call(context)
+    end
 
     @args = arguments
     case name
@@ -121,6 +125,11 @@ class JrcNico::DomainActions
 
   def service_desk_context
     result = JrcServiceDesk::UiContextService.new(user_context: context).call
+    if result[:data_source] == 'glpi'
+      glpi_access = JrcServiceDesk::Glpi::Access.new(context)
+      result[:glpi] = { connection_id: glpi_access.connection.id, connection_version: glpi_access.connection.lock_version,
+        enabled: glpi_access.connection.enabled?, entity_ids: glpi_access.entity_ids, technical_identity: true }
+    end
     resources = [['JrcNico::ServiceDeskContext', @access.account.id]]
     result[:units].each do |unit|
       resources << ['JrcNico::ServiceDeskUnit', unit[:id].to_i]

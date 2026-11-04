@@ -72,11 +72,26 @@ export function decodeContext(payload, identity) {
     payload.data_source === undefined ||
       ['native', 'glpi'].includes(payload.data_source)
   );
+  const hasConnection =
+    Object.hasOwn(payload, 'connection_id') ||
+    Object.hasOwn(payload, 'connection_version');
+  if (hasConnection)
+    requireValue(
+      canonicalId(payload.connection_id) !== null &&
+        Number.isInteger(payload.connection_version) &&
+        payload.connection_version >= 0
+    );
   return {
     account_id: identity.accountId,
     user_id: identity.userId,
     available: payload.available,
     data_source: payload.data_source || 'native',
+    ...(hasConnection
+      ? {
+          connection_id: id(payload.connection_id),
+          connection_version: payload.connection_version,
+        }
+      : {}),
     units,
     effective_permissions: Array.isArray(payload.effective_permissions)
       ? payload.effective_permissions.filter(

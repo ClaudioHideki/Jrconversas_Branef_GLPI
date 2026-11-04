@@ -46,13 +46,13 @@ jobs:
           POSTGRES_DB: branef_glpi_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: glpi-ci-disposable-only
-        ports: ['5432:5432']
+        ports: ['127.0.0.1:5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d branef_glpi_test"
           --health-interval 10s --health-timeout 5s --health-retries 10
       redis:
         image: redis:7-alpine
-        ports: ['6379:6379']
+        ports: ['127.0.0.1:6379:6379']
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 10
     env:
       RAILS_ENV: test
@@ -67,6 +67,13 @@ jobs:
         with:
           ref: ${{ inputs.source_sha || github.sha }}
           persist-credentials: false
+      - name: Conferir isolamento dos servicos descartaveis
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          REDIS_CONTAINER_ID: ${{ job.services.redis.id }}
+        run: |
+          python3 -B -m unittest discover -s test/glpi_lab -p test_verify_bindings.py
+          python3 -B test/glpi_lab/verify_bindings.py "$POSTGRES_CONTAINER_ID" "$REDIS_CONTAINER_ID"
       - name: Dependencias nativas
         run: |
           for source in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources /etc/apt/apt-mirrors*.txt; do

@@ -12,13 +12,14 @@ const form = reactive({
   base_url: '',
   timezone: 'America/Sao_Paulo',
   enabled: false,
+  primary_source: 'native',
   user_token: '',
   app_token: '',
   entity_mappings: [],
   user_mappings: [],
   lock_version: 0,
 });
-const categories = ref('[]');
+const categories = ref([]);
 const saved = ref(false);
 const validation = ref(null);
 const defaultUnit = ref('');
@@ -27,11 +28,9 @@ const busy = computed(() => Object.values(state.loading).some(Boolean));
 const configuration = computed(() => state.data.configuration);
 const apply = payload => {
   Object.assign(form, payload.connection, { user_token: '', app_token: '' });
-  categories.value = JSON.stringify(
-    payload.connection.categories || [],
-    null,
-    2
-  );
+  categories.value = (payload.connection.categories || []).map(row => ({
+    ...row,
+  }));
   defaultUnit.value = payload.units[0]?.id || '';
 };
 watch(
@@ -46,20 +45,18 @@ watch(
 const save = async () => {
   saved.value = false;
   validation.value = null;
-  let categoryValues;
-  try {
-    categoryValues = JSON.parse(categories.value);
-  } catch {
-    state.error = { code: 'invalid_categories' };
-    return;
-  }
   const values = {
     base_url: form.base_url,
     timezone: form.timezone,
     enabled: form.enabled,
+    primary_source: form.primary_source,
     entity_mappings: form.entity_mappings,
     user_mappings: form.user_mappings,
-    categories: categoryValues,
+    categories: categories.value.map(row => ({
+      id: Number(row.id),
+      name: row.name,
+      entity_id: Number(row.entity_id),
+    })),
     lock_version: form.lock_version,
   };
   if (form.user_token) values.user_token = form.user_token;
@@ -70,6 +67,7 @@ const save = async () => {
   if (result) {
     apply(result);
     saved.value = true;
+    await session.revalidate();
   }
 };
 const validate = async () => {
@@ -100,7 +98,10 @@ const reconcileCommand = async () => {
 </script>
 
 <template>
-  <section class="grid gap-4" data-testid="glpi-settings">
+  <section
+    class="grid gap-4"
+    data-testid="glpi-settings"
+  >
     <header>
       <h2 class="text-xl font-semibold">
         {{ t('JRC_GLPI.configure') }}
@@ -117,26 +118,36 @@ const reconcileCommand = async () => {
       {{ t('JRC_GLPI.error') }}
       {{ t('JRC_GLPI.source_code', { code: state.error.code }) }}
     </p>
-    <p v-if="saved" class="rounded-lg bg-n-teal-2 p-3 text-sm" role="status">
+    <p
+      v-if="saved"
+      class="rounded-lg bg-n-teal-2 p-3 text-sm"
+      role="status"
+    >
       {{ t('JRC_GLPI.saved') }}
     </p>
-    <form v-if="configuration" class="grid gap-4" @submit.prevent="save">
+    <form
+      v-if="configuration"
+      class="grid gap-4"
+      @submit.prevent="save"
+    >
       <Panel :title="t('JRC_GLPI.connection')">
         <div class="grid gap-4 md:grid-cols-2">
-          <label class="grid gap-1 text-sm md:col-span-2"
-            >{{ t('JRC_GLPI.endpoint')
-            }}<input
+          <label class="grid gap-1 text-sm md:col-span-2">
+            {{ t('JRC_GLPI.endpoint') }}
+            <input
               v-model="form.base_url"
               type="url"
               required
               class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-          /></label>
+            />
+          </label>
           <label
             v-for="field in ['user_token', 'app_token']"
             :key="field"
             class="grid gap-1 text-sm"
-            >{{ t(`JRC_GLPI.${field}`)
-            }}<input
+          >
+            {{ t(`JRC_GLPI.${field}`) }}
+            <input
               v-model="form[field]"
               type="password"
               autocomplete="new-password"
@@ -147,26 +158,49 @@ const reconcileCommand = async () => {
                   : ''
               "
               class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-          /></label>
-          <label class="grid gap-1 text-sm"
-            >{{ t('JRC_GLPI.timezone')
-            }}<input
+            />
+          </label>
+          <label class="grid gap-1 text-sm">
+            {{ t('JRC_GLPI.timezone') }}
+            <input
               v-model="form.timezone"
               required
               class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-          /></label>
-          <label class="flex items-center gap-2 text-sm"
-            ><input v-model="form.enabled" type="checkbox" />{{
-              t('JRC_GLPI.enable')
-            }}</label
-          >
+            />
+          </label>
+          <label class="flex items-center gap-2 text-sm">
+            <input
+              v-model="form.enabled"
+              type="checkbox"
+            />
+            {{ t('JRC_GLPI.enable') }}
+          </label>
+          <label class="grid gap-1 text-sm">
+            {{ t('JRC_GLPI.workspace.primary_source') }}
+            <select
+              v-model="form.primary_source"
+              data-testid="glpi-primary-source"
+              class="!mb-0 h-10 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
+            >
+              <option value="native">
+                {{ t('JRC_GLPI.workspace.source_native') }}
+              </option>
+              <option value="glpi">
+                {{ t('JRC_GLPI.workspace.source_glpi') }}
+              </option>
+            </select>
+          </label>
+          <p class="text-xs text-n-slate-11">
+            {{ t('JRC_GLPI.workspace.primary_source_help') }}
+          </p>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
           <Button
             type="submit"
             :label="t('JRC_SERVICE_DESK.COMMON.save')"
             :disabled="busy"
-          /><Button
+          />
+          <Button
             type="button"
             :label="t('JRC_GLPI.validate')"
             variant="outline"
@@ -210,7 +244,10 @@ const reconcileCommand = async () => {
         <p class="mb-3 text-sm text-n-slate-11">
           {{ t('JRC_GLPI.entity_mapping_help') }}
         </p>
-        <div v-if="validation" class="mb-4 flex flex-wrap items-center gap-2">
+        <div
+          v-if="validation"
+          class="mb-4 flex flex-wrap items-center gap-2"
+        >
           <select
             v-model="defaultUnit"
             class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
@@ -222,8 +259,9 @@ const reconcileCommand = async () => {
               :value="unit.id"
             >
               {{ unit.name }}
-            </option></select
-          ><Button
+            </option>
+          </select>
+          <Button
             type="button"
             :label="t('JRC_GLPI.map_entities')"
             variant="outline"
@@ -237,8 +275,8 @@ const reconcileCommand = async () => {
             :key="mapping.entity_id"
             class="grid grid-cols-[1fr_1fr_auto] items-center gap-2"
           >
-            <span class="text-sm">{{ entityName(mapping.entity_id) }}</span
-            ><select
+            <span class="text-sm">{{ entityName(mapping.entity_id) }}</span>
+            <select
               v-model.number="mapping.unit_id"
               class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
               :aria-label="t('JRC_GLPI.unit')"
@@ -249,8 +287,9 @@ const reconcileCommand = async () => {
                 :value="unit.id"
               >
                 {{ unit.name }}
-              </option></select
-            ><Button
+              </option>
+            </select>
+            <Button
               type="button"
               icon="i-lucide-x"
               :aria-label="t('JRC_GLPI.remove')"
@@ -281,15 +320,17 @@ const reconcileCommand = async () => {
                 :value="member.id"
               >
                 {{ member.name }}
-              </option></select
-            ><input
+              </option>
+            </select>
+            <input
               v-model.number="mapping.glpi_user_id"
               type="number"
               min="1"
               required
               :aria-label="t('JRC_GLPI.remote_user')"
               class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-            /><Button
+            />
+            <Button
               type="button"
               icon="i-lucide-x"
               :aria-label="t('JRC_GLPI.remove')"
@@ -312,14 +353,64 @@ const reconcileCommand = async () => {
         />
       </Panel>
       <Panel :title="t('JRC_GLPI.category_mapping')">
-        <label class="grid gap-2 text-sm"
-          >{{ t('JRC_GLPI.category_mapping_help')
-          }}<textarea
-            v-model="categories"
-            rows="5"
-            class="!mb-0 font-mono text-xs"
+        <p class="mb-3 text-sm">
+          {{ t('JRC_GLPI.workspace.category_mapping_help') }}
+        </p>
+        <div
+          v-for="(category, index) in categories"
+          :key="index"
+          class="mb-3 grid gap-3 md:grid-cols-4"
+        >
+          <label class="grid gap-1 text-xs">
+            {{ t('JRC_GLPI.category') }}
+            <input
+              v-model="category.id"
+              type="number"
+              min="1"
+              required
+              class="!mb-0 rounded-lg border border-n-weak px-3 py-2 text-sm"
+            />
+          </label>
+          <label class="grid gap-1 text-xs">
+            {{ t('JRC_GLPI.fields.name') }}
+            <input
+              v-model="category.name"
+              required
+              class="!mb-0 rounded-lg border border-n-weak px-3 py-2 text-sm"
+            />
+          </label>
+          <label class="grid gap-1 text-xs">
+            {{ t('JRC_GLPI.entity') }}
+            <select
+              v-model="category.entity_id"
+              required
+              class="!mb-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
+            >
+              <option value="">
+                {{ t('JRC_SERVICE_DESK.COMMON.select') }}
+              </option>
+              <option
+                v-for="mapping in form.entity_mappings"
+                :key="mapping.entity_id"
+                :value="mapping.entity_id"
+              >
+                {{ entityName(mapping.entity_id) }}
+              </option>
+            </select>
+          </label>
+          <Button
+            type="button"
+            :label="t('JRC_GLPI.remove')"
+            variant="outline"
+            @click="categories.splice(index, 1)"
           />
-        </label>
+        </div>
+        <Button
+          type="button"
+          :label="t('JRC_GLPI.workspace.add_category')"
+          variant="outline"
+          @click="categories.push({ id: '', name: '', entity_id: '' })"
+        />
       </Panel>
       <div>
         <Button
@@ -329,11 +420,17 @@ const reconcileCommand = async () => {
         />
       </div>
     </form>
-    <Panel v-if="configuration" :title="t('JRC_GLPI.reconcile')">
+    <Panel
+      v-if="configuration"
+      :title="t('JRC_GLPI.reconcile')"
+    >
       <p class="mb-3 text-sm text-n-slate-11">
         {{ t('JRC_GLPI.reconcile_help') }}
       </p>
-      <form class="flex flex-wrap gap-3" @submit.prevent="reconcileCommand">
+      <form
+        class="flex flex-wrap gap-3"
+        @submit.prevent="reconcileCommand"
+      >
         <input
           v-model="reconcile.command_id"
           required
@@ -342,7 +439,8 @@ const reconcileCommand = async () => {
           :placeholder="t('JRC_GLPI.command_number')"
           :aria-label="t('JRC_GLPI.command_number')"
           class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-        /><input
+        />
+        <input
           v-model="reconcile.remote_id"
           required
           type="number"
@@ -350,13 +448,18 @@ const reconcileCommand = async () => {
           :placeholder="t('JRC_GLPI.id')"
           :aria-label="t('JRC_GLPI.id')"
           class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-        /><Button
+        />
+        <Button
           type="submit"
           :label="t('JRC_GLPI.reconcile')"
           :disabled="busy"
         />
       </form>
-      <p v-if="state.data.reconcile" class="mt-3 text-sm" role="status">
+      <p
+        v-if="state.data.reconcile"
+        class="mt-3 text-sm"
+        role="status"
+      >
         {{
           t('JRC_GLPI.commands.succeeded', {
             id: state.data.reconcile.command.remote_id,

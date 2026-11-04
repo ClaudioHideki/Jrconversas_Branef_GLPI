@@ -27,4 +27,26 @@ describe('Service Desk account data source contract', () => {
       decodeContext({ ...payload, data_source: 'proxy' }, identity)
     ).toThrow();
   });
+  it('preserves the authenticated connection tuple and rejects a partial or invalid tuple', () => {
+    expect(
+      decodeContext(
+        {
+          ...payload,
+          data_source: 'glpi',
+          connection_id: '9',
+          connection_version: 0,
+        },
+        identity
+      )
+    ).toMatchObject({ connection_id: '9', connection_version: 0 });
+    expect(() =>
+      decodeContext({ ...payload, connection_id: '9' }, identity)
+    ).toThrow();
+    expect(() =>
+      decodeContext(
+        { ...payload, connection_id: '9', connection_version: -1 },
+        identity
+      )
+    ).toThrow();
+  });
 });

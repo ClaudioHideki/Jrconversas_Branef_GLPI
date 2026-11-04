@@ -10,6 +10,7 @@ class JrcServiceDesk::GlpiConnection < JrcServiceDesk::AccountRecord
   validates :enabled, inclusion: { in: [true, false] }
   validates :primary_source, inclusion: { in: [true, false] }
   validate :configuration_is_valid
+  validate :namespace_is_immutable_after_use
 
   def public_configuration
     attributes.slice('base_url', 'enabled', 'primary_source', 'timezone', 'entity_mappings', 'user_mappings', 'categories', 'lock_version').merge(
@@ -18,6 +19,23 @@ class JrcServiceDesk::GlpiConnection < JrcServiceDesk::AccountRecord
   end
 
   private
+
+  def namespace_is_immutable_after_use
+    return unless persisted? && will_save_change_to_base_url? && errors.empty?
+
+    namespaces = [base_url_in_database, base_url].map do |value|
+      uri = URI.parse(value)
+      [uri.scheme.downcase, uri.host.downcase, uri.port, uri.path.delete_suffix('/')]
+    end
+    return if namespaces.first == namespaces.last
+
+    history = [JrcServiceDesk::GlpiCommand, JrcServiceDesk::GlpiTicketSnapshot,
+               JrcServiceDesk::GlpiSyncRun, JrcServiceDesk::GlpiExport, JrcServiceDesk::GlpiReference]
+    return unless history.any? { |model| model.where(glpi_connection_id: id).exists? }
+
+    errors.add(:base_url, :connection_namespace_locked,
+               message: 'cannot replace a GLPI endpoint with recorded source history; a controlled source migration is required')
+  end
 
   def configuration_is_valid
     uri = URI.parse(base_url.to_s)

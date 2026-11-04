@@ -2,85 +2,7 @@
 
 require_relative 'glpi_test_helper'
 
-# Synthetic GLPI state, behind the real command service; never connects to a server.
-class GlpiCommandSource
-  attr_accessor :failure, :on_profile, :ignore_write, :denied, :skip_solution_status, :confirmation_error
-  attr_reader :writes, :rows
-
-  def initialize
-    @writes = []
-    @rows = { 'Ticket/101' => { 'id' => 101, 'entities_id' => 0, 'date_mod' => 'v1', 'type' => 1 },
-      'Problem/201' => { 'id' => 201, 'entities_id' => 0, 'date_mod' => 'v1' },
-      'Change/301' => { 'id' => 301, 'entities_id' => 0, 'date_mod' => 'v1' } }
-  end
-
-  def session
-    yield self
-  end
-
-  def get(path, *)
-    if path == 'getActiveProfile/'
-      on_profile&.call
-      return { 'active_profile' => %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory tickettemplate].to_h { |key| [key, denied ? 0 : 1048575] } }
-    end
-    return { 'session' => { 'glpiID' => 900 } } if path == 'getFullSession/'
-    if confirmation_error && writes.any? && path == "#{writes.last[1]}/#{writes.last[2] || 501}"
-      raise JrcServiceDesk::Glpi::Error.new(confirmation_error, 403)
-    end
-    row = rows[path]
-    raise JrcServiceDesk::Glpi::Error.new('ERROR_ITEM_NOT_FOUND', 404) unless row
-
-    row.deep_dup
-  end
-
-  def collection(path, *)
-    return [{ 'id' => 1, 'knowbaseitems_id' => 501, 'entities_id' => 0 }] if path == 'KnowbaseItem/501/Entity_KnowbaseItem/'
-    return [{ 'id' => 1, 'users_id' => 77, 'entities_id' => 0 }] if path == 'User/77/Profile_User/'
-    if path.match?(%r{\A(?:Ticket|Problem|Change)/\d+/(?:Ticket_User|Group_Ticket|Problem_User|Group_Problem|Change_User|Change_Group)/\z})
-      type, id, relation = path.split('/')
-      row = rows["#{type}/#{id}"] || {}
-      key = relation.include?('Group') ? 'groups_id' : 'users_id'
-      value = row[key == 'groups_id' ? '_groups_id_assign' : '_users_id_assign']
-      return value ? [{ 'id' => 1, "#{type.downcase}s_id" => id.to_i, key => value, 'type' => 2 }] : []
-    end
-
-    []
-  end
-
-  def create_item(type, input)
-    write!(:post, type, nil, input)
-  end
-
-  def update_item(type, id, input)
-    write!(:patch, type, id, input)
-  end
-
-  def delete_item(type, id, **)
-    write!(:delete, type, id, {})
-  end
-
-  def write!(verb, type, id, input)
-    raise JrcServiceDesk::Glpi::Error.new('ERROR_RESOURCE_NOT_FOUND', 404) if type == 'Problem_Group'
-    raise 'Intent was not durable before sending' unless JrcServiceDesk::GlpiCommand.where(state: 'sending').exists?
-
-    writes << [verb, type, id, input.deep_dup]
-    raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if failure == 'ERROR_RIGHT_MISSING'
-    id ||= 501
-    unless ignore_write
-      if verb == :delete
-        rows.delete("#{type}/#{id}")
-      else
-        rows["#{type}/#{id}"] = (rows["#{type}/#{id}"] || {}).merge(input).merge('id' => id, 'date_mod' => 'v2')
-        if type == 'ITILSolution' && !skip_solution_status
-          rows["#{input.fetch('itemtype')}/#{input.fetch('items_id')}"]['status'] = 5
-        end
-      end
-    end
-    raise JrcServiceDesk::Glpi::Error.new(failure, failure == 'ERROR_RIGHT_MISSING' ? 403 : 502) if failure
-
-    { 'id' => id, 'deleted' => verb == :delete }
-  end
-end
+require_relative 'glpi_source_fixture'
 
 class GlpiCommandsTest < GlpiIntegrationTest
   def setup
@@ -318,6 +240,27 @@ class GlpiCommandsTest < GlpiIntegrationTest
   def test_parentless_create_rejects_an_unsupported_expected_version
     assert_raises(ArgumentError) do
       execute('problem.create', target: nil, attributes: { 'name' => 'New problem', 'content' => 'Description' }, expected_version: 'stale')
+    end
+    assert_empty @remote.writes
+  end
+
+  def test_partial_task_planning_patch_validates_source_before_values_without_sending_unchanged_end
+    @remote.rows['TicketTask/501'] = { 'id' => 501, 'tickets_id' => 101, 'begin' => '2026-11-04 10:00:00',
+      'end' => '2026-11-04 11:00:00', 'date_mod' => 'v1' }
+    receipt = execute('task.update', target: 501, attributes: { 'parent_id' => 101, 'begin' => '2026-11-04 10:15:00' }, expected_version: 'v1')
+    assert_equal 'succeeded', receipt[:state]
+    refute @remote.writes.last.last.key?('end')
+    assert_equal '2026-11-04 11:00:00', @remote.rows['TicketTask/501']['end']
+  end
+
+  def test_partial_task_planning_patch_rejects_chronology_against_current_source_without_writing
+    @remote.rows['TicketTask/501'] = { 'id' => 501, 'tickets_id' => 101, 'begin' => '2026-11-04 10:00:00',
+      'end' => '2026-11-04 11:00:00', 'date_mod' => 'v1' }
+    %w[begin end].each do |field|
+      invalid = field == 'begin' ? '2026-11-04 11:30:00' : '2026-11-04 09:30:00'
+      receipt = execute('task.update', target: 501, attributes: { 'parent_id' => 101, field => invalid })
+      assert_equal 'rejected', receipt[:state]
+      assert_equal 'invalid_planning', receipt[:error_code]
     end
     assert_empty @remote.writes
   end

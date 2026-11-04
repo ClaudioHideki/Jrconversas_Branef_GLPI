@@ -37,16 +37,32 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     permit!(:manage?)
     allowed = %w[base_url user_token app_token enabled primary_source timezone entity_mappings user_mappings categories lock_version]
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters, allowed)
-    connection = access.connection || ::JrcServiceDesk::GlpiConnection.new(account: access.context.account)
-    raise ActiveRecord::StaleObjectError if connection.persisted? && values['lock_version'] != connection.lock_version
+    connection = nil
+    Account.transaction do
+      # Native mutations hold this Account FOR SHARE. The exclusive lock also
+      # serializes first-connection insertion, where no connection row exists yet.
+      Account.where(id: Current.account.id).lock('FOR UPDATE').take!
+      fresh = ::JrcServiceDesk::Glpi::Access.new(pundit_user)
+      raise Pundit::NotAuthorizedError unless ::JrcServiceDesk::GlpiPolicy.new(fresh.context.to_h, :glpi).manage?
 
-    values.delete('lock_version')
-    %w[user_token app_token].each { |key| values.delete(key) if values[key].blank? }
-    connection.assign_attributes(values)
-    connection.save!
-    audit!('glpi_configuration', connection,
-           { enabled: connection.enabled?, credentials_changed: values.key?('user_token') || values.key?('app_token') })
+      connection = fresh.connection || ::JrcServiceDesk::GlpiConnection.new(account: fresh.context.account)
+      raise ActiveRecord::StaleObjectError if connection.persisted? && values['lock_version'] != connection.lock_version
+
+      values.delete('lock_version')
+      %w[user_token app_token].each { |key| values.delete(key) if values[key].blank? }
+      connection.assign_attributes(values)
+      connection.save!
+      audit!('glpi_configuration', connection,
+             { enabled: connection.enabled?, credentials_changed: values.key?('user_token') || values.key?('app_token') })
+    end
+    @glpi_access = nil
     render json: configuration_payload(connection)
+  rescue ActiveRecord::RecordInvalid => error
+    if error.record.is_a?(::JrcServiceDesk::GlpiConnection) && error.record.errors.of_kind?(:base_url, :connection_namespace_locked)
+      raise ::JrcServiceDesk::Glpi::Error.new('connection_namespace_locked', 409)
+    end
+
+    raise
   end
 
   def validate_connection
@@ -98,6 +114,14 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     render json: envelope.merge(result)
   end
 
+  def ticket_form
+    permit!(:create?)
+    form = with_client do |client|
+      ::JrcServiceDesk::Glpi::TicketForm.new.call(access: access, client: client, filters: request.query_parameters)
+    end
+    render json: envelope.merge(form: form)
+  end
+
   def resources
     permit!(:read?)
     result = with_client do |client|
@@ -134,11 +158,11 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   def operate
     permit!(:operate?)
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters,
-      %w[operation target_id entity_id attributes idempotency_key expected_version reason])
+      %w[operation target_id entity_id attributes idempotency_key expected_version reason template_version])
     receipt = ::JrcServiceDesk::Glpi::Execute.new.call(access: access,
       operation: values.fetch('operation'), target_id: values['target_id'], entity_id: values.fetch('entity_id'),
       attributes: values.fetch('attributes'), idempotency_key: values.fetch('idempotency_key'),
-      expected_version: values['expected_version'], reason: values['reason'])
+      expected_version: values['expected_version'], reason: values['reason'], template_version: values['template_version'])
     render json: envelope.merge(command: receipt), status: receipt[:state] == 'succeeded' ? :ok : :accepted
   end
 
@@ -300,7 +324,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   end
 
   def verify_connection_binding!
-    modern = %w[operate capabilities resources resource relations search_fields upload_document download_document overview
+    modern = %w[operate capabilities ticket_form resources resource relations search_fields upload_document download_document overview
                 prepare_export export_status cancel_export download_export start_sync sync_status latest_sync cancel_sync]
     ::JrcServiceDesk::Glpi::ReferenceBinding.verify!(
       access: access, connection_id: request.headers['X-JRC-GLPI-Connection-Id'],

@@ -120,6 +120,7 @@ Rails.application.routes.draw do
               post 'tickets', to: 'glpi#create_ticket'
               get 'tickets/:remote_id', to: 'glpi#show_ticket'
               get 'capabilities', to: 'glpi#capabilities'
+              get 'ticket_form', to: 'glpi#ticket_form'
               post 'operations', to: 'glpi#operate'
               get 'overview', to: 'glpi#overview'
               get 'search_fields/:kind', to: 'glpi#search_fields'
