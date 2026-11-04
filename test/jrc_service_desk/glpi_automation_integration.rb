@@ -254,4 +254,17 @@ class GlpiAutomationTest < GlpiIntegrationTest
       assert_empty @remote.writes
     end
   end
+
+  def test_connection_revision_is_bound_when_nico_prepares_an_existing_remote_operation
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      operator = JrcNico::OperatorSession.new(account: @account, user: @user)
+      command = operator.ask(message: 'Synthetic binding', request_id: SecureRandom.uuid,
+        prepared: { 'tool' => 'execute_glpi_operation', 'arguments' => { 'reference' => @reference,
+          'operation' => 'ticket.update', 'attributes' => { 'name' => 'Must not use new configuration' } } })
+      @connection.update!(timezone: 'Europe/London')
+      error = assert_raises(JrcServiceDesk::Glpi::Error) { operator.execute(command) }
+      assert_equal 'configuration_changed', error.code
+      assert_empty @remote.writes
+    end
+  end
 end
