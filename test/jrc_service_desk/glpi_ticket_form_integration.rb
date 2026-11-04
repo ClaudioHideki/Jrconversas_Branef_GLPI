@@ -325,4 +325,16 @@ class GlpiTicketFormTest < GlpiIntegrationTest
     assert_equal 403, error.http_status
     assert_empty @remote.writes
   end
+
+  def test_omitted_type_uses_entity_default_before_selecting_a_category_model
+    @remote.rows['Entity/0']['tickettype'] = 2
+    policy = @form.call(access: @access, client: @remote, filters: { 'entity_id' => 0, 'category_id' => 7 })
+    assert_equal 2, policy[:type]
+    assert_equal 21, policy[:template_id]
+    receipt = create({ 'itilcategories_id' => 7 })
+    assert_equal 'succeeded', receipt[:state], receipt.inspect
+    assert_equal 2, @remote.writes.last.last['type']
+    assert_equal 21, @remote.writes.last.last['_tickettemplate']
+    assert_equal 20, form(category_id: 7, type: 1)[:template_id]
+  end
 end
