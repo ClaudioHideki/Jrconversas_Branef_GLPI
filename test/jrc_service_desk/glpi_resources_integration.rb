@@ -139,4 +139,22 @@ class GlpiResourcesTest < GlpiIntegrationTest
         client: client, kind: 'assets', ticket_id: 101)
     end
   end
+
+  def test_template_fields_are_scoped_to_the_authorized_template
+    client = Minitest::Mock.new
+    client.expect(:get, { 'id' => 301, 'entities_id' => 0 }, ['TicketTemplate/301'])
+    client.expect(:collection, [{ 'id' => 1, 'tickettemplates_id' => 301, 'num' => 1 }], ['TicketTemplate/301/TicketTemplateMandatoryField/'])
+    result = JrcServiceDesk::Glpi::ResourceQuery.new.related(access: JrcServiceDesk::Glpi::Access.new(@identity),
+      client: client, kind: 'template_mandatory', ticket_id: 301, parent_type: 'TicketTemplate')
+    assert_equal [1], result.fetch(:items).map { |row| row['num'] }
+  end
+
+  def test_problem_groups_use_the_real_glpi_group_problem_type
+    client = Minitest::Mock.new
+    client.expect(:get, { 'id' => 201, 'entities_id' => 0 }, ['Problem/201'])
+    client.expect(:collection, [{ 'id' => 1, 'problems_id' => 201, 'groups_id' => 9 }], ['Problem/201/Group_Problem/'])
+    result = JrcServiceDesk::Glpi::ResourceQuery.new.related(access: JrcServiceDesk::Glpi::Access.new(@identity),
+      client: client, kind: 'actor_groups', ticket_id: 201, parent_type: 'Problem')
+    assert_equal [9], result.fetch(:items).map { |row| row['groups_id'] }
+  end
 end
