@@ -22,6 +22,14 @@ class JrcServiceDesk::Glpi::Client
   def session
     data = request(:get, 'initSession/', auth: true)
     @session_token = data.fetch('session_token')
+    if connection.respond_to?(:primary_source?) && connection.primary_source?
+      # Omitting entities_id is GLPI 10's supported "all permitted" selection;
+      # the literal string "all" is cast to root 0 by that version's REST API.
+      # This changes only this short-lived session, never the user's profile.
+      selected = request(:post, 'changeActiveEntities/', body: { 'is_recursive' => true })
+      raise JrcServiceDesk::Glpi::Error.new('entity_selection_failed', 403) if selected == false
+      raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless selected == true
+    end
     yield self
   ensure
     if @session_token
