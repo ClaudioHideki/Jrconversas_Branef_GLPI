@@ -33,7 +33,14 @@ class JrcServiceDesk::Glpi::ResourceQuery
 
   def call(access:, client:, kind:, filters:)
     access = authorize_kind!(access, kind)
-    values = JrcServiceDesk::Input.attributes(filters, %w[page per_page search ticket_id parent_type])
+    metadata_kind = %w[categories templates users].include?(kind)
+    allowed = %w[page per_page search ticket_id parent_type] + (metadata_kind ? %w[entity_id] : [])
+    values = JrcServiceDesk::Input.attributes(filters, allowed)
+    metadata_scope = if values.key?('entity_id')
+                       raise ArgumentError if values.key?('ticket_id') || values.key?('parent_type')
+
+                       JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: values['entity_id'])
+                     end
     if values['ticket_id'].present?
       return related(access: access, client: client, kind: kind, ticket_id: values['ticket_id'],
                      parent_type: values.fetch('parent_type', 'Ticket'))
@@ -51,7 +58,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
     errors = []
     client.collection("#{type}/", 'sort' => 'id', 'order' => 'ASC').each do |row|
       begin
-        authorize_record!(access, client, type, row)
+        metadata_scope ? metadata_scope.authorize!(type, row) : authorize_record!(access, client, type, row)
         next if private?(access, row)
 
         normalized = normalize(row)
@@ -63,9 +70,12 @@ class JrcServiceDesk::Glpi::ResourceQuery
         # Records outside the local unit/actor scope are excluded, never disclosed.
         next
       rescue JrcServiceDesk::Glpi::Error => e
+        raise if metadata_scope
+
         errors << e.code
       end
     end
+    metadata_scope&.recheck!
     { items: items, meta: { page: page, per_page: size, total: found }, coverage: coverage(errors) }
   end
 
