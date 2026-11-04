@@ -12,8 +12,15 @@ module JrcServiceDesk
 end
 content_file = File.expand_path('../../app/services/jrc_service_desk/glpi/content.rb', __dir__)
 require content_file if File.file?(content_file)
+require_relative '../../app/services/jrc_service_desk/glpi/normalize'
 
 class GlpiContentTest < Minitest::Test
+  def test_detail_exposes_safe_rich_source_content_alongside_searchable_text
+    payload = JrcServiceDesk::Glpi::Normalize.detail('id' => 1, 'content' => CGI.escapeHTML('<table><tr><td>Cell</td></tr></table><script>bad()</script>'))
+    assert_includes payload['description_html'].to_s, '<table>'
+    refute_includes payload['description_html'].to_s, '<script'
+    refute_includes payload['description'], '<table>'
+  end
   def test_rich_tables_and_safe_references_survive_without_active_content
     assert defined?(JrcServiceDesk::Glpi::Content), 'Missing the GLPI content sanitizer'
     html = '<table style="color:red"><tr><td colspan="2" onclick="alert(1)">Cell</td></tr></table>' \

@@ -69,7 +69,11 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
 
   def tickets
     permit!(:read?)
-    result = with_client { |client| ::JrcServiceDesk::Glpi::TicketQuery.new(access, request.query_parameters).page(client) }
+    result = if access.connection&.primary_source?
+               ::JrcServiceDesk::Glpi::Overview.new.list(access: access, filters: request.query_parameters)
+             else
+               with_client { |client| ::JrcServiceDesk::Glpi::TicketQuery.new(access, request.query_parameters).page(client) }
+             end
     render json: envelope.merge(result).merge(generated_at: Time.current.iso8601)
   end
 
@@ -113,11 +117,106 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   def relations
     permit!(:read?)
     result = with_client do |client|
-      parent = params[:resource_kind].present? ? { 'problems' => 'Problem', 'changes' => 'Change' }.fetch(params[:resource_kind]) : 'Ticket'
+      parent = params[:resource_kind].present? ? { 'problems' => 'Problem', 'changes' => 'Change',
+                                                  'templates' => 'TicketTemplate' }.fetch(params[:resource_kind]) : 'Ticket'
       ::JrcServiceDesk::Glpi::ResourceQuery.new.related(access: access, client: client, kind: params[:kind],
                                                       ticket_id: params[:remote_id], parent_type: parent)
     end
     render json: envelope.merge(result)
+  end
+
+  def search_fields
+    permit!(:read?)
+    fields = with_client { |client| ::JrcServiceDesk::Glpi::ResourceQuery.new.search_fields(access: access, client: client, kind: params[:kind]) }
+    render json: envelope.merge(items: fields)
+  end
+
+  def operate
+    permit!(:operate?)
+    values = ::JrcServiceDesk::Input.attributes(request.request_parameters,
+      %w[operation target_id entity_id attributes idempotency_key expected_version reason])
+    receipt = ::JrcServiceDesk::Glpi::Execute.new.call(access: access,
+      operation: values.fetch('operation'), target_id: values['target_id'], entity_id: values.fetch('entity_id'),
+      attributes: values.fetch('attributes'), idempotency_key: values.fetch('idempotency_key'),
+      expected_version: values['expected_version'], reason: values['reason'])
+    render json: envelope.merge(command: receipt), status: receipt[:state] == 'succeeded' ? :ok : :accepted
+  end
+
+  def upload_document
+    permit!(:operate?)
+    values = ::JrcServiceDesk::Input.attributes(request.request_parameters, %w[file name idempotency_key])
+    receipt = ::JrcServiceDesk::Glpi::Documents.new.upload(access: access, ticket_id: params[:ticket_id],
+      file: values.fetch('file'), idempotency_key: values.fetch('idempotency_key'), name: values['name'])
+    render json: envelope.merge(command: receipt), status: receipt[:state] == 'succeeded' ? :created : :accepted
+  end
+
+  def download_document
+    permit!(:read?)
+    result = with_client do |client|
+      ::JrcServiceDesk::Glpi::Documents.new.download(access: access, client: client,
+        ticket_id: params[:ticket_id], document_id: params[:document_id])
+    end
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    send_data result.fetch(:bytes), filename: result.fetch(:filename), type: result.fetch(:content_type), disposition: 'attachment'
+  end
+
+  def overview
+    permit!(:report?)
+    render json: envelope.merge(report: ::JrcServiceDesk::Glpi::Overview.new.call(access: access, filters: request.query_parameters))
+  end
+
+  def prepare_export
+    permit!(:export?)
+    record = ::JrcServiceDesk::Glpi::Export.new.prepare(access: access, filters: request.request_parameters)
+    render json: envelope.merge(export: record.receipt), status: :accepted
+  end
+
+  def export_status
+    permit!(:export?)
+    record = ::JrcServiceDesk::Glpi::Export.new.status(access: access, id: params[:export_id])
+    render json: envelope.merge(export: record.receipt)
+  end
+
+  def cancel_export
+    permit!(:export?)
+    record = ::JrcServiceDesk::Glpi::Export.new.cancel(access: access, id: params[:export_id])
+    render json: envelope.merge(export: record.receipt)
+  end
+
+  def download_export
+    permit!(:export?)
+    record = ::JrcServiceDesk::Glpi::Export.new.download(access: access, id: params[:export_id])
+    unless record.state == 'ready'
+      return render json: envelope.merge(export: record.receipt), status: record.state == 'verifying' ? :accepted : :conflict
+    end
+
+    # The export service consumed a fresh one-use source verification proof.
+    # No signed storage URL or unauthenticated redirect is exposed.
+    send_data record.artifact.download, filename: 'glpi-tickets.csv', type: 'text/csv; charset=utf-8', disposition: 'attachment'
+  end
+
+  def start_sync
+    permit!(:manage?)
+    run = ::JrcServiceDesk::Glpi::SyncStatus.new.prepare(access: access)
+    render json: envelope.merge(sync: run.receipt), status: :accepted
+  end
+
+  def sync_status
+    permit!(:manage?)
+    run = ::JrcServiceDesk::Glpi::SyncStatus.new.status(access: access, id: params[:sync_id])
+    render json: envelope.merge(sync: run.receipt)
+  end
+
+  def latest_sync
+    permit!(:manage?)
+    run = ::JrcServiceDesk::Glpi::SyncStatus.new.latest(access: access)
+    render json: envelope.merge(sync: run&.receipt)
+  end
+
+  def cancel_sync
+    permit!(:manage?)
+    run = ::JrcServiceDesk::Glpi::SyncStatus.new.cancel(access: access, id: params[:sync_id])
+    render json: envelope.merge(sync: run.receipt)
   end
 
   def command
@@ -144,32 +243,33 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     permit!(:manage?)
     access.ready!
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters, %w[remote_id])
-    remote_id = ::JrcServiceDesk::Input.id(values.fetch('remote_id'))
     record = ::JrcServiceDesk::GlpiCommand.find_by!(account_id: access.context.account.id, glpi_connection: access.connection,
                                                    id: ::JrcServiceDesk::Input.id(params[:command_id]))
-    access.unit_for(record.entity_id)
-    ticket = with_client { |client| client.get("Ticket/#{remote_id}") }
-    unless ticket['entities_id'].to_s == record.entity_id.to_s &&
-           ::JrcServiceDesk::Glpi::Normalize.text(ticket['content']).include?(record.correlation_marker)
-      raise ArgumentError
-    end
-    record.with_lock do
-      raise ::JrcServiceDesk::IdempotencyConflict unless %w[sending indeterminate].include?(record.state)
+    receipt = ::JrcServiceDesk::Glpi::Reconcile.new.call(access: access, command: record, remote_id: values['remote_id'])
+    audit!('glpi_reconciliation', record, { remote_id: receipt[:remote_id] })
+    render json: envelope.merge(command: receipt)
+  rescue ::JrcServiceDesk::Glpi::Error => error
+    # The pre-existing optional connector exposes invalid correlation as 422.
+    raise ArgumentError if !access.connection.primary_source? && error.code == 'reconciliation_unverifiable'
 
-      record.update!(state: 'succeeded', remote_id: remote_id, error_code: nil)
-    end
-    audit!('glpi_reconciliation', record, { remote_id: remote_id })
-    render json: envelope.merge(command: record.receipt)
+    raise
   end
 
   def report
     permit!(:report?)
+    return overview if access.connection&.primary_source?
+
     rows = with_client { |client| ::JrcServiceDesk::Glpi::TicketQuery.new(access, request.query_parameters).all(client) }
     render json: envelope.merge(report: ::JrcServiceDesk::Glpi::Report.build(rows), filters: request.query_parameters)
   end
 
   def export
     permit!(:export?)
+    if access.connection&.primary_source?
+      record = ::JrcServiceDesk::Glpi::Export.new.prepare(access: access, filters: request.query_parameters)
+      return render json: envelope.merge(export: record.receipt), status: :accepted
+    end
+
     rows = with_client { |client| ::JrcServiceDesk::Glpi::TicketQuery.new(access, request.query_parameters).all(client) }
     fields = ::JrcServiceDesk::Glpi::Normalize::FIELDS.values
     csv = ::JrcServiceDesk::OperationalCsv.generate(fields, rows.map { |row| fields.map { |key| row[key] } })

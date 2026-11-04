@@ -22,7 +22,10 @@ class JrcServiceDesk::Glpi::ResourceQuery
                      slas_id_ttr slas_id_tto old_value new_value field date_creation num value tickettemplates_id].freeze
   CAPABILITIES = { 'tasks' => :tasks_view, 'validations' => :approvals_view, 'followups' => :notes_view,
                    'history' => :history_view, 'satisfaction' => :dashboard_view, 'problems' => :incidents_manage,
-                   'changes' => :incidents_manage }.freeze
+                   'changes' => :incidents_manage, 'problem_links' => :incidents_manage, 'change_links' => :incidents_manage,
+                   'sla' => :sla_view, 'calendars' => :sla_view,
+                   **%w[categories templates template_mandatory template_hidden template_predefined users groups suppliers
+                        solution_types task_categories knowledge knowledge_links].index_with { :lookups_view } }.freeze
 
   def initialize
     @parents = {}
@@ -68,6 +71,21 @@ class JrcServiceDesk::Glpi::ResourceQuery
 
   def find(access:, client:, kind:, id:)
     normalize(raw(access: access, client: client, kind: kind, id: id))
+  end
+
+  def search_fields(access:, client:, kind:)
+    authorize_kind!(access, kind)
+    type = { 'tickets' => 'Ticket', 'problems' => 'Problem', 'changes' => 'Change', 'knowledge' => 'KnowbaseItem',
+             'categories' => 'ITILCategory', 'templates' => 'TicketTemplate' }.fetch(kind)
+    options = client.get("listSearchOptions/#{type}/")
+    raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless options.is_a?(Hash)
+
+    options.filter_map do |key, option|
+      next unless key.to_s.match?(/\A[1-9]\d*\z/) && option.is_a?(Hash)
+
+      { id: key.to_i, name: JrcServiceDesk::Glpi::Normalize.text(option['name']),
+        datatype: JrcServiceDesk::Glpi::Normalize.text(option['datatype']) }
+    end
   end
 
   # Backend-only raw lookup; callers cannot provide a remote type or URL.
@@ -150,7 +168,11 @@ class JrcServiceDesk::Glpi::ResourceQuery
   end
 
   def normalize(row)
-    row.slice(*PUBLIC_FIELDS).transform_values { |value| value.is_a?(String) ? JrcServiceDesk::Glpi::Normalize.text(value) : value }
+    row.slice(*PUBLIC_FIELDS).transform_values { |value| value.is_a?(String) ? JrcServiceDesk::Glpi::Normalize.text(value) : value }.tap do |result|
+      %w[content answer].each do |field|
+        result["#{field}_html"] = JrcServiceDesk::Glpi::Content.rich(row[field], from_source: true) if row[field].is_a?(String)
+      end
+    end
   end
 
   private
