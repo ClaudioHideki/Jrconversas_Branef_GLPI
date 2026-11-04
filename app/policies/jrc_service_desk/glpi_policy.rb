@@ -13,6 +13,11 @@ class JrcServiceDesk::GlpiPolicy < JrcServiceDesk::OperationalPolicy
     read? && operational_context.capability?(:tickets_create)
   end
 
+  # Per-operation capabilities and live account/unit access are checked by Execute.
+  def operate?
+    read?
+  end
+
   def report?
     read? && operational_context.capability?(:dashboard_view)
   end

@@ -21,7 +21,7 @@ class GlpiCommandSource
   def get(path, *)
     if path == 'getActiveProfile/'
       on_profile&.call
-      return { 'active_profile' => %w[ticket followup task ticketvalidation problem change knowbase itilcategory tickettemplate].to_h { |key| [key, denied ? 0 : 65535] } }
+      return { 'active_profile' => %w[ticket followup task ticketvalidation changevalidation problem change knowbase itilcategory tickettemplate].to_h { |key| [key, denied ? 0 : 1048575] } }
     end
     return { 'session' => { 'glpiID' => 900 } } if path == 'getFullSession/'
     row = rows[path]
@@ -33,6 +33,13 @@ class GlpiCommandSource
   def collection(path, *)
     return [{ 'id' => 1, 'knowbaseitems_id' => 501, 'entities_id' => 0 }] if path == 'KnowbaseItem/501/Entity_KnowbaseItem/'
     return [{ 'id' => 1, 'users_id' => 77, 'entities_id' => 0 }] if path == 'User/77/Profile_User/'
+    if path.match?(%r{\A(?:Ticket|Problem|Change)/\d+/(?:Ticket_User|Group_Ticket|Problem_User|Problem_Group|Change_User|Change_Group)/\z})
+      type, id, relation = path.split('/')
+      row = rows["#{type}/#{id}"] || {}
+      key = relation.include?('Group') ? 'groups_id' : 'users_id'
+      value = row[key == 'groups_id' ? '_groups_id_assign' : '_users_id_assign']
+      return value ? [{ 'id' => 1, "#{type.downcase}s_id" => id.to_i, key => value, 'type' => 2 }] : []
+    end
 
     []
   end
@@ -162,9 +169,11 @@ class GlpiCommandsTest < GlpiIntegrationTest
   def test_unconfirmed_write_and_foreign_link_are_never_success
     @remote.ignore_write = true
     assert_equal 'indeterminate', execute[:state]
+    # A separate fully authorized ticket avoids reusing an unresolved object.
+    @remote.rows['Ticket/102'] = { 'id' => 102, 'entities_id' => 0 }
     @remote.ignore_write = false
     @remote.rows['Problem/999'] = { 'id' => 999, 'entities_id' => 999 }
-    receipt = execute('problem_link.create', target: nil, attributes: { 'parent_id' => 101, 'problems_id' => 999 })
+    receipt = execute('problem_link.create', target: nil, attributes: { 'parent_id' => 102, 'problems_id' => 999 })
     assert_equal 'rejected', receipt[:state]
     assert_equal 1, @remote.writes.size
   end

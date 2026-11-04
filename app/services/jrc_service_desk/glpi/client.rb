@@ -8,7 +8,7 @@ require_relative 'collection'
 class JrcServiceDesk::Glpi::Client
   MUTABLE_TYPES = %w[Ticket TicketTask ITILFollowup ITILSolution TicketValidation Document Document_Item
                      Ticket_User Group_Ticket Supplier_Ticket Item_Ticket Problem Change Problem_Ticket Change_Ticket
-                     ProblemTask ChangeTask Problem_User Group_Problem Change_User Group_Change
+                     ProblemTask ChangeTask ProblemValidation ChangeValidation Problem_User Problem_Group Change_User Change_Group
                      KnowbaseItem KnowbaseItem_Item ITILCategory TicketTemplate TicketTemplateMandatoryField
                      TicketTemplateHiddenField TicketTemplatePredefinedField].freeze
   attr_reader :connection, :last_response
