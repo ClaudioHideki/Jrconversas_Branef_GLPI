@@ -4,7 +4,7 @@ require_relative 'glpi_commands_integration'
 require 'stringio'
 
 class GlpiDocumentSource < GlpiCommandSource
-  attr_accessor :upload_timeout, :link_timeout, :skip_link, :download_hook
+  attr_accessor :upload_timeout, :link_timeout, :skip_link, :download_hook, :link_denied
   attr_reader :downloads
 
   def initialize
@@ -30,6 +30,8 @@ class GlpiDocumentSource < GlpiCommandSource
     raise 'Missing durable link stage' unless command.remote_id == 601 && command.result['stage'] == 'link_sending'
 
     writes << [:post, type, nil, input.deep_dup]
+    raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if link_denied
+
     rows['Document_Item/701'] = input.merge('id' => 701) unless skip_link
     raise JrcServiceDesk::Glpi::Error.new('source_unavailable') if link_timeout
 
@@ -37,7 +39,7 @@ class GlpiDocumentSource < GlpiCommandSource
   end
 
   def get(path, *)
-    return { 'active_profile' => { 'document' => 31, 'ticket' => 31 } } if path == 'getActiveProfile/'
+    return { 'active_profile' => { 'document' => denied ? 0 : 31, 'ticket' => 31 } } if path == 'getActiveProfile/'
 
     super
   end
@@ -138,5 +140,62 @@ class GlpiDocumentsTest < GlpiIntegrationTest
     end
     assert_equal 'multipart_required', error.code
     assert_empty @remote.writes
+  end
+
+  def test_unlinking_a_shared_document_never_deletes_the_document
+    @remote.rows['Document/601'] = { 'id' => 601, 'entities_id' => 0 }
+    @remote.rows['Document_Item/701'] = { 'id' => 701, 'documents_id' => 601, 'items_id' => 101, 'itemtype' => 'Ticket' }
+    @remote.rows['Document_Item/702'] = { 'id' => 702, 'documents_id' => 601, 'items_id' => 102, 'itemtype' => 'Ticket' }
+    # Use the existing typed unlink executor; Document deletion is never part of the flow.
+    source = GlpiCommandSource.new
+    source.rows.merge!(@remote.rows)
+    receipt = JrcServiceDesk::Glpi::Execute.new(client_factory: ->(_) { source }).call(
+      access: @access, operation: 'document_link.delete', target_id: 701, entity_id: 0,
+      attributes: { 'parent_id' => 101 }, idempotency_key: 'unlink')
+    assert_equal 'succeeded', receipt[:state]
+    assert source.rows.key?('Document/601')
+    assert source.rows.key?('Document_Item/702')
+    assert_equal ['Document_Item'], source.writes.map { |write| write[1] }
+  end
+
+  def test_foreign_account_access_and_revocation_during_download_are_denied
+    @remote.rows['Document/601'] = { 'id' => 601, 'entities_id' => 0, 'filename' => 'file.txt' }
+    @remote.rows['Document_Item/701'] = { 'id' => 701, 'documents_id' => 601, 'items_id' => 101, 'itemtype' => 'Ticket' }
+    foreign = Account.create!(name: 'Foreign', status: 'active')
+    assert_raises(Pundit::NotAuthorizedError) do
+      foreign_access = JrcServiceDesk::Glpi::Access.new(@identity.merge(account: foreign))
+      @documents.download(access: foreign_access, client: @remote, ticket_id: 101, document_id: 601)
+    end
+    @remote.download_hook = -> { @connection.update!(enabled: false) }
+    assert_raises(JrcServiceDesk::Glpi::Error) do
+      @documents.download(access: @access, client: @remote, ticket_id: 101, document_id: 601)
+    end
+  end
+
+  def test_known_document_without_link_cannot_be_reconciled_into_success
+    @remote.skip_link = true
+    receipt = upload
+    error = assert_raises(JrcServiceDesk::Glpi::Error) do
+      JrcServiceDesk::Glpi::Reconcile.new(client_factory: ->(_) { @remote }).call(
+        access: @access, command: JrcServiceDesk::GlpiCommand.find(receipt[:id]))
+    end
+    assert_equal 'reconciliation_unverifiable', error.code
+    assert_equal 2, @remote.writes.size
+  end
+
+  def test_source_profile_denial_prevents_upload_and_link_denial_preserves_known_document
+    @remote.denied = true
+    receipt = upload
+    assert_equal 'rejected', receipt[:state]
+    assert_equal 'operation_not_permitted', receipt[:error_code]
+    assert_empty @remote.writes
+    @remote.denied = false
+    @remote.link_denied = true
+    receipt = upload(key: 'link-denied')
+    assert_equal 'indeterminate', receipt[:state]
+    assert_equal '601', receipt[:remote_id]
+    assert_equal 'ERROR_RIGHT_MISSING', receipt[:error_code]
+    assert @remote.rows.key?('Document/601')
+    assert_equal 2, @remote.writes.size
   end
 end

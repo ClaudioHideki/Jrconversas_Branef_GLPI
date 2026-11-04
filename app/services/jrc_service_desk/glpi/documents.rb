@@ -106,7 +106,8 @@ class JrcServiceDesk::Glpi::Documents
         raise JrcServiceDesk::Glpi::Error.new('reconciliation_unverifiable', 409) unless link
 
         access = @executor.fresh_access(access, command.connection_version)
-        authorized_ticket!(access, client, command.parent_id)
+        ticket = authorized_ticket!(access, client, command.parent_id)
+        @executor.verify_entity!(ticket, command.entity_id)
         command.update!(state: 'succeeded', remote_id: id, error_code: nil,
           result: { 'stage' => 'linked', 'verified' => true, 'document_id' => id.to_s, 'link_id' => link.fetch('id').to_s })
       end
@@ -131,6 +132,7 @@ class JrcServiceDesk::Glpi::Documents
       command.update!(technical_user_id: technical_id, state: 'sending', result: { 'stage' => 'upload_sending' })
       access = @executor.fresh_access(access, command.connection_version)
       @executor.authorize_local!(access, descriptor)
+      access.unit_for(command.entity_id)
       payload = command.request_payload
       sent = true
       response = client.upload_document({ 'name' => payload.fetch('name'), 'entities_id' => command.entity_id,
@@ -148,6 +150,9 @@ class JrcServiceDesk::Glpi::Documents
       link = exact_link(client, command.parent_id, id)
       unless link
         command.update!(result: { 'stage' => 'link_sending', 'document_id' => id.to_s })
+        access = @executor.fresh_access(access, command.connection_version)
+        @executor.authorize_local!(access, descriptor)
+        access.unit_for(command.entity_id)
         client.create_item('Document_Item', { 'documents_id' => id, 'itemtype' => 'Ticket', 'items_id' => command.parent_id })
         link = exact_link(client, command.parent_id, id)
       end
@@ -155,7 +160,8 @@ class JrcServiceDesk::Glpi::Documents
 
       access = @executor.fresh_access(access, command.connection_version)
       @executor.authorize_local!(access, descriptor)
-      authorized_ticket!(access, client, command.parent_id)
+      ticket = authorized_ticket!(access, client, command.parent_id)
+      @executor.verify_entity!(ticket, command.entity_id)
       command.update!(state: 'succeeded', error_code: nil,
         result: { 'stage' => 'linked', 'verified' => true, 'document_id' => id.to_s, 'link_id' => link.fetch('id').to_s })
     end
