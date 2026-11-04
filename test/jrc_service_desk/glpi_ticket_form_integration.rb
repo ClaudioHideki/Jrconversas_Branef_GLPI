@@ -32,6 +32,9 @@ class GlpiTicketFormSource < GlpiCommandSource
   def get(path, *)
     raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if metadata_denied == path
     return options.deep_dup if path == 'listSearchOptions/Ticket/'
+    if path == 'getMyEntities/'
+      return { 'myentities' => rows.select { |key, _| key.match?(%r{\AEntity/\d+\z}) }.values }
+    end
     if path == 'getActiveProfile/'
       return { 'active_profile' => { 'id' => 6, 'ticket' => 1048575, 'tickettemplates_id' => profile_template } }
     end
@@ -265,5 +268,25 @@ class GlpiTicketFormTest < GlpiIntegrationTest
     receipt = create({ 'type' => 1, 'urgency' => 3, 'impact' => 3 })
     assert_equal 'succeeded', receipt[:state]
     refute @remote.writes.last.last.key?('_tickettemplate')
+    assert_raises(ArgumentError) { create({ 'type' => 1, 'urgency' => 3, 'impact' => 3, 'template_id' => 0 }) }
+    assert_raises(ArgumentError) { create({ 'type' => 1, 'urgency' => 3, 'impact' => 3, 'template_id' => nil }) }
+  end
+
+  def test_template_status_permission_is_rechecked_on_final_fresh_identity
+    @remote.rules[10]['Predefined'] = [{ 'id' => 1, 'tickettemplates_id' => 10, 'num' => 12, 'value' => '6' }]
+    may_close = true
+    context_constructor = JrcServiceDesk::OperationalContext.method(:new)
+    factory = lambda do |identity|
+      context = context_constructor.call(identity)
+      permission = context.method(:capability?)
+      captured_close = may_close
+      context.define_singleton_method(:capability?) { |key| key == :close ? captured_close : permission.call(key) }
+      context
+    end
+    @remote.on_template_read = ->(count) { may_close = false if count == 2 }
+    receipt = JrcServiceDesk::OperationalContext.stub(:new, factory) { create }
+    assert_equal 'rejected', receipt[:state]
+    assert_equal 'not_authorized', receipt[:error_code]
+    assert_empty @remote.writes
   end
 end
