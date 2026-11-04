@@ -198,4 +198,17 @@ class GlpiDocumentsTest < GlpiIntegrationTest
     assert @remote.rows.key?('Document/601')
     assert_equal 2, @remote.writes.size
   end
+
+  def test_cross_entity_shared_download_requires_both_entities_to_be_granted
+    @remote.rows['Document/601'] = { 'id' => 601, 'entities_id' => 1, 'filename' => 'shared.txt' }
+    @remote.rows['Document_Item/701'] = { 'id' => 701, 'documents_id' => 601, 'items_id' => 101, 'itemtype' => 'Ticket' }
+    assert_raises(Pundit::NotAuthorizedError) do
+      @documents.download(access: @access, client: @remote, ticket_id: 101, document_id: 601)
+    end
+    @connection.update!(entity_mappings: [{ 'entity_id' => 0, 'unit_id' => @unit.id }, { 'entity_id' => 1, 'unit_id' => @unit.id }])
+    access = JrcServiceDesk::Glpi::Access.new(@identity)
+    result = @documents.download(access: access, client: @remote, ticket_id: 101, document_id: 601)
+    assert_equal 'SYNTHETIC FILE', result[:bytes]
+    assert_equal [601], @remote.downloads
+  end
 end

@@ -139,7 +139,7 @@ class JrcServiceDesk::Glpi::Client
       end
     end
     return { bytes: response_body, content_type: content_type } if binary && status == 200
-    raise JrcServiceDesk::Glpi::Error.new('incomplete_download') if binary && status == 206
+    raise JrcServiceDesk::Glpi::Error.new('incomplete_download') if binary && [204, 206].include?(status)
     return nil if status == 204
 
     data = JSON.parse(response_body)

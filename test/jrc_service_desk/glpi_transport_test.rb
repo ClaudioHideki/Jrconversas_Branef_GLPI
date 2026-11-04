@@ -234,4 +234,12 @@ class GlpiTransportTest < Minitest::Test
       assert_equal 'ERROR_RIGHT_MISSING', assert_raises(JrcServiceDesk::Glpi::Error) { @client.download_document(601) }.code
     end
   end
+
+  def test_binary_download_rejects_partial_or_missing_file_payload
+    @responses = [Response.new('206', 'Partial', {}), Response.new('204', nil, {})]
+    SsrfFilter.stub(:get, @transport) do
+      assert_equal 'incomplete_download', assert_raises(JrcServiceDesk::Glpi::Error) { @client.download_document(601) }.code
+      assert_equal 'incomplete_download', assert_raises(JrcServiceDesk::Glpi::Error) { @client.download_document(601) }.code
+    end
+  end
 end
