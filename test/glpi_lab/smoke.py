@@ -4,6 +4,8 @@ import json
 import ssl
 import urllib.request
 import urllib.error
+import socket
+import time
 
 root = Path(__file__).resolve().parent
 fixtures = json.loads((root/'.runtime/out/fixtures.json').read_text())
@@ -11,6 +13,16 @@ assert fixtures['version'] == '10.0.18'
 base = 'https://glpi.example.invalid:14443/apirest.php/'
 context = ssl.create_default_context(cafile=str(root/'.runtime/tls/ca.crt'))
 session = None
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
+deadline = time.monotonic() + 15
+while True:
+    try:
+        with socket.create_connection(('127.0.0.1', 14443), timeout=1):
+            break
+    except OSError:
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Synthetic TLS listener did not become ready') from None
+        time.sleep(0.2)
 def get(path, user_token=None):
     headers = {'App-Token': fixtures['app_token'], 'Content-Type': 'application/json'}
     if user_token:
@@ -19,7 +31,7 @@ def get(path, user_token=None):
         headers['Session-Token'] = session
     request = urllib.request.Request(base+path, headers=headers)
     try:
-        with urllib.request.urlopen(request, context=context, timeout=30) as response:
+        with opener.open(request, timeout=30) as response:
             return response.status, json.load(response)
     except urllib.error.HTTPError as error:
         return error.code, None
@@ -37,7 +49,7 @@ try:
     assert status == 200 and {0, *fixtures['entities'].values()}.issubset({int(row['id']) for row in data['myentities']})
     checks.append('root and synthetic entities')
     status, data = get(f'Ticket/{fixtures["tickets"]["root"]}')
-    assert status == 200 and data['entities_id'] == 0
+    assert status == 200 and int(data['entities_id']) == 0
     checks.append('root ticket readable')
     get('killSession/')
     session = None
