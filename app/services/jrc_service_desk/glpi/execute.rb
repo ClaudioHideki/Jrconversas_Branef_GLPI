@@ -106,6 +106,16 @@ class JrcServiceDesk::Glpi::Execute
       end
     end
     payload = command.request_payload
+    if (payload.keys & %w[begin end]).any?
+      planning = (row || {}).slice('begin', 'end').merge(payload.slice('begin', 'end'))
+      valid_dates = %w[begin end].all? do |field|
+        value = planning[field]
+        value.is_a?(String) && value.match?(/\A\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\z/)
+      end
+      unless valid_dates && planning['begin'] < planning['end']
+        raise JrcServiceDesk::Glpi::Error.new('invalid_planning', 422)
+      end
+    end
     access.unit_for(payload['entities_id']) if payload.key?('entities_id')
     if payload['is_private'] == 1 && !access.context.capability?(:technical_notes)
       raise Pundit::NotAuthorizedError

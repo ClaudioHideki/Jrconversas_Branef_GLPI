@@ -10,6 +10,7 @@ end
 require_relative '../../app/services/jrc_service_desk/glpi/operation_catalogue'
 require_relative '../../app/services/jrc_service_desk/input'
 require_relative '../../app/services/jrc_service_desk/glpi/identifiers'
+require_relative '../../app/services/jrc_service_desk/glpi/content'
 require_relative '../../app/services/jrc_service_desk/glpi/command_input'
 
 class GlpiCommandContractTest < Minitest::Test
