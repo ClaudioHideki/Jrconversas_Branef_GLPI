@@ -9,7 +9,7 @@ module JrcServiceDesk::Glpi::Normalize
              '30' => 'solution_sla', '37' => 'response_sla' }.freeze
 
   def self.text(value)
-    CGI.unescapeHTML(ActionView::Base.full_sanitizer.sanitize(value.to_s))
+    ActionView::Base.full_sanitizer.sanitize(CGI.unescapeHTML(value.to_s))
   end
 
   def self.search(row)
@@ -19,7 +19,8 @@ module JrcServiceDesk::Glpi::Normalize
   def self.detail(row)
     row.slice('id', 'entities_id', 'status', 'priority', 'type', 'urgency', 'impact', 'date', 'date_mod', 'solvedate', 'closedate',
               'time_to_resolve', 'time_to_own', 'itilcategories_id', 'slas_id_ttr', 'slas_id_tto').merge(
-      'title' => text(row['name']), 'description' => text(row['content']), 'source' => 'glpi'
+      'title' => text(row['name']), 'description' => text(row['content']),
+      'description_html' => JrcServiceDesk::Glpi::Content.rich(row['content'], from_source: true), 'source' => 'glpi'
     )
   end
 end
