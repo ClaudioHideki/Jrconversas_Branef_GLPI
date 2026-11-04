@@ -19,6 +19,9 @@ class GlpiExportsTest < GlpiIntegrationTest
     end
 
     def get(path, parameters = {})
+      return { 'active_profile' => { 'id' => 6, 'name' => 'Synthetic support', 'ticket' => 1025 } } if path == 'getActiveProfile/'
+      return { 'myentities' => [{ 'id' => 0 }] } if path == 'getMyEntities/'
+
       if path == 'search/Ticket/'
         first, last = parameters.fetch('range').split('-').map(&:to_i)
         @ranges << [first, last]
@@ -228,9 +231,9 @@ class GlpiExportsTest < GlpiIntegrationTest
     seed_projection(3)
     scope = JrcServiceDesk::GlpiTicketSnapshot.where(glpi_connection: @connection)
     scope.find_by!(remote_id: 1).update!(payload: { 'id' => 1, 'entities_id' => 0, 'title' => 'Incident', 'type' => 1,
-      'status' => 1, 'opened_at' => '2026-01-01 10:00:00', 'actor_user_ids' => [55] })
+      'status' => 1, 'opened_at' => '2026-01-01 10:00:00', 'actor_scope_available' => true, 'assigned_user_ids' => [55], 'actor_user_ids' => [55] })
     scope.find_by!(remote_id: 2).update!(payload: { 'id' => 2, 'entities_id' => 0, 'title' => 'Request', 'type' => 2,
-      'status' => 1, 'opened_at' => '2026-01-01 10:00:00', 'actor_user_ids' => [66] })
+      'status' => 1, 'opened_at' => '2026-01-01 10:00:00', 'actor_scope_available' => true, 'assigned_user_ids' => [66], 'actor_user_ids' => [66] })
     @connection.update!(user_mappings: [{ account_user_id: @member.id, glpi_user_id: 55 }])
     scope.update_all(connection_version: @connection.lock_version)
     JrcServiceDesk::GlpiSyncRun.where(glpi_connection: @connection).update_all(connection_version: @connection.lock_version)
@@ -248,7 +251,6 @@ class GlpiExportsTest < GlpiIntegrationTest
     query = JrcServiceDesk::Glpi::TicketQuery.new(access, 'mine' => 'true', 'type' => '1')
     parameters = query.parameters(offset: 0, size: 100)
     assert_includes parameters.fetch('criteria'), { 'field' => 14, 'searchtype' => 'equals', 'value' => 1, 'link' => 'AND' }
-    actors = parameters.fetch('criteria').find { |item| item['criteria']&.any? { |row| row['field'] == 4 } }.fetch('criteria')
-    assert_equal [55, 55], actors.map { |row| row.fetch('value') }
+    assert_includes parameters.fetch('criteria'), { 'field' => 5, 'searchtype' => 'equals', 'value' => 55, 'link' => 'AND' }
   end
 end

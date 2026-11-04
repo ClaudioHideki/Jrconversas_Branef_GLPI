@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class JrcServiceDesk::Glpi::TicketQuery
-  FIELDS = %w[entity_id status priority search from to page per_page].freeze
+  FIELDS = %w[entity_id status priority search from to mine type page per_page].freeze
   attr_reader :access, :filters
 
   def initialize(access, parameters)
@@ -10,16 +10,21 @@ class JrcServiceDesk::Glpi::TicketQuery
   end
 
   def parameters(offset:, size:)
-    entities = access.entity_ids
-    if filters['entity_id'].present?
-      entity = JrcServiceDesk::Glpi::Identifiers.remote(filters['entity_id'])
-      raise Pundit::NotAuthorizedError unless entities.include?(entity)
-
-      entities = [entity]
-    end
+    entities = entity_ids
     criteria = [{ 'criteria' => entities.map { |id| condition(80, 'equals', id, 'OR') } }]
     unless access.all_tickets?
       criteria << { 'link' => 'AND', 'criteria' => [condition(4, 'equals', access.glpi_user_id), condition(5, 'equals', access.glpi_user_id, 'OR')] }
+    end
+    if mine?
+      raise Pundit::NotAuthorizedError unless access.glpi_user_id
+
+      criteria << condition(5, 'equals', access.glpi_user_id)
+    end
+    if filters['type'].present?
+      type = JrcServiceDesk::Input.id(filters['type'])
+      raise ArgumentError unless [1, 2].include?(type)
+
+      criteria << condition(14, 'equals', type)
     end
     %w[status priority].each do |key|
       next if filters[key].blank?
@@ -60,30 +65,61 @@ class JrcServiceDesk::Glpi::TicketQuery
   end
 
   def all(client)
-    rows = {}
+    each_batch(client).flat_map { |batch, _progress| batch }
+  end
+
+  # Yield bounded pages. IDs are retained only to detect unstable offset paging;
+  # ticket payloads can be streamed without accumulating the full history.
+  def each_batch(client)
+    return enum_for(:each_batch, client) unless block_given?
+
+    seen = {}
     offset = 0
     expected = nil
     loop do
       result = client.get('search/Ticket/', parameters(offset: offset, size: 200))
-      count = result.fetch('totalcount').to_i
-      raise JrcServiceDesk::Glpi::Error.new('report_limit', 422) if count > 10_000
+      raw_count = result.fetch('totalcount')
+      raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless raw_count.to_s.match?(/\A(?:0|[1-9][0-9]*)\z/)
+
+      count = Integer(raw_count)
       raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if expected && expected != count
 
       expected = count
       batch = result_rows(result)
+      raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless batch.is_a?(Array) && batch.size <= 200
+
       batch.each do |row|
         id = JrcServiceDesk::Input.id(row.fetch('2'))
-        raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if rows.key?(id)
+        raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if seen.key?(id)
 
-        rows[id] = JrcServiceDesk::Glpi::Normalize.search(row)
+        seen[id] = true
       end
       offset += batch.size
+      raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if offset > count
+
+      yield batch.map { |row| JrcServiceDesk::Glpi::Normalize.search(row) }, { total: count, processed: offset }
       break if offset >= count
       raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if batch.empty?
     end
-    raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) unless rows.size == expected
+    raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) unless seen.size == expected
+  end
 
-    rows.values
+  def entity_ids
+    entities = access.entity_ids
+    return entities if filters['entity_id'].blank?
+
+    entity = JrcServiceDesk::Glpi::Identifiers.remote(filters['entity_id'])
+    raise Pundit::NotAuthorizedError unless entities.include?(entity)
+
+    [entity]
+  end
+
+  def mine?
+    value = filters['mine']
+    return false if value.nil? || value == false || value == 'false'
+    return true if value == true || value == 'true'
+
+    raise ArgumentError
   end
 
   private
