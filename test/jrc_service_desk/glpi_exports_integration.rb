@@ -168,6 +168,58 @@ class GlpiExportsTest < GlpiIntegrationTest
     refute record.reload.artifact.attached?
   end
 
+  def test_concurrent_downloads_cannot_consume_the_same_proof
+    record = prepare_export
+    source = Source.new
+    service.generate(id: record.id, client: source)
+    service.download(access: access, id: record.id)
+    service.verify(id: record.id, client: source)
+    entered = Queue.new
+    release = Queue.new
+    source.on_detail = lambda do |id|
+      next unless id == 1
+
+      entered << true
+      release.pop
+    end
+    results = nil
+    JrcServiceDesk::Glpi::Client.stub(:new, source) do
+      threads = 2.times.map do
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            JrcServiceDesk::Glpi::Export.new.download(access: access, id: record.id).state
+          end
+        end
+      end
+      2.times { entered.pop }
+      2.times { release << true }
+      results = threads.map(&:value)
+    end
+    assert_equal %w[ready verifying], results.sort
+    refute record.reload.receipt.fetch(:can_download)
+  end
+
+  def test_source_change_during_background_download_verification_invalidates_file
+    record = prepare_export
+    source = Source.new
+    service.generate(id: record.id, client: source)
+    service.download(access: access, id: record.id)
+    source.count = 4
+    service.verify(id: record.id, client: source)
+    assert_equal 'failed', record.reload.state
+    assert_equal 'source_changed', record.error_code
+    refute record.artifact.attached?
+  end
+
+  def test_partial_projection_cannot_prepare_a_complete_export
+    seed_projection(3)
+    JrcServiceDesk::GlpiSyncRun.where(glpi_connection: @connection).update_all(state: 'partial',
+      coverage: { '0' => { 'state' => 'partial', 'observed' => 4, 'indexed' => 3, 'error' => 'ERROR_RIGHT_MISSING' } })
+    error = assert_raises(JrcServiceDesk::Glpi::Error) { service.prepare(access: access, filters: {}) }
+    assert_equal 'export_coverage_incomplete', error.code
+    assert_equal 0, JrcServiceDesk::GlpiExport.where(glpi_connection: @connection).count
+  end
+
   def test_disabled_unit_or_configuration_change_invalidates_download
     %i[unit configuration].each do |change|
       record = prepare_export

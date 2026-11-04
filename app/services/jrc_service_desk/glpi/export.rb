@@ -55,9 +55,6 @@ class JrcServiceDesk::Glpi::Export
     current = authorize_record(record)
     data = selection(current, record.filters)
     validate_scope(record, data)
-    expected = data.scope.pluck(:remote_id, :entity_id, Arel.sql("COALESCE(payload->>'date_mod', payload->>'updated_at')")).to_h do |remote_id, entity_id, revision|
-      [remote_id, { 'id' => remote_id, 'entity_id' => entity_id, 'revision' => revision }]
-    end
     manifest = []
     fields = JrcServiceDesk::Glpi::Normalize::FIELDS.values
     Tempfile.create(['glpi-export-', '.csv']) do |file|
@@ -67,6 +64,10 @@ class JrcServiceDesk::Glpi::Export
         JrcServiceDesk::Glpi::TicketQuery.new(current, record.filters).each_batch(source) do |batch, progress|
           current = authorize_record(record)
           ensure_running(record, 'running')
+          expected = data.scope.where(remote_id: batch.map { |row| row.fetch('id') })
+            .pluck(:remote_id, :entity_id, Arel.sql("COALESCE(payload->>'date_mod', payload->>'updated_at')")).to_h do |remote_id, entity_id, revision|
+              [remote_id, { 'id' => remote_id, 'entity_id' => entity_id, 'revision' => revision }]
+            end
           batch.each do |row|
             entry = expected.delete(JrcServiceDesk::Input.id(row.fetch('id')))
             raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) unless entry
@@ -80,7 +81,7 @@ class JrcServiceDesk::Glpi::Export
           update_progress(record, 'running', progress)
         end
       end
-      raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) unless expected.empty? && manifest.size == record.total
+      raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) unless manifest.size == record.total
 
       file.flush
       raise JrcServiceDesk::Glpi::Error.new('export_quota', 422) if file.size > self.class.maximum_bytes
