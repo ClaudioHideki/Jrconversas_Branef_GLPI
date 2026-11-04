@@ -13,6 +13,9 @@ import ScreenGuidance from './components/ScreenGuidance.vue';
 import WriteFeedback from './components/WriteFeedback.vue';
 import './serviceDesk.css';
 import { crmControlClasses } from '../crm/crmControlClasses';
+import GlpiServiceDesk from './glpi/GlpiServiceDesk.vue';
+import NativeHistory from './glpi/NativeHistory.vue';
+import { usesGlpiScreen, isJrcConfiguration } from './helpers/glpiScreens';
 const { t, tm } = useI18n();
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +26,8 @@ const screenLabels = computed(() => tm('JRC_SERVICE_DESK.SCREENS'));
 const glpiLabels = computed(() => ({
   glpi: t('JRC_GLPI.tabs.tickets'),
   glpi_settings: t('JRC_GLPI.configure'),
+  documents: t('JRC_GLPI.resources.documents'),
+  native_history: t('JRC_GLPI.workspace.native_history'),
 }));
 const screenLabel = key => glpiLabels.value[key] || screenLabels.value[key];
 const primaryKeys = [
@@ -49,6 +54,9 @@ const groupLabels = computed(() => ({
   management: t('JRC_SERVICE_DESK.GROUPS.management'),
 }));
 const activeScreen = computed(() => route.meta.serviceDeskScreen || 'overview');
+const remoteScreen = computed(() =>
+  usesGlpiScreen(state.context, activeScreen.value)
+);
 const entries = group =>
   SERVICE_DESK_ROUTES.filter(
     item =>
@@ -195,9 +203,30 @@ const blocked = computed(() =>
         />
         <ServiceDeskState v-else-if="!screenAllowed" status="denied" />
         <template v-else>
-          <RouterView :key="`${accountId}:${userId}:${activeScreen}`" />
+          <p
+            v-if="
+              state.context.data_source === 'glpi' &&
+              isJrcConfiguration(activeScreen)
+            "
+            data-testid="jrc-local-configuration"
+            class="mb-4 rounded-lg border border-n-weak bg-n-slate-2 p-3 text-sm"
+          >
+            {{ t('JRC_GLPI.workspace.jrc_configuration') }}
+          </p>
+          <NativeHistory v-if="activeScreen === 'native_history'" />
+          <GlpiServiceDesk
+            v-else-if="remoteScreen"
+            :key="`${accountId}:${userId}:${activeScreen}`"
+            :screen="activeScreen"
+            :ticket-id="route.params.ticketId || null"
+          />
+          <RouterView v-else :key="`${accountId}:${userId}:${activeScreen}`" />
           <ScreenGuidance
-            v-if="!['detail', 'edit', 'new'].includes(activeScreen)"
+            v-if="
+              !remoteScreen &&
+              activeScreen !== 'native_history' &&
+              !['detail', 'edit', 'new'].includes(activeScreen)
+            "
             :screen="activeScreen"
             class="mt-4"
           />

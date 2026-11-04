@@ -7,6 +7,59 @@ const base = accountId => {
   return `/api/v1/accounts/${id}/jrc_service_desk/glpi`;
 };
 export default {
+  startSync(accountId, signal) {
+    return axios.post(
+      `${base(accountId)}/sync`,
+      {},
+      { signal, timeout: 30000 }
+    );
+  },
+  cancelSync(accountId, id, signal) {
+    return axios.post(
+      `${base(accountId)}/sync/${canonicalId(id)}/cancel`,
+      {},
+      { signal, timeout: 30000 }
+    );
+  },
+  execute(accountId, values, signal) {
+    return axios.post(`${base(accountId)}/operations`, values, {
+      signal,
+      timeout: 120000,
+    });
+  },
+  startExport(accountId, values, signal) {
+    return axios.post(`${base(accountId)}/exports`, values, {
+      signal,
+      timeout: 30000,
+    });
+  },
+  cancelExport(accountId, id, signal) {
+    return axios.post(
+      `${base(accountId)}/exports/${canonicalId(id)}/cancel`,
+      {},
+      { signal, timeout: 30000 }
+    );
+  },
+  downloadExport(accountId, id, signal) {
+    return axios.get(`${base(accountId)}/exports/${canonicalId(id)}/download`, {
+      signal,
+      responseType: 'blob',
+      timeout: 120000,
+    });
+  },
+  uploadDocument(accountId, ticketId, values, signal) {
+    return axios.post(
+      `${base(accountId)}/tickets/${canonicalId(ticketId)}/documents`,
+      values,
+      { signal, timeout: 120000 }
+    );
+  },
+  downloadDocument(accountId, ticketId, documentId, signal) {
+    return axios.get(
+      `${base(accountId)}/tickets/${canonicalId(ticketId)}/documents/${canonicalId(documentId)}/download`,
+      { signal, responseType: 'blob', timeout: 120000 }
+    );
+  },
   get(accountId, path, params, signal) {
     return axios.get(`${base(accountId)}/${path}`, {
       params,

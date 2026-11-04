@@ -12,13 +12,14 @@ const form = reactive({
   base_url: '',
   timezone: 'America/Sao_Paulo',
   enabled: false,
+  primary_source: 'native',
   user_token: '',
   app_token: '',
   entity_mappings: [],
   user_mappings: [],
   lock_version: 0,
 });
-const categories = ref('[]');
+const categories = ref([]);
 const saved = ref(false);
 const validation = ref(null);
 const defaultUnit = ref('');
@@ -27,11 +28,9 @@ const busy = computed(() => Object.values(state.loading).some(Boolean));
 const configuration = computed(() => state.data.configuration);
 const apply = payload => {
   Object.assign(form, payload.connection, { user_token: '', app_token: '' });
-  categories.value = JSON.stringify(
-    payload.connection.categories || [],
-    null,
-    2
-  );
+  categories.value = (payload.connection.categories || []).map(row => ({
+    ...row,
+  }));
   defaultUnit.value = payload.units[0]?.id || '';
 };
 watch(
@@ -46,20 +45,18 @@ watch(
 const save = async () => {
   saved.value = false;
   validation.value = null;
-  let categoryValues;
-  try {
-    categoryValues = JSON.parse(categories.value);
-  } catch {
-    state.error = { code: 'invalid_categories' };
-    return;
-  }
   const values = {
     base_url: form.base_url,
     timezone: form.timezone,
     enabled: form.enabled,
+    primary_source: form.primary_source,
     entity_mappings: form.entity_mappings,
     user_mappings: form.user_mappings,
-    categories: categoryValues,
+    categories: categories.value.map(row => ({
+      id: Number(row.id),
+      name: row.name,
+      entity_id: Number(row.entity_id),
+    })),
     lock_version: form.lock_version,
   };
   if (form.user_token) values.user_token = form.user_token;
@@ -160,6 +157,24 @@ const reconcileCommand = async () => {
               t('JRC_GLPI.enable')
             }}</label
           >
+          <label class="grid gap-1 text-sm"
+            >{{ t('JRC_GLPI.workspace.primary_source') }}
+            <select
+              v-model="form.primary_source"
+              data-testid="glpi-primary-source"
+              class="!mb-0 h-10 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
+            >
+              <option value="native">
+                {{ t('JRC_GLPI.workspace.source_native') }}
+              </option>
+              <option value="glpi">
+                {{ t('JRC_GLPI.workspace.source_glpi') }}
+              </option>
+            </select>
+          </label>
+          <p class="text-xs text-n-slate-11">
+            {{ t('JRC_GLPI.workspace.primary_source_help') }}
+          </p>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
           <Button
@@ -312,14 +327,62 @@ const reconcileCommand = async () => {
         />
       </Panel>
       <Panel :title="t('JRC_GLPI.category_mapping')">
-        <label class="grid gap-2 text-sm"
-          >{{ t('JRC_GLPI.category_mapping_help')
-          }}<textarea
-            v-model="categories"
-            rows="5"
-            class="!mb-0 font-mono text-xs"
+        <p class="mb-3 text-sm">
+          {{ t('JRC_GLPI.workspace.category_mapping_help') }}
+        </p>
+        <div
+          v-for="(category, index) in categories"
+          :key="index"
+          class="mb-3 grid gap-3 md:grid-cols-4"
+        >
+          <label class="grid gap-1 text-xs"
+            >{{ t('JRC_GLPI.category')
+            }}<input
+              v-model="category.id"
+              type="number"
+              min="1"
+              required
+              class="!mb-0 rounded-lg border border-n-weak px-3 py-2 text-sm"
+          /></label>
+          <label class="grid gap-1 text-xs"
+            >{{ t('JRC_GLPI.fields.name')
+            }}<input
+              v-model="category.name"
+              required
+              class="!mb-0 rounded-lg border border-n-weak px-3 py-2 text-sm"
+          /></label>
+          <label class="grid gap-1 text-xs"
+            >{{ t('JRC_GLPI.entity')
+            }}<select
+              v-model="category.entity_id"
+              required
+              class="!mb-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
+            >
+              <option value="">
+                {{ t('JRC_SERVICE_DESK.COMMON.select') }}
+              </option>
+              <option
+                v-for="mapping in form.entity_mappings"
+                :key="mapping.entity_id"
+                :value="mapping.entity_id"
+              >
+                {{ entityName(mapping.entity_id) }}
+              </option>
+            </select></label
+          >
+          <Button
+            type="button"
+            :label="t('JRC_GLPI.remove')"
+            variant="outline"
+            @click="categories.splice(index, 1)"
           />
-        </label>
+        </div>
+        <Button
+          type="button"
+          :label="t('JRC_GLPI.workspace.add_category')"
+          variant="outline"
+          @click="categories.push({ id: '', name: '', entity_id: '' })"
+        />
       </Panel>
       <div>
         <Button
