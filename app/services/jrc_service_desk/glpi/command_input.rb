@@ -51,7 +51,9 @@ class JrcServiceDesk::Glpi::CommandInput
       end
     end
     if input['begin'] || input['end']
-      raise ArgumentError unless input['begin'] && input['end'] && input['begin'] < input['end']
+      if descriptor[:verb] == 'post' || (input['begin'] && input['end'])
+        raise ArgumentError unless input['begin'] && input['end'] && input['begin'] < input['end']
+      end
     end
   end
 
