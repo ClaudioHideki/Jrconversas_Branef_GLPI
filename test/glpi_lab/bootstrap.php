@@ -104,6 +104,7 @@ $fixtures = ['version' => GLPI_VERSION, 'technical_user_id' => $technical, 'limi
     'entities' => ['root' => 0, 'support' => $support, 'child' => $child, 'foreign' => $foreign], 'tickets' => $tickets, 'catalogues' => $catalogues,
     'app_token' => $appToken, 'user_token' => $technicalToken, 'limited_token' => $limitedToken,
     'narrow_token' => $narrowToken, 'narrow_user_id' => $narrow];
+require '/usr/local/lib/branef-glpi-template-fixtures.php';
 $path = '/lab-out/fixtures.json';
 file_put_contents($path, json_encode($fixtures, JSON_THROW_ON_ERROR));
 chmod($path, 0600);
