@@ -1672,7 +1672,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "account_user_id", "started_at"], name: "jrc_cc_agent_state_history"
     t.index ["account_id", "external_event_id"], name: "jrc_cc_agent_state_external", unique: true, where: "(external_event_id IS NOT NULL)"
     t.index ["account_id", "id"], name: "jrc_cc_agent_states_ref", unique: true
-    t.check_constraint "state::text = ANY (ARRAY['offline'::character varying::text, 'available'::character varying::text, 'busy'::character varying::text, 'ringing'::character varying::text, 'in_call'::character varying::text, 'acw'::character varying::text, 'paused'::character varying::text, 'unavailable'::character varying::text])", name: "jrc_cc_agent_state"
+    t.check_constraint "state::text = ANY (ARRAY['offline'::character varying, 'available'::character varying, 'busy'::character varying, 'ringing'::character varying, 'in_call'::character varying, 'acw'::character varying, 'paused'::character varying, 'unavailable'::character varying]::text[])", name: "jrc_cc_agent_state"
   end
 
   create_table "jrc_contact_center_call_legs", force: :cascade do |t|
@@ -1693,8 +1693,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "call_session_id", "started_at"], name: "jrc_cc_leg_journey"
     t.index ["account_id", "external_leg_id"], name: "jrc_cc_leg_external", unique: true, where: "(external_leg_id IS NOT NULL)"
     t.index ["account_id", "id"], name: "jrc_cc_legs_ref", unique: true
-    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying::text, 'outbound'::character varying::text, 'internal'::character varying::text])", name: "jrc_cc_leg_direction"
-    t.check_constraint "status::text = ANY (ARRAY['created'::character varying::text, 'ringing'::character varying::text, 'queued'::character varying::text, 'connected'::character varying::text, 'held'::character varying::text, 'transferred'::character varying::text, 'ended'::character varying::text, 'failed'::character varying::text])", name: "jrc_cc_leg_status"
+    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying, 'internal'::character varying]::text[])", name: "jrc_cc_leg_direction"
+    t.check_constraint "status::text = ANY (ARRAY['created'::character varying, 'ringing'::character varying, 'queued'::character varying, 'connected'::character varying, 'held'::character varying, 'transferred'::character varying, 'ended'::character varying, 'failed'::character varying]::text[])", name: "jrc_cc_leg_status"
   end
 
   create_table "jrc_contact_center_call_sessions", force: :cascade do |t|
@@ -1721,8 +1721,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "id"], name: "jrc_cc_sessions_ref", unique: true
     t.index ["account_id", "provider", "external_session_id"], name: "jrc_cc_session_external", unique: true, where: "(external_session_id IS NOT NULL)"
     t.index ["account_id", "status", "started_at"], name: "jrc_cc_session_live"
-    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying::text, 'outbound'::character varying::text])", name: "jrc_cc_session_direction"
-    t.check_constraint "status::text = ANY (ARRAY['created'::character varying::text, 'ringing'::character varying::text, 'queued'::character varying::text, 'connected'::character varying::text, 'held'::character varying::text, 'transferring'::character varying::text, 'ended'::character varying::text, 'failed'::character varying::text])", name: "jrc_cc_session_status"
+    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying]::text[])", name: "jrc_cc_session_direction"
+    t.check_constraint "status::text = ANY (ARRAY['created'::character varying, 'ringing'::character varying, 'queued'::character varying, 'connected'::character varying, 'held'::character varying, 'transferring'::character varying, 'ended'::character varying, 'failed'::character varying]::text[])", name: "jrc_cc_session_status"
   end
 
   create_table "jrc_contact_center_callbacks", force: :cascade do |t|
@@ -1746,7 +1746,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "idempotency_key"], name: "jrc_cc_callback_once", unique: true
     t.index ["account_id", "state", "scheduled_at"], name: "jrc_cc_callback_schedule"
     t.check_constraint "contact_id IS NOT NULL OR target_phone IS NOT NULL", name: "jrc_cc_callback_target"
-    t.check_constraint "state::text = ANY (ARRAY['scheduled'::character varying::text, 'in_progress'::character varying::text, 'completed'::character varying::text, 'failed'::character varying::text, 'canceled'::character varying::text])", name: "jrc_cc_callback_state"
+    t.check_constraint "state::text = ANY (ARRAY['scheduled'::character varying, 'in_progress'::character varying, 'completed'::character varying, 'failed'::character varying, 'canceled'::character varying]::text[])", name: "jrc_cc_callback_state"
   end
 
   create_table "jrc_contact_center_case_events", force: :cascade do |t|
@@ -1786,8 +1786,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "id"], name: "jrc_cc_cases_ref", unique: true
     t.index ["account_id", "protocol"], name: "jrc_cc_case_protocol", unique: true
     t.index ["account_id", "status", "due_at"], name: "jrc_cc_case_queue"
-    t.check_constraint "priority::text = ANY (ARRAY['low'::character varying::text, 'normal'::character varying::text, 'high'::character varying::text, 'urgent'::character varying::text])", name: "jrc_cc_case_priority"
-    t.check_constraint "status::text = ANY (ARRAY['open'::character varying::text, 'in_progress'::character varying::text, 'waiting'::character varying::text, 'resolved'::character varying::text, 'closed'::character varying::text, 'canceled'::character varying::text])", name: "jrc_cc_case_status"
+    t.check_constraint "priority::text = ANY (ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying]::text[])", name: "jrc_cc_case_priority"
+    t.check_constraint "status::text = ANY (ARRAY['open'::character varying, 'in_progress'::character varying, 'waiting'::character varying, 'resolved'::character varying, 'closed'::character varying, 'canceled'::character varying]::text[])", name: "jrc_cc_case_status"
   end
 
   create_table "jrc_contact_center_commands", force: :cascade do |t|
@@ -1808,7 +1808,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "command_id"], name: "jrc_cc_command_once", unique: true
     t.index ["account_id", "id"], name: "jrc_cc_commands_ref", unique: true
     t.index ["account_id", "status", "requested_at"], name: "jrc_cc_command_pending"
-    t.check_constraint "status::text = ANY (ARRAY['requested'::character varying::text, 'accepted_by_gateway'::character varying::text, 'confirmed_by_pabx'::character varying::text, 'rejected'::character varying::text, 'unknown'::character varying::text])", name: "jrc_cc_command_status"
+    t.check_constraint "status::text = ANY (ARRAY['requested'::character varying, 'accepted_by_gateway'::character varying, 'confirmed_by_pabx'::character varying, 'rejected'::character varying, 'unknown'::character varying]::text[])", name: "jrc_cc_command_status"
   end
 
   create_table "jrc_contact_center_daily_facts", force: :cascade do |t|
@@ -1832,7 +1832,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "fact_date", "unit_id", "queue_id", "account_user_id", "direction"], name: "jrc_cc_daily_fact_dimension", unique: true, nulls_not_distinct: true
     t.index ["account_id", "id"], name: "jrc_cc_daily_facts_ref", unique: true
-    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying::text, 'outbound'::character varying::text, 'mixed'::character varying::text])", name: "jrc_cc_daily_fact_direction"
+    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying, 'mixed'::character varying]::text[])", name: "jrc_cc_daily_fact_direction"
     t.check_constraint "offered_count >= 0 AND answered_count >= 0 AND abandoned_count >= 0 AND transferred_count >= 0 AND fallback_count >= 0", name: "jrc_cc_daily_fact_counts"
   end
 
@@ -1856,7 +1856,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "id"], name: "jrc_cc_event_inbox_ref", unique: true
     t.index ["account_id", "provider", "external_event_id"], name: "jrc_cc_event_once", unique: true
     t.index ["account_id", "status", "received_at"], name: "jrc_cc_event_pending"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'processed'::character varying::text, 'failed'::character varying::text, 'ignored'::character varying::text])", name: "jrc_cc_event_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'processed'::character varying, 'failed'::character varying, 'ignored'::character varying]::text[])", name: "jrc_cc_event_status"
   end
 
   create_table "jrc_contact_center_fallback_events", force: :cascade do |t|
@@ -1874,7 +1874,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "call_session_id", "occurred_at"], name: "jrc_cc_fallback_journey"
     t.index ["account_id", "id"], name: "jrc_cc_fallback_ref", unique: true
-    t.check_constraint "result::text = ANY (ARRAY['requested'::character varying::text, 'confirmed'::character varying::text, 'rejected'::character varying::text, 'failed'::character varying::text, 'terminal'::character varying::text])", name: "jrc_cc_fallback_result"
+    t.check_constraint "result::text = ANY (ARRAY['requested'::character varying, 'confirmed'::character varying, 'rejected'::character varying, 'failed'::character varying, 'terminal'::character varying]::text[])", name: "jrc_cc_fallback_result"
   end
 
   create_table "jrc_contact_center_ivr_events", force: :cascade do |t|
@@ -1936,7 +1936,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "queue_id", "account_user_id"], name: "jrc_cc_membership_once", unique: true
     t.check_constraint "ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at", name: "jrc_cc_membership_window"
     t.check_constraint "priority > 0", name: "jrc_cc_membership_priority"
-    t.check_constraint "role::text = ANY (ARRAY['agent'::character varying::text, 'supervisor'::character varying::text])", name: "jrc_cc_membership_role"
+    t.check_constraint "role::text = ANY (ARRAY['agent'::character varying, 'supervisor'::character varying]::text[])", name: "jrc_cc_membership_role"
   end
 
   create_table "jrc_contact_center_queues", force: :cascade do |t|
@@ -1958,7 +1958,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "external_ref"], name: "jrc_cc_queues_external", unique: true, where: "(external_ref IS NOT NULL)"
     t.index ["account_id", "id"], name: "jrc_cc_queues_ref", unique: true
     t.check_constraint "max_wait_seconds IS NULL OR max_wait_seconds > 0", name: "jrc_cc_queues_wait"
-    t.check_constraint "status::text = ANY (ARRAY['active'::character varying::text, 'inactive'::character varying::text])", name: "jrc_cc_queues_status"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'inactive'::character varying]::text[])", name: "jrc_cc_queues_status"
   end
 
   create_table "jrc_contact_center_recording_links", force: :cascade do |t|
@@ -1977,7 +1977,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "id"], name: "jrc_cc_recordings_ref", unique: true
     t.index ["account_id", "provider", "external_recording_id"], name: "jrc_cc_recording_once", unique: true
     t.check_constraint "duration_seconds IS NULL OR duration_seconds >= 0", name: "jrc_cc_recording_duration"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'available'::character varying::text, 'expired'::character varying::text, 'revoked'::character varying::text])", name: "jrc_cc_recording_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'available'::character varying, 'expired'::character varying, 'revoked'::character varying]::text[])", name: "jrc_cc_recording_status"
   end
 
   create_table "jrc_contact_center_routing_rules", force: :cascade do |t|
@@ -2000,8 +2000,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "state", "priority"], name: "jrc_cc_routing_active"
     t.index ["account_id", "version", "rule_key"], name: "jrc_cc_routing_version", unique: true
     t.check_constraint "ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at", name: "jrc_cc_routing_window"
-    t.check_constraint "kind::text = ANY (ARRAY['ddd'::character varying::text, 'customer'::character varying::text, 'portfolio'::character varying::text, 'service'::character varying::text, 'fallback'::character varying::text])", name: "jrc_cc_routing_kind"
-    t.check_constraint "state::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'retired'::character varying::text])", name: "jrc_cc_routing_state"
+    t.check_constraint "kind::text = ANY (ARRAY['ddd'::character varying, 'customer'::character varying, 'portfolio'::character varying, 'service'::character varying, 'fallback'::character varying]::text[])", name: "jrc_cc_routing_kind"
+    t.check_constraint "state::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying]::text[])", name: "jrc_cc_routing_state"
     t.check_constraint "target_unit_id IS NOT NULL OR target_queue_id IS NOT NULL", name: "jrc_cc_routing_target"
   end
 
@@ -2018,8 +2018,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "code"], name: "jrc_cc_units_code", unique: true
     t.index ["account_id", "id"], name: "jrc_cc_units_ref", unique: true
-    t.check_constraint "kind::text = ANY (ARRAY['sac'::character varying::text, 'finance'::character varying::text, 'coe'::character varying::text, 'administrative'::character varying::text])", name: "jrc_cc_units_kind"
-    t.check_constraint "status::text = ANY (ARRAY['active'::character varying::text, 'inactive'::character varying::text])", name: "jrc_cc_units_status"
+    t.check_constraint "kind::text = ANY (ARRAY['sac'::character varying, 'finance'::character varying, 'coe'::character varying, 'administrative'::character varying]::text[])", name: "jrc_cc_units_kind"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'inactive'::character varying]::text[])", name: "jrc_cc_units_status"
   end
 
   create_table "jrc_crm_activities", force: :cascade do |t|
@@ -2982,9 +2982,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["message_id"], name: "index_jrc_flow_effect_receipts_on_message_id", unique: true, where: "(message_id IS NOT NULL)"
     t.check_constraint "(operation::text = 'domain'::text) = (domain_result IS NOT NULL) AND (domain_result IS NULL OR jsonb_typeof(domain_result) = 'object'::text AND octet_length(domain_result::text) <= 4096)", name: "jrc_effect_domain_result"
     t.check_constraint "(operation::text = 'note'::text) = (message_id IS NOT NULL)", name: "jrc_effect_message"
-    t.check_constraint "(operation::text = ANY (ARRAY['tag'::character varying::text, 'attribute'::character varying::text])) AND resource_id IS NOT NULL AND resource_revision IS NOT NULL OR (operation::text <> ALL (ARRAY['tag'::character varying::text, 'attribute'::character varying::text])) AND resource_id IS NULL AND resource_revision IS NULL", name: "jrc_effect_resource"
+    t.check_constraint "(operation::text = ANY (ARRAY['tag'::character varying, 'attribute'::character varying]::text[])) AND resource_id IS NOT NULL AND resource_revision IS NOT NULL OR (operation::text <> ALL (ARRAY['tag'::character varying, 'attribute'::character varying]::text[])) AND resource_id IS NULL AND resource_revision IS NULL", name: "jrc_effect_resource"
     t.check_constraint "control_revision_before >= 0 AND control_revision_after >= control_revision_before", name: "jrc_effect_revision"
-    t.check_constraint "operation::text = ANY (ARRAY['tag'::character varying::text, 'attribute'::character varying::text, 'note'::character varying::text, 'resolve'::character varying::text, 'domain'::character varying::text])", name: "jrc_effect_operation"
+    t.check_constraint "operation::text = ANY (ARRAY['tag'::character varying, 'attribute'::character varying, 'note'::character varying, 'resolve'::character varying, 'domain'::character varying]::text[])", name: "jrc_effect_operation"
   end
 
   create_table "jrc_flow_native_bindings", force: :cascade do |t|
@@ -3000,7 +3000,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "updated_at", null: false
     t.index ["registration_id", "inbox_id"], name: "jrc_flow_binding_inbox_unique", unique: true
     t.index ["registration_id", "integration_id"], name: "jrc_flow_binding_integration_unique", unique: true
-    t.check_constraint "(transport::text = ANY (ARRAY['BROKER_TRANSPORT'::character varying::text, 'CENTRAL_TRANSPORT'::character varying::text])) AND registration_revision > 0", name: "jrc_flow_binding_transport_revision"
+    t.check_constraint "(transport::text = ANY (ARRAY['BROKER_TRANSPORT'::character varying, 'CENTRAL_TRANSPORT'::character varying]::text[])) AND registration_revision > 0", name: "jrc_flow_binding_transport_revision"
   end
 
   create_table "jrc_flow_native_configurations", force: :cascade do |t|
@@ -3053,8 +3053,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["created_by_id"], name: "index_jrc_flow_native_installations_on_created_by_id"
     t.index ["operation_nonce"], name: "index_jrc_flow_native_installations_on_operation_nonce", unique: true
     t.index ["registration_id"], name: "index_jrc_flow_native_installations_on_registration_id"
-    t.check_constraint "(state::text <> ALL (ARRAY['ACTIVE'::character varying::text, 'RENEWING'::character varying::text])) OR encrypted_grant IS NOT NULL AND expires_at IS NOT NULL", name: "jrc_flow_installation_active_complete"
-    t.check_constraint "generation > 0 AND (state::text = ANY (ARRAY['PENDING'::character varying::text, 'ACTIVE'::character varying::text, 'RENEWING'::character varying::text, 'UNKNOWN'::character varying::text, 'REVOKED'::character varying::text])) AND tuple_digest::text ~ '^[a-f0-9]{64}$'::text AND callback_digest::text ~ '^[a-f0-9]{64}$'::text", name: "jrc_flow_installation_valid"
+    t.check_constraint "(state::text <> ALL (ARRAY['ACTIVE'::character varying, 'RENEWING'::character varying]::text[])) OR encrypted_grant IS NOT NULL AND expires_at IS NOT NULL", name: "jrc_flow_installation_active_complete"
+    t.check_constraint "generation > 0 AND (state::text = ANY (ARRAY['PENDING'::character varying, 'ACTIVE'::character varying, 'RENEWING'::character varying, 'UNKNOWN'::character varying, 'REVOKED'::character varying]::text[])) AND tuple_digest::text ~ '^[a-f0-9]{64}$'::text AND callback_digest::text ~ '^[a-f0-9]{64}$'::text", name: "jrc_flow_installation_valid"
     t.check_constraint "state::text <> 'REVOKED'::text OR encrypted_grant IS NULL AND encrypted_callback = ''::text AND encrypted_renew_callback IS NULL AND revoked_at IS NOT NULL", name: "jrc_flow_installation_revoked_cipher"
   end
 
@@ -3091,10 +3091,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_user_id"], name: "index_jrc_flow_native_registrations_on_account_user_id"
     t.index ["callback_digest"], name: "jrc_flow_callback_digest_unique", unique: true, where: "(callback_digest IS NOT NULL)"
     t.index ["created_by_id"], name: "index_jrc_flow_native_registrations_on_created_by_id"
-    t.check_constraint "(state::text <> ALL (ARRAY['CANCELED'::character varying::text, 'REVOKED'::character varying::text])) OR callback_digest IS NULL AND encrypted_outbound_credential IS NULL AND encrypted_pending_callback IS NULL AND revoked_at IS NOT NULL", name: "jrc_flow_revoked_keys_removed"
+    t.check_constraint "(state::text <> ALL (ARRAY['CANCELED'::character varying, 'REVOKED'::character varying]::text[])) OR callback_digest IS NULL AND encrypted_outbound_credential IS NULL AND encrypted_pending_callback IS NULL AND revoked_at IS NOT NULL", name: "jrc_flow_revoked_keys_removed"
     t.check_constraint "revision > 0 AND credential_revision > 0 AND destination_revision > 0 AND account_credential_version > 0", name: "jrc_flow_revisions_positive"
     t.check_constraint "state::text <> 'ACTIVE'::text OR broker_registration_id IS NOT NULL AND broker_registration_revision > 0 AND callback_digest IS NOT NULL AND encrypted_outbound_credential IS NOT NULL AND encrypted_pending_callback IS NULL", name: "jrc_flow_active_registration_complete"
-    t.check_constraint "state::text = ANY (ARRAY['PENDING'::character varying::text, 'CHALLENGE_VERIFIED'::character varying::text, 'ACTIVE'::character varying::text, 'CANCELED'::character varying::text, 'REVOKED'::character varying::text])", name: "jrc_flow_state_valid"
+    t.check_constraint "state::text = ANY (ARRAY['PENDING'::character varying, 'CHALLENGE_VERIFIED'::character varying, 'ACTIVE'::character varying, 'CANCELED'::character varying, 'REVOKED'::character varying]::text[])", name: "jrc_flow_state_valid"
   end
 
   create_table "jrc_flow_native_session_handles", force: :cascade do |t|
@@ -3132,7 +3132,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["scope_key", "generation", "effect_reference"], name: "jrc_ownership_effect_once", unique: true
-    t.check_constraint "generation > 0 AND (kind::text = ANY (ARRAY['EXTERNAL'::character varying::text, 'DATABASE'::character varying::text, 'MESSAGE'::character varying::text])) AND (state::text = ANY (ARRAY['DISPATCHED'::character varying::text, 'OBSERVED'::character varying::text, 'QUEUED'::character varying::text, 'CONFIRMED'::character varying::text, 'CANCELED'::character varying::text, 'UNKNOWN'::character varying::text]))", name: "jrc_ownership_effect_valid"
+    t.check_constraint "generation > 0 AND (kind::text = ANY (ARRAY['EXTERNAL'::character varying, 'DATABASE'::character varying, 'MESSAGE'::character varying]::text[])) AND (state::text = ANY (ARRAY['DISPATCHED'::character varying, 'OBSERVED'::character varying, 'QUEUED'::character varying, 'CONFIRMED'::character varying, 'CANCELED'::character varying, 'UNKNOWN'::character varying]::text[]))", name: "jrc_ownership_effect_valid"
   end
 
   create_table "jrc_flow_ownership_epochs", force: :cascade do |t|
@@ -3161,7 +3161,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["scope_id", "cutover_id", "cutover_revision"], name: "jrc_ownership_epoch_unique", unique: true
     t.index ["scope_id"], name: "index_jrc_flow_ownership_epochs_on_scope_id"
     t.check_constraint "broker_agent_bot_id IS NULL AND broker_agent_bot_callback IS NULL OR broker_agent_bot_id > 0 AND broker_agent_bot_callback IS NOT NULL", name: "jrc_ownership_bot_pair"
-    t.check_constraint "cutover_revision > 0 AND registration_revision > 0 AND generation > 0 AND expected_owner_revision >= 0 AND (state::text = ANY (ARRAY['FENCED'::character varying::text, 'DRAINED'::character varying::text, 'NOT_STARTED_RETIRED'::character varying::text, 'REOPENED'::character varying::text]))", name: "jrc_ownership_epoch_valid"
+    t.check_constraint "cutover_revision > 0 AND registration_revision > 0 AND generation > 0 AND expected_owner_revision >= 0 AND (state::text = ANY (ARRAY['FENCED'::character varying, 'DRAINED'::character varying, 'NOT_STARTED_RETIRED'::character varying, 'REOPENED'::character varying]::text[]))", name: "jrc_ownership_epoch_valid"
   end
 
   create_table "jrc_flow_ownership_executions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3178,7 +3178,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.bigint "authority_epoch_id"
     t.index ["scope_key", "generation", "run_reference"], name: "jrc_ownership_execution_scope"
     t.check_constraint "authority_kind::text = 'LEGACY'::text AND authority_bot_id IS NULL AND authority_epoch_id IS NULL OR authority_kind::text = 'BROKER_CALLBACK'::text AND authority_bot_id > 0 AND authority_epoch_id > 0", name: "jrc_ownership_execution_authority"
-    t.check_constraint "generation > 0 AND (state::text = ANY (ARRAY['RUNNING'::character varying::text, 'QUIESCENT'::character varying::text, 'UNKNOWN'::character varying::text]))", name: "jrc_ownership_execution_valid"
+    t.check_constraint "generation > 0 AND (state::text = ANY (ARRAY['RUNNING'::character varying, 'QUIESCENT'::character varying, 'UNKNOWN'::character varying]::text[]))", name: "jrc_ownership_execution_valid"
   end
 
   create_table "jrc_flow_ownership_scopes", force: :cascade do |t|
@@ -3193,7 +3193,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "updated_at", null: false
     t.index ["host_origin", "account_id", "inbox_id"], name: "jrc_ownership_destination_unique", unique: true
     t.index ["scope_key"], name: "index_jrc_flow_ownership_scopes_on_scope_key", unique: true
-    t.check_constraint "generation > 0 AND (state::text = ANY (ARRAY['LEGACY'::character varying::text, 'FENCED'::character varying::text]))", name: "jrc_ownership_scope_valid"
+    t.check_constraint "generation > 0 AND (state::text = ANY (ARRAY['LEGACY'::character varying, 'FENCED'::character varying]::text[]))", name: "jrc_ownership_scope_valid"
   end
 
   create_table "jrc_flow_remote_events", force: :cascade do |t|
@@ -3314,13 +3314,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["conversation_id"], name: "index_jrc_nico_broker_send_operations_on_conversation_id"
     t.index ["inbox_id"], name: "index_jrc_nico_broker_send_operations_on_inbox_id"
     t.index ["message_id"], name: "index_jrc_nico_broker_send_operations_on_message_id", unique: true
-    t.index ["next_attempt_at", "id"], name: "nico_broker_send_recovery", where: "((state)::text = ANY (ARRAY[('PAUSING'::character varying)::text, ('DRAINING'::character varying)::text, ('UNKNOWN'::character varying)::text, ('MESSAGE_CREATED'::character varying)::text, ('CANCELING'::character varying)::text]))"
+    t.index ["next_attempt_at", "id"], name: "nico_broker_send_recovery", where: "((state)::text = ANY ((ARRAY['PAUSING'::character varying, 'DRAINING'::character varying, 'UNKNOWN'::character varying, 'MESSAGE_CREATED'::character varying, 'CANCELING'::character varying])::text[]))"
     t.index ["user_id"], name: "index_jrc_nico_broker_send_operations_on_user_id"
     t.check_constraint "(lease_token IS NULL) = (lease_expires_at IS NULL)", name: "nico_broker_send_lease"
     t.check_constraint "actor_id > 0", name: "nico_broker_send_actor"
-    t.check_constraint "message_created_at IS NULL OR (state::text = ANY (ARRAY['MESSAGE_CREATED'::character varying::text, 'COMPLETED'::character varying::text, 'HALTED'::character varying::text]))", name: "nico_broker_send_fact_state"
+    t.check_constraint "message_created_at IS NULL OR (state::text = ANY (ARRAY['MESSAGE_CREATED'::character varying, 'COMPLETED'::character varying, 'HALTED'::character varying]::text[]))", name: "nico_broker_send_fact_state"
     t.check_constraint "message_id IS NULL OR message_created_at IS NOT NULL", name: "nico_broker_send_message_fact"
-    t.check_constraint "state::text = ANY (ARRAY['PREVIEW'::character varying::text, 'PAUSING'::character varying::text, 'DRAINING'::character varying::text, 'UNKNOWN'::character varying::text, 'MESSAGE_CREATED'::character varying::text, 'COMPLETED'::character varying::text, 'CANCELING'::character varying::text, 'CANCELED'::character varying::text, 'HALTED'::character varying::text])", name: "nico_broker_send_state"
+    t.check_constraint "state::text = ANY (ARRAY['PREVIEW'::character varying, 'PAUSING'::character varying, 'DRAINING'::character varying, 'UNKNOWN'::character varying, 'MESSAGE_CREATED'::character varying, 'COMPLETED'::character varying, 'CANCELING'::character varying, 'CANCELED'::character varying, 'HALTED'::character varying]::text[])", name: "nico_broker_send_state"
   end
 
   create_table "jrc_nico_commands", force: :cascade do |t|
@@ -4205,7 +4205,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "batch_review_id", "assignment_id"], name: "rel_batch_customer_once", unique: true
     t.index ["batch_review_id", "ordinal"], name: "rel_batch_order_once", unique: true
-    t.check_constraint "(state::text = ANY (ARRAY['pending'::character varying::text, 'applied'::character varying::text, 'failed'::character varying::text, 'canceled'::character varying::text])) AND ordinal >= 0 AND ordinal <= 49 AND (state::text = 'applied'::text) = (receipt IS NOT NULL)", name: "rel_batch_item_state"
+    t.check_constraint "(state::text = ANY (ARRAY['pending'::character varying, 'applied'::character varying, 'failed'::character varying, 'canceled'::character varying]::text[])) AND ordinal >= 0 AND ordinal <= 49 AND (state::text = 'applied'::text) = (receipt IS NOT NULL)", name: "rel_batch_item_state"
   end
 
   create_table "jrc_relationship_batch_reviews", force: :cascade do |t|
@@ -4223,7 +4223,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "actor_id", "request_id"], name: "rel_batch_request_once", unique: true
     t.index ["account_id", "id"], name: "rel_batch_tenant_ref", unique: true
     t.index ["account_id"], name: "index_jrc_relationship_batch_reviews_on_account_id"
-    t.check_constraint "(state::text = ANY (ARRAY['previewed'::character varying::text, 'running'::character varying::text, 'completed'::character varying::text, 'canceled'::character varying::text, 'attention'::character varying::text])) AND revision > 0", name: "rel_batch_state"
+    t.check_constraint "(state::text = ANY (ARRAY['previewed'::character varying, 'running'::character varying, 'completed'::character varying, 'canceled'::character varying, 'attention'::character varying]::text[])) AND revision > 0", name: "rel_batch_state"
     t.check_constraint "digest::text ~ '^[a-f0-9]{64}$'::text AND octet_length(snapshot::text) <= 1048576 AND octet_length(inputs::text) <= 65536", name: "rel_batch_bounds"
   end
 
@@ -4243,7 +4243,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_id", "batch_review_id", "assignment_id"], name: "rel_cadence_once", unique: true
     t.index ["account_id", "id"], name: "rel_cadence_tenant_ref", unique: true
     t.index ["account_id"], name: "index_jrc_relationship_cadence_enrollments_on_account_id"
-    t.check_constraint "(state::text = ANY (ARRAY['active'::character varying::text, 'completed'::character varying::text, 'stopped'::character varying::text])) AND revision > 0 AND (state::text = 'stopped'::text) = (stop_reason IS NOT NULL) AND octet_length(snapshot::text) <= 1048576", name: "rel_cadence_state"
+    t.check_constraint "(state::text = ANY (ARRAY['active'::character varying, 'completed'::character varying, 'stopped'::character varying]::text[])) AND revision > 0 AND (state::text = 'stopped'::text) = (stop_reason IS NOT NULL) AND octet_length(snapshot::text) <= 1048576", name: "rel_cadence_state"
   end
 
   create_table "jrc_relationship_cadence_steps", force: :cascade do |t|
@@ -4258,7 +4258,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "updated_at", null: false
     t.index ["cadence_enrollment_id", "ordinal"], name: "rel_cadence_step_once", unique: true
     t.index ["due_at"], name: "rel_cadence_due", where: "((state)::text = 'pending'::text)"
-    t.check_constraint "(state::text = ANY (ARRAY['pending'::character varying::text, 'applied'::character varying::text, 'canceled'::character varying::text])) AND ordinal >= 0 AND ordinal <= 49 AND (state::text = 'applied'::text) = (receipt IS NOT NULL)", name: "rel_cadence_step_state"
+    t.check_constraint "(state::text = ANY (ARRAY['pending'::character varying, 'applied'::character varying, 'canceled'::character varying]::text[])) AND ordinal >= 0 AND ordinal <= 49 AND (state::text = 'applied'::text) = (receipt IS NOT NULL)", name: "rel_cadence_step_state"
   end
 
   create_table "jrc_relationship_configuration_versions", force: :cascade do |t|
@@ -4656,7 +4656,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.datetime "created_at", null: false
     t.index ["account_id", "unit_id", "id"], name: "jrc_sd_automation_publication_scope", unique: true
     t.index ["account_id", "unit_id", "kind", "code", "version"], name: "jrc_sd_automation_publication_version", unique: true
-    t.check_constraint "(kind::text = ANY (ARRAY['lifecycle'::character varying::text, 'operational'::character varying::text])) AND version > 0", name: "jrc_sd_automation_publication_kind"
+    t.check_constraint "(kind::text = ANY (ARRAY['lifecycle'::character varying, 'operational'::character varying]::text[])) AND version > 0", name: "jrc_sd_automation_publication_kind"
   end
 
   create_table "jrc_service_desk_case_links", force: :cascade do |t|
@@ -4750,7 +4750,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["account_user_id"], name: "index_jrc_service_desk_glpi_commands_on_account_user_id"
     t.index ["glpi_connection_id", "account_user_id", "idempotency_key"], name: "idx_sd_glpi_command_idempotency", unique: true
     t.index ["unit_id"], name: "index_jrc_service_desk_glpi_commands_on_unit_id"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'sending'::character varying::text, 'succeeded'::character varying::text, 'rejected'::character varying::text, 'indeterminate'::character varying::text])", name: "sd_glpi_command_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'sending'::character varying, 'succeeded'::character varying, 'rejected'::character varying, 'indeterminate'::character varying]::text[])", name: "sd_glpi_command_state"
   end
 
   create_table "jrc_service_desk_glpi_connections", force: :cascade do |t|
@@ -5018,8 +5018,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.bigint "queue_policy_version_id"
     t.jsonb "calendar_snapshot", default: {}, null: false
     t.index ["account_id", "unit_id", "ticket_id", "id"], name: "ola_clocks_scope_ref", unique: true
-    t.index ["account_id", "unit_id", "ticket_id", "kind"], name: "jrc_sd_ola_active_kind_unique", unique: true, where: "((state)::text = ANY (ARRAY[('running'::character varying)::text, ('paused'::character varying)::text]))"
-    t.check_constraint "kind::text = ANY (ARRAY['queue_residence'::character varying::text, 'first_response'::character varying::text, 'update'::character varying::text, 'resolution'::character varying::text])", name: "jrc_sd_ola_kind"
+    t.index ["account_id", "unit_id", "ticket_id", "kind"], name: "jrc_sd_ola_active_kind_unique", unique: true, where: "((state)::text = ANY ((ARRAY['running'::character varying, 'paused'::character varying])::text[]))"
+    t.check_constraint "kind::text = ANY (ARRAY['queue_residence'::character varying, 'first_response'::character varying, 'update'::character varying, 'resolution'::character varying]::text[])", name: "jrc_sd_ola_kind"
   end
 
   create_table "jrc_service_desk_operational_resources", force: :cascade do |t|
@@ -5100,7 +5100,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["user_id", "account_id", "company_id", "contact_inbox_id"], name: "jrc_sd_pg_identity", unique: true
     t.index ["user_id", "active"], name: "jrc_sd_pg_access"
     t.check_constraint "jsonb_typeof(visible_contact_ids) = 'array'::text AND jsonb_array_length(visible_contact_ids) <= 100", name: "jrc_sd_pg_visible_contacts"
-    t.check_constraint "role::text = ANY (ARRAY['requester'::character varying::text, 'manager'::character varying::text, 'organization_admin'::character varying::text])", name: "jrc_sd_pg_role"
+    t.check_constraint "role::text = ANY (ARRAY['requester'::character varying, 'manager'::character varying, 'organization_admin'::character varying]::text[])", name: "jrc_sd_pg_role"
   end
 
   create_table "jrc_service_desk_portal_requests", force: :cascade do |t|
