@@ -32,6 +32,7 @@ class GlpiCommandSource
 
   def collection(path, *)
     return [{ 'id' => 1, 'knowbaseitems_id' => 501, 'entities_id' => 0 }] if path == 'KnowbaseItem/501/Entity_KnowbaseItem/'
+    return [{ 'id' => 1, 'users_id' => 77, 'entities_id' => 0 }] if path == 'User/77/Profile_User/'
 
     []
   end
@@ -143,7 +144,7 @@ class GlpiCommandsTest < GlpiIntegrationTest
     assert_equal 'rejected', receipt[:state]
     assert_equal 'configuration_changed', receipt[:error_code]
     assert_empty @remote.writes
-    @remote.on_profile = -> { @member.destroy! }
+    @remote.on_profile = -> { @member.update!(role: 'agent') }
     assert_equal 'rejected', execute[:state]
     assert_empty @remote.writes
   end
@@ -166,5 +167,36 @@ class GlpiCommandsTest < GlpiIntegrationTest
     receipt = execute('problem_link.create', target: nil, attributes: { 'parent_id' => 101, 'problems_id' => 999 })
     assert_equal 'rejected', receipt[:state]
     assert_equal 1, @remote.writes.size
+  end
+
+  def test_problem_change_operational_verbs_and_linked_targets
+    %w[problem change].each do |family|
+      id = family == 'problem' ? 201 : 301
+      { 'assign' => { '_users_id_assign' => 77 }, 'priority' => { 'priority' => 5 },
+        'pause' => {}, 'resume' => {}, 'close' => {}, 'reopen' => {},
+        'solve' => { 'parent_id' => id, 'content' => 'Solved' } }.each do |verb, input|
+        @remote.rows['User/77'] = { 'id' => 77 }
+        assert_equal 'succeeded', execute("#{family}.#{verb}", target: verb == 'solve' ? nil : id, attributes: input)[:state]
+      end
+    end
+    { 'problem_link' => ['problems_id', 201], 'change_link' => ['changes_id', 301],
+      'knowledge_link' => ['knowbaseitems_id', 501], 'actor' => ['users_id', 77],
+      'group' => ['groups_id', 701], 'supplier' => ['suppliers_id', 801] }.each do |family, values|
+      field, id = values
+      @remote.rows['KnowbaseItem/501'] = { 'id' => 501, 'name' => 'Article' }
+      @remote.rows['Group/701'] = { 'id' => 701, 'entities_id' => 0 }
+      @remote.rows['Supplier/801'] = { 'id' => 801, 'entities_id' => 0 }
+      attributes = { 'parent_id' => 101, field => id }
+      attributes['type'] = 2 if %w[actor group supplier].include?(family)
+      assert_equal 'succeeded', execute("#{family}.create", target: nil, attributes: attributes)[:state], family
+      assert_equal 'succeeded', execute("#{family}.delete", target: 501, attributes: { 'parent_id' => 101 })[:state], family
+    end
+  end
+
+  def test_input_rejects_authorship_overrides_unknown_fields_and_missing_parent
+    assert_raises(ArgumentError) { execute(attributes: { 'users_id' => 77 }) }
+    assert_raises(ArgumentError) { execute('task.create', target: nil, attributes: { 'content' => 'No parent' }) }
+    assert_raises(ArgumentError) { execute('validation.decide', target: 501, attributes: { 'parent_id' => 101, 'status' => 9 }) }
+    assert_empty @remote.writes
   end
 end
