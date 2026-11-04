@@ -124,7 +124,7 @@ class GlpiExportsTest < GlpiIntegrationTest
 
   def test_membership_revocation_after_prepare_prevents_generation
     record = prepare_export
-    @member.destroy!
+    @member.update!(role: 'agent')
     service.generate(id: record.id, client: Source.new)
     assert_equal 'failed', record.reload.state
     assert_equal 'access_revoked', record.error_code
@@ -221,5 +221,34 @@ class GlpiExportsTest < GlpiIntegrationTest
     report = JrcServiceDesk::Glpi::Overview.new.call(access: access, filters: {})
     assert_equal 'unavailable', report.fetch(:coverage).fetch(:state)
     assert_nil report.fetch(:total)
+  end
+
+  def test_projection_list_and_overview_share_entity_status_type_and_period_filters
+    assert defined?(JrcServiceDesk::Glpi::Overview), 'Missing shared projected list'
+    seed_projection(3)
+    scope = JrcServiceDesk::GlpiTicketSnapshot.where(glpi_connection: @connection)
+    scope.find_by!(remote_id: 1).update!(payload: { 'id' => 1, 'entities_id' => 0, 'title' => 'Incident', 'type' => 1,
+      'status' => 1, 'opened_at' => '2026-01-01 10:00:00', 'actor_user_ids' => [55] })
+    scope.find_by!(remote_id: 2).update!(payload: { 'id' => 2, 'entities_id' => 0, 'title' => 'Request', 'type' => 2,
+      'status' => 1, 'opened_at' => '2026-01-01 10:00:00', 'actor_user_ids' => [66] })
+    @connection.update!(user_mappings: [{ account_user_id: @member.id, glpi_user_id: 55 }])
+    scope.update_all(connection_version: @connection.lock_version)
+    JrcServiceDesk::GlpiSyncRun.where(glpi_connection: @connection).update_all(connection_version: @connection.lock_version)
+    filters = { 'entity_id' => '0', 'status' => '1', 'type' => '1', 'mine' => 'true', 'from' => '2026-01-01', 'to' => '2026-01-01' }
+    overview = JrcServiceDesk::Glpi::Overview.new
+    result = overview.list(access: access, filters: filters)
+    assert_equal [1], result.fetch(:items).map { |row| row.fetch('id') }
+    assert_equal 1, overview.call(access: access, filters: filters).fetch(:total)
+    assert_equal 1, result.fetch(:meta).fetch(:total)
+    assert_raises(ArgumentError) { overview.list(access: access, filters: { 'mine' => 'anything' }) }
+  end
+
+  def test_live_query_mine_always_uses_authenticated_glpi_identity
+    @connection.update!(user_mappings: [{ account_user_id: @member.id, glpi_user_id: 55 }])
+    query = JrcServiceDesk::Glpi::TicketQuery.new(access, 'mine' => 'true', 'type' => '1')
+    parameters = query.parameters(offset: 0, size: 100)
+    assert_includes parameters.fetch('criteria'), { 'field' => 14, 'searchtype' => 'equals', 'value' => 1, 'link' => 'AND' }
+    actors = parameters.fetch('criteria').find { |item| item['criteria']&.any? { |row| row['field'] == 4 } }.fetch('criteria')
+    assert_equal [55, 55], actors.map { |row| row.fetch('value') }
   end
 end
