@@ -40,6 +40,11 @@ class JrcServiceDesk::Glpi::TicketCreationPolicy
     @form.validate_references!(command.request_payload)
   end
 
+  def authorize_status!(access:, command:)
+    capability = JrcServiceDesk::Glpi::TicketForm::STATUS_CAPABILITIES[command.request_payload.fetch('status')]
+    raise Pundit::NotAuthorizedError if capability && !access.context.capability?(capability)
+  end
+
   private
 
   def resolve(access, client, command)

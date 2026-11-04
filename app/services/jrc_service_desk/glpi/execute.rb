@@ -26,7 +26,8 @@ class JrcServiceDesk::Glpi::Execute
     primary_creation = operation == 'ticket.create' && access.connection&.primary_source?
     contract = JrcServiceDesk::Glpi::CommandInput.new(operation: operation, target_id: target_id, entity_id: entity_id,
       attributes: attributes, expected_version: expected_version, reason: reason, prepared: prepared, partial: primary_creation)
-    if operation == 'ticket.create' && !primary_creation && (contract.template_id || template_version || contract.input.key?('status'))
+    if operation == 'ticket.create' && !primary_creation &&
+        (contract.template_selector_provided || template_version || contract.input.key?('status'))
       raise ArgumentError
     end
     access = fresh_access(access)
@@ -49,8 +50,8 @@ class JrcServiceDesk::Glpi::Execute
       expected_version: expected_version, reason: reason, content_format: contract.content_format,
       request_payload: contract.input, correlation_id: SecureRandom.uuid,
       template_policy: primary_creation ? { 'requested_version' => template_version, 'selection' => {
-        'entity_id' => contract.entity_id, 'type' => contract.input.fetch('type', 1),
-        'category_id' => contract.input.fetch('itilcategories_id', 0), 'template_id' => contract.template_id } } : nil)
+        'entity_id' => contract.entity_id, 'type' => contract.input['type'],
+        'category_id' => contract.input.fetch('itilcategories_id', 0), 'template_id' => contract.template_id }.compact } : nil)
     with_object_lock(command) { perform(command, access, contract.descriptor) }
     command.reload.receipt
   rescue ActiveRecord::RecordNotUnique
@@ -263,6 +264,7 @@ class JrcServiceDesk::Glpi::Execute
       access = fresh_access(access, command.connection_version)
       authorize_local!(access, descriptor)
       access.unit_for(command.entity_id)
+      ticket_policy&.authorize_status!(access: access, command: command)
       sent = true
       response = case descriptor[:verb]
                  when 'post' then client.create_item(command.itemtype, payload)
