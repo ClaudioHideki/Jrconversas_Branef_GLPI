@@ -86,6 +86,12 @@ describe('Service Desk primary source', () => {
       wrapper.unmount();
     }
   );
+  it('does not mount a native controller while authenticated source transition is redirecting', async () => {
+    holder.session.sourceTransitioning = ref(true);
+    const wrapper = await render('detail', 'native');
+    expect(wrapper.text()).not.toContain('Native ticket editor');
+    wrapper.unmount();
+  });
   it('keeps JRC configuration clearly identified', async () => {
     holder.session.state.context.capabilities.settings = { index: true };
     const wrapper = await render('settings', 'glpi');

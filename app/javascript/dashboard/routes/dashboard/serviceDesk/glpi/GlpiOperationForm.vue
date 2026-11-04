@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import GlpiLookup from './GlpiLookup.vue';
 import GlpiRichEditor from './GlpiRichEditor.vue';
+import { commandMatchesBinding } from '../helpers/glpiBinding';
 import {
   operationBlock,
   operationAttributes,
@@ -16,6 +17,8 @@ const props = defineProps({
   operations: { type: Array, default: () => [] },
   record: { type: Object, default: null },
   parentId: { type: [String, Number], default: null },
+  authorizedEntityId: { type: [String, Number], default: null },
+  parentVersion: { type: String, default: '' },
   sourceVersion: { type: String, default: '' },
 });
 const emit = defineEmits(['succeeded']);
@@ -29,6 +32,9 @@ const reason = ref('');
 const confirmed = ref(false);
 const idempotencyKey = ref(crypto.randomUUID());
 const receipt = ref(null);
+const currentReceipt = computed(() =>
+  commandMatchesBinding(receipt.value, props.glpi.binding?.() || null)
+);
 const descriptor = computed(() =>
   props.operations.find(row => row.operation === operation.value)
 );
@@ -65,7 +71,7 @@ const reset = () => {
       html ?? props.record?.[field] ?? props.record?.[aliases[field]] ?? '';
     initial[field] = values[field];
   });
-  entityId.value = props.record?.entities_id ?? '';
+  entityId.value = props.record?.entities_id ?? props.authorizedEntityId ?? '';
   reason.value = '';
 };
 watch(
@@ -110,15 +116,27 @@ const choices = field => {
       ),
     }));
   if (['urgency', 'impact', 'priority'].includes(field))
-    return [1, 2, 3, 4, 5, 6].map(value => ({
-      value,
-      label: t(`JRC_GLPI.priorities.${value}`),
-    }));
+    return (field === 'priority' ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5]).map(
+      value => ({
+        value,
+        label: t(`JRC_GLPI.priorities.${value}`),
+      })
+    );
   if (field === 'status' && operation.value.includes('validation'))
     return [
       { value: 3, label: t('JRC_GLPI.choices.accepted') },
       { value: 4, label: t('JRC_GLPI.choices.refused') },
     ];
+  if (field === 'status' && descriptor.value.itemtype === 'Problem')
+    return [1, 7, 2, 3, 4, 5, 8, 6].map(value => ({
+      value,
+      label: t(`JRC_GLPI.problem_statuses.${value}`),
+    }));
+  if (field === 'status' && descriptor.value.itemtype === 'Change')
+    return [1, 9, 10, 7, 4, 11, 12, 5, 8, 6, 14, 13].map(value => ({
+      value,
+      label: t(`JRC_GLPI.change_statuses.${value}`),
+    }));
   if (field === 'status')
     return [1, 2, 3, 4, 5, 6].map(value => ({
       value,
@@ -165,7 +183,8 @@ const check = async () => {
   );
   if (response?.command) {
     receipt.value = response.command;
-    if (receipt.value.state === 'succeeded') emit('succeeded', receipt.value);
+    if (receipt.value.state === 'succeeded' && currentReceipt.value)
+      emit('succeeded', receipt.value);
   }
 };
 const submit = async () => {
@@ -194,28 +213,31 @@ const submit = async () => {
     attributes.content_format = 'rich';
   Object.keys(attributes).forEach(field => {
     if (numericField(field)) attributes[field] = Number(attributes[field]);
-    else if (fieldType(field) === 'datetime-local')
+    else if (fieldType(field) === 'datetime-local') {
       attributes[field] = attributes[field].replace('T', ' ');
+      if (attributes[field].length === 16) attributes[field] += ':00';
+    }
   });
   if (descriptor.value.parent) attributes.parent_id = parent.value;
+  let expectedVersion = props.sourceVersion || props.record?.date_mod;
+  if (descriptor.value.verb === 'post')
+    expectedVersion = descriptor.value.parent ? props.parentVersion : null;
   const payload = {
     operation: descriptor.value.operation,
     target_id: descriptor.value.verb === 'post' ? null : props.record.id,
     entity_id: entityId.value,
     attributes,
     idempotency_key: idempotencyKey.value,
-    reason: reason.value,
-    ...(descriptor.value.verb !== 'post' &&
-    (props.sourceVersion || props.record?.date_mod)
-      ? { expected_version: props.sourceVersion || props.record.date_mod }
-      : {}),
+    ...(reason.value.trim() ? { reason: reason.value.trim() } : {}),
+    ...(expectedVersion ? { expected_version: expectedVersion } : {}),
   };
   const response = await props.glpi.run('operation', (account, signal) =>
     props.glpi.API.execute(account, payload, signal)
   );
   if (response?.command) {
     receipt.value = response.command;
-    if (receipt.value.state === 'succeeded') emit('succeeded', receipt.value);
+    if (receipt.value.state === 'succeeded' && currentReceipt.value)
+      emit('succeeded', receipt.value);
   } else {
     const error = props.glpi.state.errors.operation;
     receipt.value = {
@@ -300,7 +322,12 @@ const submit = async () => {
           <select
             v-model="entityId"
             required
-            :disabled="busy || !!receipt"
+            :disabled="
+              busy ||
+              !!receipt ||
+              record?.entities_id != null ||
+              authorizedEntityId != null
+            "
             class="!mb-0 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
           >
             <option value="">{{ t('JRC_SERVICE_DESK.COMMON.select') }}</option>
@@ -442,6 +469,20 @@ const submit = async () => {
       data-testid="glpi-command-receipt"
     >
       <p>{{ t(`JRC_GLPI.receipts.${receipt.state}`) }}</p>
+      <p v-if="receipt.connection_id">
+        {{
+          t('JRC_GLPI.workspace.receipt_origin', {
+            id: receipt.connection_id,
+            version: receipt.connection_version,
+          })
+        }}
+      </p>
+      <p
+        v-if="!currentReceipt"
+        role="alert"
+      >
+        {{ t('JRC_GLPI.workspace.receipt_other_source') }}
+      </p>
       <p v-if="receipt.id">
         {{
           t('JRC_GLPI.workspace.receipt', {

@@ -5,6 +5,7 @@ import {
   onMounted,
   provide,
   reactive,
+  ref,
   watch,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -21,6 +22,7 @@ import {
   createSessionState,
 } from '../helpers/session.js';
 import { serviceDeskRouteName } from '../routeDefinitions';
+import { serviceDeskSourceChanged } from '../helpers/glpiBinding';
 const KEY = Symbol('jrc-service-desk-session');
 export function provideServiceDesk() {
   const route = useRoute();
@@ -30,6 +32,9 @@ export function provideServiceDesk() {
   const userId = computed(() => canonicalId(store.getters.getCurrentUserID));
   const enabled = computed(() => hasServiceDeskFeature(store, accountId.value));
   const state = reactive(createSessionState());
+  const sourceTransitioning = ref(false);
+  let sourceIdentity = null;
+  let sourceGeneration = 0;
   const session = createServiceDeskSession(ServiceDeskAPI, state);
   const operations = createOperationalSession(
     ServiceDeskOperations,
@@ -41,6 +46,9 @@ export function provideServiceDesk() {
   watch(
     [accountId, userId, enabled],
     ([account, user, flag]) => {
+      sourceIdentity = null;
+      sourceGeneration += 1;
+      sourceTransitioning.value = false;
       refreshGeneration += 1;
       pendingRefresh = null;
       operations.clear();
@@ -50,6 +58,33 @@ export function provideServiceDesk() {
       }
     },
     { immediate: true, flush: 'sync' }
+  );
+  watch(
+    [() => state.status, () => state.context],
+    () => {
+      if (state.status !== 'ready' || !state.context) return;
+      const next = state.context;
+      const changed = serviceDeskSourceChanged(sourceIdentity, next);
+      sourceIdentity = {
+        data_source: next.data_source,
+        connection_id: next.connection_id,
+        connection_version: next.connection_version,
+      };
+      if (!changed) return;
+      sourceGeneration += 1;
+      const epoch = sourceGeneration;
+      sourceTransitioning.value = true;
+      operations.clear();
+      router
+        .replace({
+          name: serviceDeskRouteName('overview'),
+          params: { accountId: accountId.value },
+        })
+        .finally(() => {
+          if (epoch === sourceGeneration) sourceTransitioning.value = false;
+        });
+    },
+    { flush: 'sync' }
   );
   watch(
     () => route.name,
@@ -114,7 +149,15 @@ export function provideServiceDesk() {
     operations.clear();
     session.dispose();
   });
-  const value = { ...session, state, accountId, userId, enabled, operations };
+  const value = {
+    ...session,
+    state,
+    accountId,
+    userId,
+    enabled,
+    operations,
+    sourceTransitioning,
+  };
   provide(KEY, value);
   return value;
 }

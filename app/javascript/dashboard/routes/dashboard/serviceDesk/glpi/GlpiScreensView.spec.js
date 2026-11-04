@@ -10,7 +10,10 @@ const holder = vi.hoisted(() => ({ session: null }));
 vi.mock('../composables/useServiceDesk', () => ({
   useServiceDesk: () => holder.session,
 }));
-vi.mock('dashboard/api/serviceDeskGlpi', () => ({ default: { get: vi.fn() } }));
+vi.mock('dashboard/api/serviceDeskGlpi', () => {
+  const api = { get: vi.fn() };
+  return { default: api, createServiceDeskGlpiClient: () => api };
+});
 const envelope = data => ({
   data: {
     contract_version: 1,

@@ -13,6 +13,36 @@ const { t } = useI18n();
 const filters = ref({});
 const report = computed(() => props.glpi.state.data.overview?.report);
 const receipt = computed(() => props.glpi.state.data.export?.export);
+const requestedFilters = ref(null);
+const exportFilters = computed(
+  () => receipt.value?.filters || requestedFilters.value
+);
+const filterLabels = {
+  entity_id: 'entity',
+  status: 'status',
+  priority: 'priority',
+  search: 'workspace.search',
+  from: 'from',
+  to: 'to',
+  type: 'type',
+  mine: 'workspace.my_queue',
+};
+const filterValue = (field, value) => {
+  if (field === 'entity_id')
+    return (
+      props.glpi.state.context.entities.find(
+        row => String(row.id) === String(value)
+      )?.name || t('JRC_GLPI.entity_number', { id: value })
+    );
+  if (field === 'status') return t(`JRC_GLPI.statuses.${value}`);
+  if (field === 'priority') return t(`JRC_GLPI.priorities.${value}`);
+  if (field === 'type')
+    return t(
+      value === 1 || value === '1' ? 'JRC_GLPI.incident' : 'JRC_GLPI.request'
+    );
+  if (field === 'mine') return t('JRC_GLPI.choices.yes');
+  return value;
+};
 const downloadRequested = ref(false);
 let timer;
 let disposed = false;
@@ -55,10 +85,14 @@ const poll = async () => {
 };
 const start = async () => {
   downloadRequested.value = false;
+  const snapshot = { ...filters.value };
   const result = await props.glpi.run('export', (account, signal) =>
-    props.glpi.API.startExport(account, filters.value, signal)
+    props.glpi.API.startExport(account, snapshot, signal)
   );
-  if (result?.export) timer = setTimeout(poll, 2000);
+  if (result?.export) {
+    requestedFilters.value = snapshot;
+    timer = setTimeout(poll, 2000);
+  }
 };
 const requestDownload = async () => {
   downloadRequested.value = true;
@@ -180,6 +214,33 @@ load();
         @click="start"
       />
       <template v-if="receipt">
+        <section class="grid gap-2 rounded-lg bg-n-slate-2 p-3 text-xs">
+          <h4 class="font-semibold">
+            {{ t('JRC_GLPI.workspace.export_filter_scope') }}
+          </h4>
+          <p v-if="!exportFilters">
+            {{ t('JRC_GLPI.workspace.export_scope_unknown') }}
+          </p>
+          <p v-else-if="!Object.keys(exportFilters).length">
+            {{ t('JRC_GLPI.workspace.export_scope_all') }}
+          </p>
+          <dl
+            v-if="exportFilters"
+            class="grid gap-1"
+          >
+            <div
+              v-for="(value, field) in exportFilters"
+              :key="field"
+            >
+              <template v-if="filterLabels[field]">
+                <dt class="font-medium">
+                  {{ t(`JRC_GLPI.${filterLabels[field]}`) }}
+                </dt>
+                <dd>{{ filterValue(field, value) }}</dd>
+              </template>
+            </div>
+          </dl>
+        </section>
         <p role="status">
           {{
             t('JRC_GLPI.workspace.export_progress', {

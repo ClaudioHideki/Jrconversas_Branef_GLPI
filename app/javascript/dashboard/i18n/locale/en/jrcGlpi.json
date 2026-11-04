@@ -179,7 +179,12 @@
       "record_state": "{status} · {priority}",
       "deadline_value": "Prazo de solução: {value}",
       "export_progress": "{state} · {processed} / {total}",
-      "search": "Pesquisar por número ou título"
+      "search": "Pesquisar por número ou título",
+      "export_filter_scope": "Filtros registrados para esta exportação",
+      "export_scope_unknown": "Filtros originais indisponíveis nesta sessão. O arquivo não representa necessariamente os filtros atuais do relatório.",
+      "export_scope_all": "Todos os chamados autorizados, sem filtros adicionais.",
+      "receipt_origin": "Conexão GLPI {id} · revisão {version}.",
+      "receipt_other_source": "Este recibo pertence a outra configuração GLPI. Seu número remoto não será aberto no contexto atual."
     },
     "receipts": {
       "pending": "Intenção registrada; aguardando processamento.",
@@ -405,6 +410,30 @@
       "complete": "Coleta de chamados concluída no escopo consultado",
       "partial": "Coleta de chamados parcial; confira a cobertura",
       "failed": "Atualização não concluída"
+    },
+    "problem_statuses": {
+      "1": "Novo",
+      "2": "Em atendimento · atribuído",
+      "3": "Em atendimento · planejado",
+      "4": "Pendente",
+      "5": "Solucionado",
+      "6": "Fechado",
+      "7": "Aceito",
+      "8": "Em observação"
+    },
+    "change_statuses": {
+      "1": "Nova",
+      "4": "Pendente",
+      "5": "Aplicada",
+      "6": "Fechada",
+      "7": "Aceita",
+      "8": "Em revisão",
+      "9": "Em avaliação",
+      "10": "Em aprovação",
+      "11": "Em teste",
+      "12": "Em qualificação",
+      "13": "Recusada",
+      "14": "Cancelada"
     }
   }
 }

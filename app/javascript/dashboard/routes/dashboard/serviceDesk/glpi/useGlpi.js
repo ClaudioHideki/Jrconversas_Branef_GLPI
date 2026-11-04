@@ -1,6 +1,7 @@
 import { onBeforeUnmount, reactive, watch } from 'vue';
-import API from 'dashboard/api/serviceDeskGlpi';
+import { createServiceDeskGlpiClient } from 'dashboard/api/serviceDeskGlpi';
 import { useServiceDesk } from '../composables/useServiceDesk';
+import { glpiBinding, sameGlpiBinding } from '../helpers/glpiBinding';
 
 export function useGlpi() {
   const session = useServiceDesk();
@@ -11,6 +12,13 @@ export function useGlpi() {
     loading: {},
     data: {},
   });
+  const binding = () =>
+    glpiBinding(
+      session.state.context?.connection_id != null
+        ? session.state.context
+        : state.context
+    );
+  const API = createServiceDeskGlpiClient(binding);
   let generation = 0;
   const requests = new Map();
   const clear = () => {
@@ -24,7 +32,14 @@ export function useGlpi() {
     state.errors = {};
   };
   watch(
-    [session.accountId, session.userId, () => session.state.status],
+    [
+      session.accountId,
+      session.userId,
+      () => session.state.status,
+      () => session.state.context?.data_source,
+      () => session.state.context?.connection_id,
+      () => session.state.context?.connection_version,
+    ],
     clear,
     { flush: 'sync' }
   );
@@ -62,6 +77,16 @@ export function useGlpi() {
           : response.data;
       if (!current()) return null;
       if (
+        !['configuration', 'validate'].includes(key) &&
+        binding() &&
+        !sameGlpiBinding(binding(), glpiBinding(data))
+      ) {
+        throw Object.assign(new Error('GLPI configuration changed'), {
+          code: 'configuration_changed',
+          status: 409,
+        });
+      }
+      if (
         data.contract_version !== 1 ||
         data.source !== 'glpi' ||
         data.account_id !== accountId ||
@@ -85,11 +110,11 @@ export function useGlpi() {
         if (key === 'context') state.context = null;
         const code = body?.source_code;
         state.error = {
-          status: error.response?.status || 0,
+          status: error.response?.status || error.status || 0,
           code:
             typeof code === 'string'
               ? code
-              : body?.code || 'source_unavailable',
+              : body?.code || error.code || 'source_unavailable',
         };
         state.errors[key] = state.error;
       }
@@ -107,5 +132,5 @@ export function useGlpi() {
     delete state.errors[key];
     state.loading[key] = false;
   };
-  return { session, state, read, run, clear, discard, API };
+  return { session, state, read, run, clear, discard, binding, API };
 }

@@ -148,6 +148,8 @@ const create = () =>
           :operations="descriptors"
           :record="detail.ticket"
           :parent-id="detail.ticket.id"
+          :authorized-entity-id="detail.ticket.entities_id"
+          :parent-version="detail.source_version || ''"
           :source-version="detail.source_version || ''"
           @succeeded="load"
         />
@@ -169,6 +171,8 @@ const create = () =>
           :glpi="glpi"
           :resource="relation"
           :parent-id="detail.ticket.id"
+          :parent-entity-id="detail.ticket.entities_id"
+          :parent-version="detail.source_version || ''"
         />
       </template>
     </template>

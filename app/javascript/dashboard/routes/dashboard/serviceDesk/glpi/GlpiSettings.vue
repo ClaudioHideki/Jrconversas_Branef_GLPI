@@ -67,6 +67,7 @@ const save = async () => {
   if (result) {
     apply(result);
     saved.value = true;
+    await session.revalidate();
   }
 };
 const validate = async () => {
