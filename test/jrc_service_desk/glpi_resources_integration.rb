@@ -117,4 +117,26 @@ class GlpiResourcesTest < GlpiIntegrationTest
       client: client, kind: 'followups', ticket_id: 101)
     assert_equal [2], result.fetch(:items).map { |row| row.fetch('id') }
   end
+
+  def test_linked_problem_must_also_belong_to_an_authorized_entity
+    client = Minitest::Mock.new
+    client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
+    client.expect(:collection, [{ 'id' => 1, 'tickets_id' => 101, 'problems_id' => 201 }], ['Ticket/101/Problem_Ticket/'])
+    client.expect(:get, { 'id' => 201, 'entities_id' => 999 }, ['Problem/201'])
+    assert_raises(Pundit::NotAuthorizedError) do
+      JrcServiceDesk::Glpi::ResourceQuery.new.related(access: JrcServiceDesk::Glpi::Access.new(@identity),
+        client: client, kind: 'problem_links', ticket_id: 101)
+    end
+  end
+
+  def test_linked_asset_must_also_belong_to_an_authorized_entity
+    client = Minitest::Mock.new
+    client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
+    client.expect(:collection, [{ 'id' => 1, 'tickets_id' => 101, 'items_id' => 201, 'itemtype' => 'Computer' }], ['Ticket/101/Item_Ticket/'])
+    client.expect(:get, { 'id' => 201, 'entities_id' => 999 }, ['Computer/201'])
+    assert_raises(Pundit::NotAuthorizedError) do
+      JrcServiceDesk::Glpi::ResourceQuery.new.related(access: JrcServiceDesk::Glpi::Access.new(@identity),
+        client: client, kind: 'assets', ticket_id: 101)
+    end
+  end
 end
