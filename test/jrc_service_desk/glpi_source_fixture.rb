@@ -81,4 +81,3 @@ class GlpiCommandSource
     { 'id' => id, 'deleted' => verb == :delete }
   end
 end
-
