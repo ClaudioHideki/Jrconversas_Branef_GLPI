@@ -193,6 +193,9 @@ class GlpiAutomationTest < GlpiIntegrationTest
     assert_raises(JrcServiceDesk::Glpi::Error) do
       JrcNico::DomainActions.new(context.access).call('read_service_ticket', 'ticket_id' => 101)
     end
+    assert_raises(JrcServiceDesk::Glpi::Error) do
+      JrcNico::DomainActions.new(context.access).call('read_operation_links', 'ticket_id' => 101)
+    end
     group = JrcNico::Helpdesk::Catalog.call(account: @account).find { |row| row[:key] == 'D1' }
     assert_equal 'glpi_typed_command_required', group[:status]
     refute group[:automatic_execution]
