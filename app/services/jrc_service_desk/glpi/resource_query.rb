@@ -83,7 +83,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
     options.filter_map do |key, option|
       next unless key.to_s.match?(/\A[1-9]\d*\z/) && option.is_a?(Hash)
 
-      { id: key.to_i, name: JrcServiceDesk::Glpi::Normalize.text(option['name']),
+      { id: key.to_i, label: JrcServiceDesk::Glpi::Normalize.text(option['name']),
         datatype: JrcServiceDesk::Glpi::Normalize.text(option['datatype']) }
     end
   end

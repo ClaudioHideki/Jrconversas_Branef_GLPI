@@ -128,7 +128,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   def search_fields
     permit!(:read?)
     fields = with_client { |client| ::JrcServiceDesk::Glpi::ResourceQuery.new.search_fields(access: access, client: client, kind: params[:kind]) }
-    render json: envelope.merge(items: fields)
+    render json: envelope.merge(fields: fields)
   end
 
   def operate
