@@ -33,7 +33,8 @@ class JrcServiceDesk::Glpi::Execute
     command = scope.create!(unit_id: unit, entity_id: contract.entity_id, idempotency_key: key, fingerprint: fingerprint,
       operation: operation, itemtype: contract.descriptor[:type], target_id: contract.target_id, parent_id: contract.parent_id,
       parent_type: contract.descriptor[:parent], connection_version: access.connection.lock_version,
-      expected_version: expected_version, reason: reason, request_payload: contract.input, correlation_id: SecureRandom.uuid)
+      expected_version: expected_version, reason: reason, content_format: contract.content_format,
+      request_payload: contract.input, correlation_id: SecureRandom.uuid)
     with_object_lock(command) { perform(command, access, contract.descriptor) }
     command.reload.receipt
   rescue ActiveRecord::RecordNotUnique
@@ -148,8 +149,12 @@ class JrcServiceDesk::Glpi::Execute
     if descriptor[:parent]
       verify_parent!(row, command, descriptor)
       parent = client.get("#{command.parent_type}/#{command.parent_id}")
+      verify_id!(parent, command.parent_id)
       verify_entity!(parent, command.entity_id)
       access.authorize_ticket!(client, parent) if command.parent_type == 'Ticket'
+      if command.operation.end_with?('.solve') && ![5, 6].include?(parent['status'].to_i)
+        raise JrcServiceDesk::Glpi::Error.new('write_not_confirmed')
+      end
     elsif command.itemtype != 'KnowbaseItem'
       verify_entity!(row, command.request_payload.fetch('entities_id', command.entity_id))
     end
@@ -164,6 +169,8 @@ class JrcServiceDesk::Glpi::Execute
                   client.collection("KnowbaseItem/#{id}/KnowbaseItem_KnowbaseItemCategory/").any? do |link|
                     link['knowbaseitems_id'].to_s == id.to_s && link[field].to_s == expected.to_s
                   end
+                elsif %w[content answer].include?(field) && command.content_format == 'rich'
+                  JrcServiceDesk::Glpi::Content.rich(row[field], from_source: true) == JrcServiceDesk::Glpi::Content.rich(expected)
                 else
                   equivalent?(row[field], expected)
                 end

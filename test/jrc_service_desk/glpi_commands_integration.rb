@@ -257,4 +257,15 @@ class GlpiCommandsTest < GlpiIntegrationTest
     assert_equal 'indeterminate', receipt[:state]
     assert_equal 'write_not_confirmed', receipt[:error_code]
   end
+
+  def test_rich_content_is_sanitized_without_sending_its_internal_format_to_glpi
+    receipt = execute(attributes: { 'content' => '<table><tr><td>Preserved</td></tr></table><a href="javascript:alert(1)">Unsafe</a>',
+      'content_format' => 'rich' })
+    assert_equal 'succeeded', receipt[:state]
+    input = @remote.writes.last.last
+    assert_includes input['content'], '<table>'
+    refute_includes input['content'], 'javascript:'
+    refute input.key?('content_format')
+    assert_raises(ArgumentError) { execute(attributes: { 'name' => 'No content', 'content_format' => 'rich' }) }
+  end
 end

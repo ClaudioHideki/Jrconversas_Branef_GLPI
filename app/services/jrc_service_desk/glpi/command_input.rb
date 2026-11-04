@@ -3,7 +3,7 @@
 require 'cgi'
 
 class JrcServiceDesk::Glpi::CommandInput
-  attr_reader :operation, :descriptor, :target_id, :parent_id, :entity_id, :input, :expected_version, :reason
+  attr_reader :operation, :descriptor, :target_id, :parent_id, :entity_id, :input, :expected_version, :reason, :content_format
 
   def initialize(operation:, target_id:, entity_id:, attributes:, expected_version: nil, reason: nil, prepared: false)
     @operation = operation
@@ -17,8 +17,14 @@ class JrcServiceDesk::Glpi::CommandInput
 
     @expected_version = expected_version
     @reason = reason
-    allowed = descriptor[:fields] + (descriptor[:parent] ? %w[parent_id] : [])
+    allowed = descriptor[:fields] + %w[content_format] + (descriptor[:parent] ? %w[parent_id] : [])
     values = JrcServiceDesk::Input.attributes(attributes, allowed)
+    explicit_format = values.key?('content_format')
+    @content_format = values.delete('content_format') || 'plain'
+    raise ArgumentError unless %w[plain rich].include?(content_format)
+    if explicit_format && (values.keys & %w[content answer]).empty?
+      raise ArgumentError, 'Content format requires content or answer'
+    end
     @parent_id = JrcServiceDesk::Input.id(values.delete('parent_id')) if descriptor[:parent]
     raise ArgumentError, 'Required fields missing' unless (descriptor[:required] - values.keys).empty?
 
@@ -49,7 +55,7 @@ class JrcServiceDesk::Glpi::CommandInput
   def fingerprint(connection_version)
     JrcServiceDesk::CanonicalJson.digest(operation: operation, type: descriptor[:type], target_id: target_id,
       parent_id: parent_id, entity_id: entity_id, input: input, expected_version: expected_version,
-      reason: reason, connection_version: connection_version)
+      reason: reason, content_format: content_format, connection_version: connection_version)
   end
 
   private
@@ -59,7 +65,14 @@ class JrcServiceDesk::Glpi::CommandInput
       maximum = field == 'name' ? 255 : 50_000
       raise ArgumentError unless value.is_a?(String) && value.strip.length.between?(1, maximum)
 
-      return prepared ? value : CGI.escapeHTML(value.strip).gsub("\n", '<br>')
+      return value if prepared
+      if %w[content answer].include?(field) && content_format == 'rich'
+        sanitized = JrcServiceDesk::Glpi::Content.rich(value.strip)
+        raise ArgumentError if sanitized.strip.empty?
+
+        return sanitized
+      end
+      return JrcServiceDesk::Glpi::Content.plain(value.strip)
     end
     if %w[begin end begin_date end_date].include?(field)
       raise ArgumentError unless value.is_a?(String) && value.match?(/\A\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\z/)

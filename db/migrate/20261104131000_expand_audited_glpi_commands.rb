@@ -9,6 +9,7 @@ class ExpandAuditedGlpiCommands < ActiveRecord::Migration[7.1]
       t.bigint :technical_user_id
       t.integer :connection_version
       t.string :expected_version
+      t.string :content_format, default: 'plain', null: false
       t.text :reason
       t.text :request_payload
       t.text :before_values
