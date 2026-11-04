@@ -87,6 +87,17 @@ class GlpiAutomationTest < GlpiIntegrationTest
       http.get("/api/v1/accounts/#{@account.id}/jrc_service_desk/case_workspaces/#{incident.id}", headers: @user.create_new_auth_token)
       assert_equal 200, http.response.status
       assert_equal 101, JSON.parse(http.response.body).dig('record', 'glpi_references', 'items', 0, 'reference', 'remote_id')
+      operator = JrcNico::OperatorSession.new(account: @account, user: @user)
+      { 'link_glpi_conversation' => { 'conversation_id' => conversation.display_id },
+        'link_glpi_case' => { 'incident_id' => incident.id } }.each do |tool, target|
+        command = operator.ask(message: "Synthetic #{tool}", request_id: SecureRandom.uuid,
+          prepared: { 'tool' => tool, 'arguments' => target.merge('reference' => @reference) })
+        assert_equal 'awaiting_confirmation', command.status
+        operator.execute(command)
+        assert_equal 'succeeded', command.reload.status
+        assert_equal @reference, command.result.fetch('reference')
+      end
+      assert_equal 2, JrcServiceDesk::GlpiReferenceLink.where(account: @account).count
       @unit_member.update!(active: false)
       assert_raises(Pundit::NotAuthorizedError) do
         service.call(user_context: @identity, reference: @reference, conversation_id: conversation.id)

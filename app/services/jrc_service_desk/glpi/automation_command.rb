@@ -1,10 +1,17 @@
 # frozen_string_literal: true
 
 class JrcServiceDesk::Glpi::AutomationCommand
+  def initialize(authorizer: nil)
+    @authorizer = authorizer
+  end
+
   def create(user_context:, destination:, attributes:, idempotency_key:)
     binding = JrcServiceDesk::Glpi::Destination.new(destination)
     access = binding.access!(user_context)
-    executor = JrcServiceDesk::Glpi::Execute.new(access_authorizer: ->(fresh) { binding.access!(fresh.context.to_h) })
+    executor = JrcServiceDesk::Glpi::Execute.new(access_authorizer: lambda do |fresh|
+      binding.access!(fresh.context.to_h)
+      @authorizer&.call
+    end)
     executor.call(access: access, operation: 'ticket.create', target_id: nil,
       entity_id: binding.values.fetch('entity_id'), attributes: attributes, idempotency_key: idempotency_key)
   end
@@ -28,7 +35,10 @@ class JrcServiceDesk::Glpi::AutomationCommand
       target = values['remote_id']
     end
     # Execute verifies the live target/parent after persisting intent, before any source write.
-    executor = JrcServiceDesk::Glpi::Execute.new(access_authorizer: ->(fresh) { ref.authorize_local!(access: fresh, operational: true) })
+    executor = JrcServiceDesk::Glpi::Execute.new(access_authorizer: lambda do |fresh|
+      ref.authorize_local!(access: fresh, operational: true)
+      @authorizer&.call
+    end)
     executor.call(access: access, operation: operation, target_id: target,
       entity_id: values['entity_id'], attributes: attributes, idempotency_key: idempotency_key,
       expected_version: expected_version, reason: reason)

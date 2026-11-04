@@ -1,6 +1,33 @@
 # frozen_string_literal: true
 
 class JrcNico::Helpdesk::GlpiActions
+  def self.prepare_binding(access, name, arguments)
+    access.authorize!
+    context = { account: access.account, user: access.user, account_user: access.membership }
+    glpi = if name == 'create_glpi_ticket'
+             JrcServiceDesk::Glpi::Destination.new(arguments.fetch('destination')).access!(context)
+           else
+             value = JrcServiceDesk::Glpi::Access.new(context).ready!
+             JrcServiceDesk::Glpi::Reference.new(arguments.fetch('reference')).authorize_local!(access: value, operational: true)
+           end
+    { 'glpi_account_id' => access.account.id, 'glpi_connection_id' => glpi.connection.id,
+      'glpi_connection_version' => glpi.connection.lock_version }
+  end
+
+  def self.validate_binding!(access, command)
+    access.authorize!
+    glpi = JrcServiceDesk::Glpi::Access.new(account: access.account, user: access.user, account_user: access.membership).ready!
+    binding = command.execution_context
+    unless binding['glpi_account_id'].to_s == access.account.id.to_s && binding['glpi_connection_id'].to_s == glpi.connection.id.to_s &&
+           binding.key?('glpi_connection_version')
+      raise Pundit::NotAuthorizedError
+    end
+    unless binding['glpi_connection_version'] == glpi.connection.lock_version && glpi.connection.primary_source?
+      raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409)
+    end
+    true
+  end
+
   def initialize(access, command: nil)
     @access = access.authorize!
     @context = { account: access.account, user: access.user, account_user: access.membership }
@@ -12,7 +39,7 @@ class JrcNico::Helpdesk::GlpiActions
     return search(arguments) if name == 'search_glpi_tickets'
     if name == 'create_glpi_ticket'
       approved_command!(name, arguments)
-      return receipt_result(JrcServiceDesk::Glpi::AutomationCommand.new.create(user_context: @context,
+      return receipt_result(JrcServiceDesk::Glpi::AutomationCommand.new(authorizer: -> { approved_command!(name, arguments) }).create(user_context: @context,
         destination: arguments.fetch('destination'), attributes: arguments.fetch('attributes'), idempotency_key: request_key))
     end
     ref = JrcServiceDesk::Glpi::Reference.new(arguments.fetch('reference'))
@@ -27,7 +54,7 @@ class JrcNico::Helpdesk::GlpiActions
     end
     approved_command!(name, arguments)
     if name == 'execute_glpi_operation'
-      receipt = JrcServiceDesk::Glpi::AutomationCommand.new.call(user_context: @context, reference: ref.values,
+      receipt = JrcServiceDesk::Glpi::AutomationCommand.new(authorizer: -> { approved_command!(name, arguments) }).call(user_context: @context, reference: ref.values,
         operation: arguments.fetch('operation'), attributes: arguments.fetch('attributes', {}),
         target_id: arguments['target_id'], expected_version: arguments['expected_version'], reason: arguments['reason'],
         idempotency_key: request_key)
@@ -38,7 +65,8 @@ class JrcNico::Helpdesk::GlpiActions
               else
                 { incident_id: arguments.fetch('incident_id') }
               end
-      link = JrcServiceDesk::Glpi::LinkLocalReference.new.call(user_context: @context, reference: ref.values, **local)
+      link = JrcServiceDesk::Glpi::LinkLocalReference.new(authorizer: -> { approved_command!(name, arguments) })
+        .call(user_context: @context, reference: ref.values, **local)
       { source: 'glpi', reference: link.glpi_reference.reference, link_id: link.id,
         resources: [[link.glpi_reference.class.name, link.glpi_reference_id]], message: 'Referência GLPI vinculada.' }
     end
@@ -78,6 +106,7 @@ class JrcNico::Helpdesk::GlpiActions
   end
 
   def approved_command!(name, arguments)
+    @access.authorize!
     @command&.reload
     unless @command&.persisted? && @command.session.account_id == @access.account.id && @command.session.user_id == @access.user.id &&
            @command.status == 'executing' && @command.approved_at && !@command.source_notice_id &&
@@ -86,5 +115,6 @@ class JrcNico::Helpdesk::GlpiActions
            @command.execution_context.dig('authorization', 'user_id').to_s == @access.user.id.to_s
       raise Pundit::NotAuthorizedError
     end
+    self.class.validate_binding!(@access, @command)
   end
 end

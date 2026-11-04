@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
 class JrcServiceDesk::Glpi::LinkLocalReference
+  def initialize(authorizer: nil)
+    @authorizer = authorizer
+  end
+
   def call(user_context:, reference:, conversation_id: nil, incident_id: nil)
+    @authorizer&.call
     raise ArgumentError unless conversation_id.nil? != incident_id.nil?
 
     access = JrcServiceDesk::Glpi::Access.new(user_context).ready!
@@ -26,6 +31,7 @@ class JrcServiceDesk::Glpi::LinkLocalReference
     end
     ref.authorize_local!(access: fresh, operational: true)
     Pundit.authorize(fresh.context.to_h, local.reload, :show?)
+    @authorizer&.call
     key = conversation_id ? { conversation_id: local.id } : { incident_id: local.id }
     JrcServiceDesk::GlpiReferenceLink.find_or_create_by!(glpi_reference: record, **key) do |link|
       link.account_id = access.context.account.id

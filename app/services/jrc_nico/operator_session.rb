@@ -119,6 +119,7 @@ class JrcNico::OperatorSession
             next
           end
           JrcNico::ToolCatalog.new(access).validate!(command.tool, command.arguments)
+          JrcNico::Helpdesk::GlpiActions.validate_binding!(access, command)
           begin_execution!(command, 'source' => 'operator', 'user_id' => access.user.id)
           dispatch = true
         end
@@ -528,6 +529,10 @@ class JrcNico::OperatorSession
     raise ArgumentError, 'Esta ferramenta é de consulta.' unless definition[:confirmation]
 
     require_recipient_choice!(command, name, arguments)
+    if JrcNico::HelpdeskToolCatalog::GLPI_MUTATIONS.include?(name)
+      binding = JrcNico::Helpdesk::GlpiActions.prepare_binding(access, name, arguments)
+      command.update!(execution_context: command.execution_context.merge(binding))
+    end
     coordinated = JrcNico::BrokerSendCoordinator.prepare(access: access, command: command, arguments: arguments) if name == 'send_message'
     command.update!(tool: name, arguments: arguments, status: 'awaiting_confirmation',
                     reply: coordinated ? coordinated[:reply] : reply.presence || definition[:description], result: coordinated ? coordinated[:result] : {})

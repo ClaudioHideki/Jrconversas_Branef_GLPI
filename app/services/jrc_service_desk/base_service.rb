@@ -49,6 +49,7 @@ class JrcServiceDesk::BaseService
     initial = fresh_context!
     candidate = JrcServiceDesk::TicketPolicy::Scope.new(initial.to_h, JrcServiceDesk::Ticket).resolve.find(ticket_id)
     with_unit(candidate.unit_id) do |unit|
+      JrcServiceDesk::NativeSourceGuard.call(context.to_h)
       ticket = JrcServiceDesk::TicketPolicy::Scope.new(context.to_h, JrcServiceDesk::Ticket).resolve
         .where(unit_id: unit.id).lock.find(ticket_id)
       authorize!(ticket, query)

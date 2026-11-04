@@ -11,6 +11,7 @@ class JrcServiceDesk::CreateTicketService < JrcServiceDesk::BaseService
     raise ArgumentError unless %w[manual portal].include?(origin_channel)
 
     with_unit(unit_id) do |unit|
+      JrcServiceDesk::NativeSourceGuard.call(context.to_h)
       fields = creation_fields
       values = JrcServiceDesk::Input.attributes(attributes, fields)
       normalized = (FIELDS - CLASSIFICATION_FIELDS).index_with { |name| values[name] }

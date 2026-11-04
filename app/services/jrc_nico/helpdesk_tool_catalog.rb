@@ -74,7 +74,6 @@ class JrcNico::HelpdeskToolCatalog
     when 'ticket_ids' then ticket_ids?(value)
     when 'checklist' then checklist?(value)
     when 'severity' then %w[low normal high critical].include?(value)
-    when 'priority' then %w[low normal high urgent].include?(value)
     when 'due_at' then date?(value)
     end
   rescue ArgumentError

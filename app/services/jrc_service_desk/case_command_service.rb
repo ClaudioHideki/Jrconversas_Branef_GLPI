@@ -18,6 +18,7 @@ class JrcServiceDesk::CaseCommandService < JrcServiceDesk::BaseService
                                                          file.slice(:filename, :content_type, :sha256)
                                                        end)
     with_unit(unit_id) do |unit|
+      JrcServiceDesk::NativeSourceGuard.call(context.to_h)
       row = JrcServiceDesk::IncidentPolicy::Scope.new(context.to_h,
                                                       JrcServiceDesk::Incident).resolve.where(unit_id: unit.id).lock.find(JrcServiceDesk::Input.id(incident_id))
       authorize!(row, :update?)
