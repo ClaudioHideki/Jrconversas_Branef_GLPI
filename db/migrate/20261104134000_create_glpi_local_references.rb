@@ -15,7 +15,10 @@ class CreateGlpiLocalReferences < ActiveRecord::Migration[7.1]
       t.references :account, null: false, foreign_key: true
       t.references :unit, null: false, foreign_key: { to_table: :jrc_service_desk_units }
       t.references :glpi_reference, null: false, index: false, foreign_key: { to_table: :jrc_service_desk_glpi_references }
-      t.references :conversation, foreign_key: true
+      # Immutable audit identity survives native conversation/inbox deletion.
+      # Live target ownership is proved/locked by LinkLocalReference, and readers
+      # require the live authorized target before exposing any retained reference.
+      t.references :conversation
       t.references :incident, foreign_key: { to_table: :jrc_service_desk_incidents }
       t.references :account_user, null: false, foreign_key: true
       t.timestamps

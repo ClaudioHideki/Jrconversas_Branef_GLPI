@@ -3,6 +3,8 @@
 class JrcServiceDesk::GlpiReferenceLink < JrcServiceDesk::UnitRecord
   include JrcServiceDesk::AppendOnly
   belongs_to :glpi_reference, class_name: 'JrcServiceDesk::GlpiReference'
+  # conversation_id is retained historical identity when the native target is
+  # deleted; it is never an authorization grant or evidence the target is live.
   belongs_to :conversation, optional: true
   belongs_to :incident, class_name: 'JrcServiceDesk::Incident', optional: true
   belongs_to :account_user

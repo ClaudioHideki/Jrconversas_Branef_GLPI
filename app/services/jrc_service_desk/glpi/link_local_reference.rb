@@ -27,7 +27,8 @@ class JrcServiceDesk::Glpi::LinkLocalReference
     Account.transaction do
       Account.where(id: access.context.account.id).lock('FOR SHARE').take!
       fresh = ref.authorize_local!(access: access, operational: true)
-      Pundit.authorize(fresh.context.to_h, local.reload, :show?)
+      local = model.where(account_id: fresh.context.account.id).lock('FOR SHARE').find(local.id)
+      Pundit.authorize(fresh.context.to_h, local, :show?)
       @authorizer&.call
       key = conversation_id ? { conversation_id: local.id } : { incident_id: local.id }
       JrcServiceDesk::GlpiReferenceLink.create_or_find_by!(glpi_reference: record, **key) do |link|
