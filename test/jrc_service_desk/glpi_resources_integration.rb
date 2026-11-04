@@ -100,4 +100,21 @@ class GlpiResourcesTest < GlpiIntegrationTest
         client: foreign, kind: 'followups', ticket_id: 101)
     end
   end
+
+  def test_agent_actor_scope_is_paged_and_private_followups_remain_hidden
+    @member.update!(role: 'agent')
+    JrcServiceDesk::UnitMembership.create!(account: @account, unit: @unit, account_user: @member, active: true)
+    @connection.update!(user_mappings: [{ account_user_id: @member.id, glpi_user_id: 77 }])
+    client = Minitest::Mock.new
+    client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
+    actors = (1..1000).map { |id| { 'id' => id, 'users_id' => id + 100, 'type' => 1, 'tickets_id' => 101 } }
+    actors << { 'id' => 1001, 'users_id' => 77, 'type' => 1, 'tickets_id' => 101 }
+    client.expect(:collection, actors, ['Ticket/101/Ticket_User/'])
+    client.expect(:collection,
+      [{ 'id' => 1, 'items_id' => 101, 'itemtype' => 'Ticket', 'content' => 'Private', 'is_private' => 1 },
+       { 'id' => 2, 'items_id' => 101, 'itemtype' => 'Ticket', 'content' => 'Public', 'is_private' => 0 }], ['Ticket/101/ITILFollowup/'])
+    result = JrcServiceDesk::Glpi::ResourceQuery.new.related(access: JrcServiceDesk::Glpi::Access.new(@identity),
+      client: client, kind: 'followups', ticket_id: 101)
+    assert_equal [2], result.fetch(:items).map { |row| row.fetch('id') }
+  end
 end
