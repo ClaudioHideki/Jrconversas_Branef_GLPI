@@ -104,6 +104,43 @@ class GlpiHttpContractTest < GlpiIntegrationTest
     assert_nil @http.response.headers['Location']
   end
 
+  def test_configuration_change_waits_for_native_account_shared_lock
+    worker = nil
+    blocked = false
+    response_status = nil
+    Account.transaction do
+      Account.where(id: @account.id).lock('FOR SHARE').take!
+      worker = Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          http = ActionDispatch::Integration::Session.new(Rails.application)
+          http.patch("#{@base}/connection", headers: @headers,
+            params: { primary_source: true, lock_version: @connection.lock_version }, as: :json)
+          response_status = http.response.status
+        end
+      end
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
+      while worker.alive? && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        blocked = ActiveRecord::Base.connection.select_value(<<~SQL).to_i.positive?
+          SELECT count(*) FROM pg_stat_activity
+          WHERE datname = current_database() AND pid <> pg_backend_pid()
+            AND wait_event_type = 'Lock' AND query LIKE '%FOR UPDATE%'
+        SQL
+        break if blocked
+
+        sleep 0.02
+      end
+      refute @connection.reload.primary_source?, 'Configuration must not flip while a native mutation holds its account lock'
+    end
+    raise 'Configuration request did not finish after lock release' unless worker.join(10)
+
+    worker.value
+    assert blocked, 'Configuration update must acquire the exclusive Account lock used against native mutations'
+    assert_equal 200, response_status
+    assert @connection.reload.primary_source?
+  ensure
+    worker&.join(10)
+  end
+
   private
 
   def bound_headers
