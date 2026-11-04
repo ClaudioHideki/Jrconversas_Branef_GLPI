@@ -5,6 +5,7 @@ class Api::V1::Accounts::JrcServiceDesk::OperationsController < Api::V1::Account
   wrap_parameters false
   prepend_before_action :disable_response_cache
   before_action :require_operational_identity!
+  before_action :require_native_operational_source!
   around_action :consistent_reads
   after_action :disable_response_cache
   rescue_from ArgumentError, KeyError, ActionController::ParameterMissing, with: :bad_input
@@ -13,8 +14,21 @@ class Api::V1::Accounts::JrcServiceDesk::OperationsController < Api::V1::Account
   rescue_from ::JrcServiceDesk::DeletionBlockedError, with: :deletion_blocked
   rescue_from ::JrcServiceDesk::LinkedContextConflict, with: :linked_context_conflict
   rescue_from ::JrcServiceDesk::RequestValidationError, with: :request_validation_failed
+  rescue_from ::JrcServiceDesk::Glpi::Error do |error|
+    render json: base_payload.merge(code: error.code), status: error.http_status
+  end
 
   private
+
+  def require_native_operational_source!
+    # Local structure/configuration and explicit historical GETs remain available.
+    operational = %w[tickets lifecycle communication case_workspaces incident_batches closure_revisions sla_snapshots]
+    return if request.get? || request.head? || !operational.include?(controller_name)
+    return unless ::JrcServiceDesk::NativeSourceGuard.selected_glpi?(Current.account)
+
+    skip_authorization
+    render json: base_payload.merge(code: 'glpi_source_required'), status: :conflict
+  end
 
   def require_operational_identity!
     context = ::JrcServiceDesk::OperationalContext.new(pundit_user)

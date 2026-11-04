@@ -25,6 +25,7 @@ class JrcServiceDesk::ClockMonitoringJob < ApplicationJob
   end
 
   def monitor(clock)
+    return if JrcServiceDesk::NativeSourceGuard.selected_glpi?(clock.account)
     binding = JrcServiceDesk::ClockMonitoringBinding.new(clock)
     return unless binding.automatic?
 

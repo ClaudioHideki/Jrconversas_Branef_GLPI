@@ -17,7 +17,7 @@ class JrcNico::Helpdesk::ReportAccess
   private
 
   def authorize_tickets!(report)
-    reporting = JrcNico::Helpdesk::ReportingScope.new(@context, report.policy_version, report.payload.fetch('filters', {}))
+    reporting = JrcNico::Helpdesk::ReportingScope.new(@context, report.policy_version, report.payload.fetch('filters', {}), historical: true)
     ids = report.payload.fetch('ticket_ids')
     raise Pundit::NotAuthorizedError unless reporting.tickets.where(id: ids).pluck(:id).sort == ids.sort
   end

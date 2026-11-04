@@ -2,6 +2,7 @@ class JrcNico::Helpdesk::Capture
   TRIGGERS = %w[created closed reopened customer_return monitor].freeze
 
   def self.call(ticket:, trigger:, origin_key:, member:)
+    return [] if JrcServiceDesk::NativeSourceGuard.selected_glpi?(ticket.account)
     return [] unless JrcNico::Helpdesk::PolicyVersion.exists?(account_id: ticket.account_id, state: 'published', enabled: true)
 
     new(member).call(ticket: ticket, trigger: trigger, origin_key: origin_key)

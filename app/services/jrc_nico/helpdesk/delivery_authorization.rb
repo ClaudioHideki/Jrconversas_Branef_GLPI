@@ -16,6 +16,7 @@ class JrcNico::Helpdesk::DeliveryAuthorization
 
   def call
     raise Pundit::NotAuthorizedError unless @recipient.account_id == @source.account_id
+    raise Pundit::NotAuthorizedError if JrcServiceDesk::NativeSourceGuard.selected_glpi?(@source.account)
 
     @context = JrcNico::Helpdesk::Context.new(@recipient)
     if @source.is_a?(JrcNico::Helpdesk::Event)

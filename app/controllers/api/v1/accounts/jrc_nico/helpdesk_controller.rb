@@ -5,10 +5,13 @@ class Api::V1::Accounts::JrcNico::HelpdeskController < Api::V1::Accounts::BaseCo
   rescue_from JrcNico::OperatorSession::Busy, with: :busy
   rescue_from JrcBroker::Client::Error, with: :unavailable
   rescue_from JrcServiceDesk::LifecycleDependencyError, with: :unavailable
+  rescue_from JrcServiceDesk::Glpi::Error do |error|
+    render json: { code: error.code }, status: error.http_status
+  end
 
   def show
     policies = JrcNico::Helpdesk::PolicyVersion.where(account: @context.account).order(number: :desc).limit(20)
-    render json: { account_id: @context.account.id, catalog: JrcNico::Helpdesk::Catalog.call, policies: policies.map do |policy|
+    render json: { account_id: @context.account.id, catalog: JrcNico::Helpdesk::Catalog.call(account: @context.account), policies: policies.map do |policy|
       policy_snapshot(policy)
     end,
                    defaults: @context.native.administrator? ? JrcNico::Helpdesk::Definition.defaults : nil,
@@ -19,7 +22,7 @@ class Api::V1::Accounts::JrcNico::HelpdeskController < Api::V1::Accounts::BaseCo
   end
 
   def catalog
-    render json: { catalog: JrcNico::Helpdesk::Catalog.call }
+    render json: { catalog: JrcNico::Helpdesk::Catalog.call(account: @context.account) }
   end
 
   def create_policy

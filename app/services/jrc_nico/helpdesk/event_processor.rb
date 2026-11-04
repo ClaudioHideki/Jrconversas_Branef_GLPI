@@ -4,6 +4,10 @@ class JrcNico::Helpdesk::EventProcessor
   end
 
   def call
+    if JrcServiceDesk::NativeSourceGuard.selected_glpi?(@event.account)
+      @event.update!(state: 'blocked', reason: 'glpi_source_required') if @event.state == 'detected'
+      return @event
+    end
     @event.with_lock do
       next @event unless @event.state == 'detected'
 

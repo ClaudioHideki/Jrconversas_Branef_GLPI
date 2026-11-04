@@ -170,6 +170,24 @@ class GlpiHttpContractTest < GlpiIntegrationTest
     assert_equal 'https://corrected-glpi.example.invalid/apirest.php', @connection.reload.base_url
   end
 
+  def test_invalid_endpoint_is_a_validation_error_even_with_history
+    JrcServiceDesk::GlpiReference.create!(account: @account, glpi_connection: @connection, unit: @unit,
+      itemtype: 'Ticket', remote_id: 101, entity_id: 0)
+    @connection.base_url = '%%%invalid-uri'
+    refute @connection.valid?
+    assert @connection.errors.any?
+  end
+
+  def test_reference_only_history_also_locks_its_source_namespace
+    JrcServiceDesk::GlpiReference.create!(account: @account, glpi_connection: @connection, unit: @unit,
+      itemtype: 'Ticket', remote_id: 101, entity_id: 0)
+    @http.patch("#{@base}/connection", headers: @headers,
+      params: { base_url: 'https://other-glpi.example.invalid/apirest.php', lock_version: @connection.lock_version }, as: :json)
+    assert_equal 409, @http.response.status
+    assert_equal 'connection_namespace_locked', JSON.parse(@http.response.body)['source_code']
+    assert_equal 'https://glpi.example.invalid/apirest.php', @connection.reload.base_url
+  end
+
   private
 
   def bound_headers

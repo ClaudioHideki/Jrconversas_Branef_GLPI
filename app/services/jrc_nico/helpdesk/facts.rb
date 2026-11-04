@@ -8,6 +8,7 @@ class JrcNico::Helpdesk::Facts
   end
 
   def call
+    JrcServiceDesk::NativeSourceGuard.call(@context.native.to_h)
     profile = JrcNico::Helpdesk::TicketProfile.find_by(account: @context.account, ticket: @ticket)
     phase = @ticket.status.phase
     data = { 'ticket_id' => @ticket.id, 'company_id' => @ticket.company_id, 'unit_id' => @ticket.unit_id,

@@ -14,12 +14,16 @@ class JrcNico::Helpdesk::Catalog
   }.freeze
   AVAILABLE = %w[broker.health broker.pair service_desk.ticket service_desk.lifecycle projects.task knowledge.approved_search].freeze
 
-  def self.call
+  def self.call(account: nil)
     GROUPS.map do |key, (name, phase, required, handoff)|
       missing = required - AVAILABLE
-      { key: key, name: name, phase: phase, required: required, capabilities: required.map { |capability| capability_status(capability) },
+      row = { key: key, name: name, phase: phase, required: required, capabilities: required.map { |capability| capability_status(capability) },
         status: missing.empty? ? 'available_with_native_authorization' : 'blocked_dependency', missing: missing,
         human_handoff: handoff, automatic_execution: false, identity_verification: 'required_for_customer_mutation' }
+      if account && JrcServiceDesk::NativeSourceGuard.selected_glpi?(account) && required.any? { |capability| capability.start_with?('service_desk.') }
+        row.merge!(data_source: 'glpi', status: 'glpi_typed_command_required', automatic_execution: false)
+      end
+      row
     end
   end
 

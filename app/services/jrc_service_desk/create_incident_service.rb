@@ -2,11 +2,13 @@
 
 class JrcServiceDesk::CreateIncidentService < JrcServiceDesk::BaseService
   def call(unit_id:, attributes:, idempotency_key:)
+    JrcServiceDesk::NativeSourceGuard.call(@native_context)
     values = JrcServiceDesk::CaseInput.call(attributes, creating: true)
     ids = ticket_ids(values)
     key = JrcServiceDesk::Input.request_key(idempotency_key)
     fingerprint = JrcServiceDesk::CanonicalJson.digest(JrcServiceDesk::RecordedChanges.call(values.merge('ticket_ids' => ids)))
     with_unit(unit_id) do |unit|
+      JrcServiceDesk::NativeSourceGuard.call(context.to_h)
       raise Pundit::NotAuthorizedError unless context.capability?(:incidents_manage)
 
       tickets = authorized_tickets(unit, ids)

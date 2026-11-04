@@ -81,6 +81,14 @@ class JrcNico::ToolCatalog
       next if group == 'campaigns' && !@access.campaigns?
       next if group == 'contacts' && !@access.policy(Contact).public_send(name == 'create_contact' ? :create? : :index?)
       next if group == 'service_desk_helpdesk' && !JrcNico::HelpdeskToolCatalog.available?(@access, name)
+      if group == 'service_desk' && name != 'service_desk_context' && JrcServiceDesk::NativeSourceGuard.selected_glpi?(@access.account)
+        next
+      end
+      if JrcServiceDesk::NativeSourceGuard.selected_glpi?(@access.account)
+        next if (fields & %w[ticket_id* ticket_ids*]).any?
+
+        fields = fields - %w[ticket_id ticket_ids]
+      end
 
       if %w[service_desk projects projects_create relationship].include?(group)
         domain_access ||= JrcNico::DomainAccess.new(@access)
@@ -159,7 +167,7 @@ class JrcNico::ToolCatalog
 
   def extension_validity(name, key, value)
     if JrcNico::HelpdeskToolCatalog::TOOLS.key?(name)
-      valid = JrcNico::HelpdeskToolCatalog.valid_value?(key, value)
+      valid = JrcNico::HelpdeskToolCatalog.valid_value?(key, value, tool: name)
       return valid unless valid.nil?
     end
     return unless JrcNico::DomainToolCatalog::TOOLS.key?(name) || JrcNico::ModuleActions::PROJECT_TASK_TOOLS.include?(name)

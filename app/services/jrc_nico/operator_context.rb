@@ -19,7 +19,10 @@ class JrcNico::OperatorContext
   def self.access_digest(access)
     fields = ['resource_provenance_v2', access.membership.attributes.slice('role', 'crm_enabled', 'custom_role_id'),
               access.membership.try(:custom_role)&.attributes, access.crm?, access.campaigns?,
-              access.user.inboxes.pluck(:id).sort, access.user.teams.pluck(:id).sort]
+              access.user.inboxes.pluck(:id).sort, access.user.teams.pluck(:id).sort,
+              JrcServiceDesk::GlpiConnection.where(account_id: access.account.id).pluck(:id, :lock_version, :primary_source, :enabled),
+              JrcServiceDesk::UnitMembership.where(account_id: access.account.id, account_user_id: access.membership.id)
+                .order(:unit_id).pluck(:unit_id, :active)]
     Digest::SHA256.hexdigest(fields.to_json)
   end
 
