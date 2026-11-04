@@ -18,43 +18,74 @@ import Layout from '../ServiceDeskLayout.vue';
 beforeEach(() => {
   holder.session = {
     state: reactive({ status: 'ready', context: contextPayload() }),
-    accountId: ref('1'), userId: ref('7'), enabled: ref(true),
+    accountId: ref('1'),
+    userId: ref('7'),
+    enabled: ref(true),
     operations: { state: {} },
   };
 });
 
 const render = async (screen, dataSource) => {
   holder.session.state.context.data_source = dataSource;
-  const router = createRouter({ history: createMemoryHistory(), routes: SERVICE_DESK_ROUTES.map(row => ({
-    path: '/' + row.key, name: serviceDeskRouteName(row.key), component: { template: '<div>Native ticket editor</div>' },
-    meta: { serviceDeskScreen: row.key },
-  })) });
-  await router.push('/' + screen);
-  const wrapper = mount(Layout, { global: {
-    plugins: [router, createI18n({ legacy: false, locale: 'en', messages: { en: { ...messages, ...serviceMessages } } })],
-    stubs: {
-      GlpiServiceDesk: { props: ['screen'], template: '<div data-testid="glpi-source">{{ screen }}</div>' },
-      Breadcrumb: true, ScreenGuidance: true, WriteFeedback: true, Icon: true,
-      Button: { props: ['label'], template: '<button>{{ label }}</button>' },
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: SERVICE_DESK_ROUTES.map(row => ({
+      path: '/app/accounts/:accountId/' + row.key,
+      name: serviceDeskRouteName(row.key),
+      component: { template: '<div>Native ticket editor</div>' },
+      meta: { serviceDeskScreen: row.key },
+    })),
+  });
+  await router.push({
+    name: serviceDeskRouteName(screen),
+    params: { accountId: '1' },
+  });
+  const wrapper = mount(Layout, {
+    global: {
+      plugins: [
+        router,
+        createI18n({
+          legacy: false,
+          locale: 'en',
+          messages: { en: { ...messages, ...serviceMessages } },
+        }),
+      ],
+      stubs: {
+        GlpiServiceDesk: {
+          props: ['screen'],
+          template: '<div data-testid="glpi-source">{{ screen }}</div>',
+        },
+        Breadcrumb: true,
+        ScreenGuidance: true,
+        WriteFeedback: true,
+        Icon: true,
+        Button: { props: ['label'], template: '<button>{{ label }}</button>' },
+      },
     },
-  } });
+  });
   await flushPromises();
   return wrapper;
 };
 
 describe('Service Desk primary source', () => {
-  it.each([undefined, 'native'])('keeps native operational routes for %s', async source => {
-    const wrapper = await render('tickets', source);
-    expect(wrapper.text()).toContain('Native ticket editor');
-    expect(wrapper.find('[data-testid="glpi-source"]').exists()).toBe(false);
-    wrapper.unmount();
-  });
-  it.each(['overview', 'tickets', 'mine', 'sla', 'detail', 'edit'])('mounts GLPI instead of a native controller on %s', async screen => {
-    const wrapper = await render(screen, 'glpi');
-    expect(wrapper.find('[data-testid="glpi-source"]').exists()).toBe(true);
-    expect(wrapper.text()).not.toContain('Native ticket editor');
-    wrapper.unmount();
-  });
+  it.each([undefined, 'native'])(
+    'keeps native operational routes for %s',
+    async source => {
+      const wrapper = await render('tickets', source);
+      expect(wrapper.text()).toContain('Native ticket editor');
+      expect(wrapper.find('[data-testid="glpi-source"]').exists()).toBe(false);
+      wrapper.unmount();
+    }
+  );
+  it.each(['overview', 'tickets', 'mine', 'sla', 'detail', 'edit'])(
+    'mounts GLPI instead of a native controller on %s',
+    async screen => {
+      const wrapper = await render(screen, 'glpi');
+      expect(wrapper.find('[data-testid="glpi-source"]').exists()).toBe(true);
+      expect(wrapper.text()).not.toContain('Native ticket editor');
+      wrapper.unmount();
+    }
+  );
   it('keeps JRC configuration clearly identified', async () => {
     holder.session.state.context.capabilities.settings = { index: true };
     const wrapper = await render('settings', 'glpi');
@@ -63,4 +94,3 @@ describe('Service Desk primary source', () => {
     wrapper.unmount();
   });
 });
-
