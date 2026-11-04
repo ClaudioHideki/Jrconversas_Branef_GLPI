@@ -5,6 +5,7 @@ class JrcServiceDesk::CaseCommandService < JrcServiceDesk::BaseService
                unlink_resource create_project_task create_article request_approval external_reference rescan_attachment].freeze
 
   def call(unit_id:, incident_id:, action:, attributes:, expected_lock_version:, idempotency_key:, files: [])
+    JrcServiceDesk::NativeSourceGuard.call(@native_context)
     raise ArgumentError, 'Unknown command' unless ACTIONS.include?(action)
 
     key = JrcServiceDesk::Input.request_key(idempotency_key)
@@ -17,6 +18,7 @@ class JrcServiceDesk::CaseCommandService < JrcServiceDesk::BaseService
                                                          file.slice(:filename, :content_type, :sha256)
                                                        end)
     with_unit(unit_id) do |unit|
+      JrcServiceDesk::NativeSourceGuard.call(context.to_h)
       row = JrcServiceDesk::IncidentPolicy::Scope.new(context.to_h,
                                                       JrcServiceDesk::Incident).resolve.where(unit_id: unit.id).lock.find(JrcServiceDesk::Input.id(incident_id))
       authorize!(row, :update?)

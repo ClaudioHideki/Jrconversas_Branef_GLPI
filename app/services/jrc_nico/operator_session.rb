@@ -64,6 +64,9 @@ class JrcNico::OperatorSession
   end
 
   def execute_authorized(command, delegation: nil)
+    if JrcNico::HelpdeskToolCatalog::GLPI_MUTATIONS.include?(command.tool)
+      return execute_glpi_authorized(command, delegation: delegation)
+    end
     access.authorize!
     JrcNico::CustomerRequestScope.validate!(access, command.source_notice, command.arguments) if command.source_notice
     access.account.with_lock do
@@ -100,6 +103,42 @@ class JrcNico::OperatorSession
   rescue StandardError => e
     fail_command(command.reload, e)
     raise
+  end
+
+  def execute_glpi_authorized(command, delegation: nil)
+    access.authorize!
+    raise Pundit::NotAuthorizedError if delegation || command.source_notice_id || command.session_id != session.id
+
+    dispatch = false
+    access.account.with_lock do
+      session.with_lock do
+        command.with_lock do
+          next unless command.status == 'awaiting_confirmation'
+          if command.created_at < 15.minutes.ago
+            command.update!(status: 'cancelled', reply: 'A prévia expirou. Prepare novamente a operação GLPI.')
+            next
+          end
+          JrcNico::ToolCatalog.new(access).validate!(command.tool, command.arguments)
+          JrcNico::Helpdesk::GlpiActions.validate_binding!(access, command)
+          begin_execution!(command, 'source' => 'operator', 'user_id' => access.user.id)
+          dispatch = true
+        end
+      end
+    end
+    return command unless dispatch
+
+    # Commit human approval before Execute persists its own intent and contacts GLPI.
+    result = JrcNico::ToolExecutor.new(access, command: command).call(command.tool, command.arguments)
+    state = result.dig(:command, :state)
+    status = state.nil? || state == 'succeeded' ? 'succeeded' : state == 'rejected' ? 'failed' : 'unknown'
+    session.with_lock do
+      command.with_lock do
+        remember_result(command.tool, result, command: command)
+        command.update!(status: status, result: result.as_json, reply: result[:message])
+        session.append('assistant', command.reply)
+      end
+    end
+    command
   end
 
   def cancel(command)
@@ -197,7 +236,7 @@ class JrcNico::OperatorSession
       allowed = Array(session.context['conversation_ids']).all? do |id|
         access.conversation(id)
         true
-      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound
+      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound, JrcServiceDesk::Glpi::Error
         false
       end
       allowed &&= Array(session.context['resources']).all? do |type, id|
@@ -219,7 +258,7 @@ class JrcNico::OperatorSession
           JrcNico::DomainAccess.authorize_resource!(access, type, id) if JrcNico::DomainAccess::RESOURCE_TYPES.include?(type)
         end
         true
-      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound
+      rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound, JrcServiceDesk::Glpi::Error
         false
       end
       notices = JrcNico::Notice.where(id: session.commands.where('created_at >= ?', session.context['visible_since'])
@@ -490,6 +529,10 @@ class JrcNico::OperatorSession
     raise ArgumentError, 'Esta ferramenta é de consulta.' unless definition[:confirmation]
 
     require_recipient_choice!(command, name, arguments)
+    if JrcNico::HelpdeskToolCatalog::GLPI_MUTATIONS.include?(name)
+      binding = JrcNico::Helpdesk::GlpiActions.prepare_binding(access, name, arguments)
+      command.update!(execution_context: command.execution_context.merge(binding))
+    end
     coordinated = JrcNico::BrokerSendCoordinator.prepare(access: access, command: command, arguments: arguments) if name == 'send_message'
     command.update!(tool: name, arguments: arguments, status: 'awaiting_confirmation',
                     reply: coordinated ? coordinated[:reply] : reply.presence || definition[:description], result: coordinated ? coordinated[:result] : {})

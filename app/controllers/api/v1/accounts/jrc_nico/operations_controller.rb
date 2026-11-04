@@ -6,6 +6,7 @@ class Api::V1::Accounts::JrcNico::OperationsController < Api::V1::Accounts::Base
   rescue_from JrcNico::OperatorSession::Busy, JrcNico::RunCapacity::Exceeded, with: :busy
   rescue_from JrcNico::RuntimeClient::Error, with: :unavailable
   rescue_from JrcBroker::Client::Error, with: :broker_unavailable
+  rescue_from JrcServiceDesk::Glpi::Error, with: :glpi_unavailable
 
   def show
     @operator.session.reload
@@ -116,6 +117,8 @@ class Api::V1::Accounts::JrcNico::OperationsController < Api::V1::Accounts::Base
     unavailable(error)
   rescue JrcBroker::Client::Error
     broker_unavailable
+  rescue JrcServiceDesk::Glpi::Error => error
+    glpi_unavailable(error)
   end
 
   def operator_session
@@ -149,5 +152,9 @@ class Api::V1::Accounts::JrcNico::OperationsController < Api::V1::Accounts::Base
   def broker_unavailable
     render json: { error: 'broker_unavailable', message: 'Não foi possível consultar o Broker. Tente novamente para preparar a prévia.' },
            status: :service_unavailable
+  end
+
+  def glpi_unavailable(error)
+    render json: { error: error.code, data_source: 'glpi' }, status: error.http_status
   end
 end

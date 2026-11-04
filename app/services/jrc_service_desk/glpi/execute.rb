@@ -9,8 +9,9 @@ class JrcServiceDesk::Glpi::Execute
     'knowbaseitems_id' => 'KnowbaseItem', 'documents_id' => 'Document', 'itilcategories_id' => 'ITILCategory',
     'taskcategories_id' => 'TaskCategory', 'solutiontypes_id' => 'SolutionType', 'tickettemplates_id' => 'TicketTemplate' }.freeze
 
-  def initialize(client_factory: ->(connection) { JrcServiceDesk::Glpi::Client.new(connection) })
+  def initialize(client_factory: ->(connection) { JrcServiceDesk::Glpi::Client.new(connection) }, access_authorizer: nil)
     @client_factory = client_factory
+    @access_authorizer = access_authorizer
   end
 
   def call(access:, operation:, target_id:, entity_id:, attributes:, idempotency_key:, expected_version: nil, reason: nil,
@@ -66,6 +67,7 @@ class JrcServiceDesk::Glpi::Execute
     unless fresh.connection.id == access.connection.id && fresh.connection.lock_version == version
       raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409)
     end
+    @access_authorizer&.call(fresh)
     fresh
   end
 
@@ -226,6 +228,11 @@ class JrcServiceDesk::Glpi::Execute
       identity = client.get('getFullSession/').fetch('session')
       technical_id = JrcServiceDesk::Input.id(identity.fetch('glpiID'))
       command.update!(technical_user_id: technical_id)
+      if descriptor[:type] == 'Ticket' && descriptor[:verb] == 'post'
+        entities = client.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities')
+        permitted = entities.any? { |row| JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('id')) == command.entity_id }
+        raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) unless permitted
+      end
       before, parent = authorize_objects!(access, client, command, descriptor)
       authorize_source!(profile, command, descriptor, before, parent, technical_id)
       payload = command.request_payload.deep_dup
