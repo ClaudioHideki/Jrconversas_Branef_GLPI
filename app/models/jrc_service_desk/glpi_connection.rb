@@ -21,7 +21,7 @@ class JrcServiceDesk::GlpiConnection < JrcServiceDesk::AccountRecord
   private
 
   def namespace_is_immutable_after_use
-    return unless persisted? && will_save_change_to_base_url? && errors[:base_url].empty?
+    return unless persisted? && will_save_change_to_base_url? && errors.empty?
 
     namespaces = [base_url_in_database, base_url].map do |value|
       uri = URI.parse(value)
