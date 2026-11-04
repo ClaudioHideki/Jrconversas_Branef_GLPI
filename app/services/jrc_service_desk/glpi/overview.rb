@@ -78,7 +78,12 @@ class JrcServiceDesk::Glpi::Overview
       scope = scope.where("payload->>? = ?", key, filters[key].to_s) if filters[key].present?
     end
     if filters['search'].present?
-      scope = scope.where("payload->>'title' ILIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(filters['search'])}%")
+      term = "%#{ActiveRecord::Base.sanitize_sql_like(filters['search'])}%"
+      scope = if query.search_ticket_id
+                scope.where("(payload->>'title' ILIKE :term OR remote_id = :remote_id)", term: term, remote_id: query.search_ticket_id)
+              else
+                scope.where("payload->>'title' ILIKE ?", term)
+              end
     end
     scope = scope.where("LEFT(payload->>'opened_at', 10) >= ?", filters['from']) if filters['from'].present?
     scope = scope.where("LEFT(payload->>'opened_at', 10) <= ?", filters['to']) if filters['to'].present?

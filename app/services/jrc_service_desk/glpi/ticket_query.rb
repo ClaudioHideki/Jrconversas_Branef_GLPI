@@ -37,7 +37,12 @@ class JrcServiceDesk::Glpi::TicketQuery
     if filters['search'].present?
       raise ArgumentError unless filters['search'].is_a?(String) && filters['search'].length <= 200
 
-      criteria << condition(1, 'contains', filters['search'])
+      title = condition(1, 'contains', filters['search'])
+      criteria << if search_ticket_id
+                    { 'link' => 'AND', 'criteria' => [title, condition(2, 'equals', search_ticket_id, 'OR')] }
+                  else
+                    title
+                  end
     end
     %w[from to].each do |key|
       next if filters[key].blank?
@@ -120,6 +125,15 @@ class JrcServiceDesk::Glpi::TicketQuery
     return true if value == true || value == 'true'
 
     raise ArgumentError
+  end
+
+  def search_ticket_id
+    value = filters['search']
+    return nil unless value.is_a?(String) && value.match?(/\A[1-9][0-9]{0,18}\z/)
+
+    JrcServiceDesk::Input.id(value)
+  rescue ArgumentError
+    nil
   end
 
   private

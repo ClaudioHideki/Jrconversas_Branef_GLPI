@@ -6,7 +6,7 @@ require 'csv'
 class GlpiExportsTest < GlpiIntegrationTest
   # Only HTTP is synthetic: permissions, memberships, receipts, jobs and storage are real.
   class Source
-    attr_accessor :count, :denied, :denied_code, :duplicate, :change_total, :on_detail
+    attr_accessor :count, :denied, :denied_code, :duplicate, :change_total, :on_detail, :visible_ids, :titles
     attr_reader :ranges
 
     def initialize(count = 3)
@@ -25,11 +25,14 @@ class GlpiExportsTest < GlpiIntegrationTest
       if path == 'search/Ticket/'
         first, last = parameters.fetch('range').split('-').map(&:to_i)
         @ranges << [first, last]
-        rows = (first...[last + 1, count].min).map do |index|
-          { '2' => duplicate && index == 2 ? 1 : index + 1, '1' => index.zero? ? '=SUM(A1)' : "Ticket #{index + 1}",
+        total = visible_ids ? visible_ids.size : count
+        rows = (first...[last + 1, total].min).map do |position|
+          index = visible_ids ? visible_ids[position] - 1 : position
+          title = titles&.fetch(index + 1, nil) || (index.zero? ? '=SUM(A1)' : "Ticket #{index + 1}")
+          { '2' => duplicate && index == 2 ? 1 : index + 1, '1' => title,
             '80' => nil, '12' => 1, '3' => 3, '15' => '2026-01-01 10:00:00', '19' => '2026-01-02 10:00:00' }
         end
-        return { 'data' => rows, 'totalcount' => change_total && first.positive? ? count + 1 : count }
+        return { 'data' => rows, 'totalcount' => change_total && first.positive? ? total + 1 : total }
       end
       id = path.delete_prefix('Ticket/').to_i
       on_detail&.call(id)
@@ -392,5 +395,36 @@ class GlpiExportsTest < GlpiIntegrationTest
       refute_includes coverage.to_json, 'OTHER_ACTOR_PRIVATE'
       refute_includes coverage.to_json, '9999'
     end
+  end
+
+  def test_number_or_title_search_has_identical_list_report_export_and_mine_scope
+    @connection.update!(user_mappings: [{ account_user_id: @member.id, glpi_user_id: 55 }])
+    seed_projection(3)
+    JrcServiceDesk::GlpiTicketSnapshot.where(glpi_connection: @connection).each do |row|
+      actor = row.remote_id == 1 ? 55 : 66
+      title = row.remote_id == 3 ? 'Reference 1' : row.payload.fetch('title')
+      row.update!(payload: row.payload.merge('title' => title, 'actor_scope_available' => true,
+        'actor_user_ids' => [actor], 'assigned_user_ids' => [actor]))
+    end
+    filters = { 'search' => '1' }
+    overview = JrcServiceDesk::Glpi::Overview.new
+    assert_equal [1, 3], overview.list(access: access, filters: filters).fetch(:items).map { |row| row.fetch('id') }
+    assert_equal 2, overview.call(access: access, filters: filters).fetch(:total)
+    source = Source.new(3)
+    source.visible_ids = [1, 3] # Synthetic source result for ID=1 OR title containing 1.
+    source.titles = { 3 => 'Reference 1' }
+    record = service.prepare(access: access, filters: filters)
+    assert_equal 2, record.total
+    service.generate(id: record.id, client: source)
+    assert_equal 'ready', record.reload.state
+    assert_equal %w[1 3], CSV.parse(record.artifact.download).drop(1).map(&:first)
+    mine = filters.merge('mine' => 'true')
+    assert_equal [1], overview.list(access: access, filters: mine).fetch(:items).map { |row| row.fetch('id') }
+    assert_equal 1, overview.call(access: access, filters: mine).fetch(:total)
+    record = service.prepare(access: access, filters: mine)
+    source.visible_ids = [1]
+    service.generate(id: record.id, client: source)
+    assert_equal 'ready', record.reload.state
+    assert_equal ['1'], CSV.parse(record.artifact.download).drop(1).map(&:first)
   end
 end
