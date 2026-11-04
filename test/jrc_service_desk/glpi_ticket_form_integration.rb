@@ -16,7 +16,7 @@ class GlpiTicketFormSource < GlpiCommandSource
     rows['Entity/0'] = { 'id' => 0, 'entities_id' => nil, 'tickettype' => 1,
       'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 }
     [10, 11, 20, 21].each do |id|
-      rows["TicketTemplate/#{id}"] = { 'id' => id, 'name' => "Synthetic #{id}", 'entities_id' => 0, 'is_recursive' => 0, 'date_mod' => 'v1' }
+      rows["TicketTemplate/#{id}"] = { 'id' => id, 'name' => "Synthetic #{id}", 'entities_id' => 0, 'is_recursive' => 0 }
     end
     rows['ITILCategory/7'] = { 'id' => 7, 'entities_id' => 0, 'is_recursive' => 0, 'is_incident' => 1, 'is_request' => 1,
       'tickettemplates_id_incident' => 20, 'tickettemplates_id_demand' => 21 }
@@ -188,12 +188,12 @@ class GlpiTicketFormTest < GlpiIntegrationTest
 
   def test_changed_policy_before_send_and_stale_client_version_never_write
     version = form[:version]
-    @remote.rows['TicketTemplate/10']['date_mod'] = 'v2'
+    @remote.rules[10]['Predefined'] = [{ 'id' => 1, 'tickettemplates_id' => 10, 'num' => 10, 'value' => '5' }]
     assert_equal 'template_changed', create({}, template_version: version)[:error_code]
     policy_reads = 0
     @remote.on_template_read = lambda do |_count|
       policy_reads += 1
-      @remote.rows['TicketTemplate/10']['date_mod'] = 'v3' if policy_reads == 2
+      @remote.rules[10]['Predefined'].first['value'] = '4' if policy_reads == 2
     end
     assert_equal 'template_changed', create[:error_code]
     assert_empty @remote.writes
@@ -221,7 +221,8 @@ class GlpiTicketFormTest < GlpiIntegrationTest
   end
 
   def test_inherited_catalogue_and_creation_use_the_same_contextual_metadata_proof
-    @remote.rows['Entity/8'] = { 'id' => 8, 'entities_id' => 0, 'tickettemplates_strategy' => -2, 'tickettemplates_id' => 0 }
+    @remote.rows['Entity/8'] = { 'id' => 8, 'entities_id' => 0, 'tickettype' => -2,
+      'tickettemplates_strategy' => -2, 'tickettemplates_id' => 0 }
     @remote.rows['TicketTemplate/10']['is_recursive'] = 1
     @remote.rules[10]['Predefined'] = [{ 'id' => 1, 'tickettemplates_id' => 10, 'num' => 4, 'value' => '77' }]
     @remote.user_profiles[77].first['is_recursive'] = 1
