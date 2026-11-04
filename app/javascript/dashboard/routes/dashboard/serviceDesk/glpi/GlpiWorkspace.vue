@@ -102,7 +102,10 @@ const exportCsv = async () => {
 </script>
 
 <template>
-  <section class="grid gap-4" data-testid="glpi-workspace">
+  <section
+    class="grid gap-4"
+    data-testid="glpi-workspace"
+  >
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-xl font-semibold">
@@ -119,7 +122,8 @@ const exportCsv = async () => {
           variant="outline"
           :disabled="busy"
           @click="init"
-        /><Button
+        />
+        <Button
           v-if="context?.can_manage"
           type="button"
           :label="t('JRC_GLPI.configure')"
@@ -137,7 +141,11 @@ const exportCsv = async () => {
       {{ t('JRC_GLPI.error') }}
       {{ t('JRC_GLPI.source_code', { code: state.error.code }) }}
     </div>
-    <p v-if="state.loading.context" class="p-4" role="status">
+    <p
+      v-if="state.loading.context"
+      class="p-4"
+      role="status"
+    >
       {{ t('JRC_GLPI.loading') }}
     </p>
     <Panel
@@ -162,7 +170,10 @@ const exportCsv = async () => {
       />
     </Panel>
     <template v-if="context?.available">
-      <nav class="flex flex-wrap gap-2" :aria-label="t('JRC_GLPI.heading')">
+      <nav
+        class="flex flex-wrap gap-2"
+        :aria-label="t('JRC_GLPI.heading')"
+      >
         <Button
           v-for="tab in [
             'tickets',
@@ -212,7 +223,10 @@ const exportCsv = async () => {
             <h4 class="mb-2 font-semibold">
               {{ t(`JRC_GLPI.history.${kind}`) }}
             </h4>
-            <p v-if="!history.available" class="text-sm">
+            <p
+              v-if="!history.available"
+              class="text-sm"
+            >
               {{ t('JRC_GLPI.history_denied') }}
             </p>
             <p
@@ -243,9 +257,9 @@ const exportCsv = async () => {
               load();
             "
           >
-            <label class="grid gap-1 text-xs"
-              >{{ t('JRC_GLPI.entity')
-              }}<select
+            <label class="grid gap-1 text-xs">
+              {{ t('JRC_GLPI.entity') }}
+              <select
                 v-model="filters.entity_id"
                 class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
               >
@@ -257,50 +271,59 @@ const exportCsv = async () => {
                 >
                   {{ entity.name }}
                 </option>
-              </select></label
-            >
+              </select>
+            </label>
             <label
               v-for="field in ['status', 'priority']"
               :key="field"
               class="grid gap-1 text-xs"
-              >{{ t(`JRC_GLPI.${field}`)
-              }}<select
+            >
+              {{ t(`JRC_GLPI.${field}`) }}
+              <select
                 v-model="filters[field]"
                 class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
               >
                 <option value="">{{ t('JRC_SERVICE_DESK.COMMON.all') }}</option>
-                <option v-for="value in 6" :key="value" :value="value">
+                <option
+                  v-for="value in 6"
+                  :key="value"
+                  :value="value"
+                >
                   {{
                     t(
                       `JRC_GLPI.${field === 'status' ? 'statuses' : 'priorities'}.${value}`
                     )
                   }}
                 </option>
-              </select></label
-            >
-            <label class="grid gap-1 text-xs"
-              >{{ t('JRC_SERVICE_DESK.COMMON.search')
-              }}<input
+              </select>
+            </label>
+            <label class="grid gap-1 text-xs">
+              {{ t('JRC_SERVICE_DESK.COMMON.search') }}
+              <input
                 v-model="filters.search"
                 maxlength="200"
                 class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-            /></label>
+              />
+            </label>
             <label
               v-for="field in ['from', 'to']"
               :key="field"
               class="grid gap-1 text-xs"
-              >{{ t(`JRC_GLPI.${field}`)
-              }}<input
+            >
+              {{ t(`JRC_GLPI.${field}`) }}
+              <input
                 v-model="filters[field]"
                 type="date"
                 class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-            /></label>
+              />
+            </label>
             <div class="flex items-end gap-2">
               <Button
                 type="submit"
                 :label="t('JRC_SERVICE_DESK.COMMON.apply')"
                 :disabled="busy"
-              /><Button
+              />
+              <Button
                 v-if="context.can_export"
                 type="button"
                 :label="t('JRC_SERVICE_DESK.COMMON.export')"
@@ -311,7 +334,11 @@ const exportCsv = async () => {
             </div>
           </form>
         </Panel>
-        <p v-if="busy" class="text-sm" role="status">
+        <p
+          v-if="busy"
+          class="text-sm"
+          role="status"
+        >
           {{ t('JRC_GLPI.loading') }}
         </p>
         <Panel
@@ -371,7 +398,10 @@ const exportCsv = async () => {
               </tbody>
             </table>
           </div>
-          <p v-if="!list.items.length" class="p-4 text-sm">
+          <p
+            v-if="!list.items.length"
+            class="p-4 text-sm"
+          >
             {{ t('JRC_GLPI.empty') }}
           </p>
           <Pagination

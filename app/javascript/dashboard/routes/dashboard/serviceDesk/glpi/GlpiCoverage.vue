@@ -28,7 +28,10 @@ const status = computed(() => {
       }}
     </p>
     <p>{{ t('JRC_GLPI.workspace.non_atomic') }}</p>
-    <p v-for="(error, index) in coverage?.errors || []" :key="index">
+    <p
+      v-for="(error, index) in coverage?.errors || []"
+      :key="index"
+    >
       {{
         t('JRC_GLPI.source_code', {
           code: typeof error === 'string' ? error : error.code,

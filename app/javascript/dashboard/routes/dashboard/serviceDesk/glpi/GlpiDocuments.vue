@@ -118,11 +118,13 @@ const download = async row => {
       :key="row.id"
       class="flex items-center justify-between gap-2"
     >
-      <span class="text-sm">{{
-        row.name ||
-        row.filename ||
-        t('JRC_GLPI.workspace.record_number', { id: row.documents_id })
-      }}</span>
+      <span class="text-sm">
+        {{
+          row.name ||
+          row.filename ||
+          t('JRC_GLPI.workspace.record_number', { id: row.documents_id })
+        }}
+      </span>
       <Button
         type="button"
         size="sm"
@@ -144,15 +146,19 @@ const download = async row => {
       class="grid gap-2"
       @submit.prevent="upload"
     >
-      <label class="grid gap-1 text-xs"
-        >{{ t('JRC_GLPI.workspace.upload')
-        }}<input
+      <label class="grid gap-1 text-xs">
+        {{ t('JRC_GLPI.workspace.upload') }}
+        <input
           :key="key"
           type="file"
           :disabled="glpi.state.loading.document_upload || !!receipt"
           @change="choose"
-      /></label>
-      <p v-if="invalid" role="alert">
+        />
+      </label>
+      <p
+        v-if="invalid"
+        role="alert"
+      >
         {{ t('JRC_GLPI.workspace.upload_limit') }}
       </p>
       <Button
@@ -163,7 +169,10 @@ const download = async row => {
         "
       />
     </form>
-    <p v-else class="text-xs">
+    <p
+      v-else
+      class="text-xs"
+    >
       {{
         t(
           ticketId
@@ -172,7 +181,11 @@ const download = async row => {
         )
       }}
     </p>
-    <div v-if="receipt" role="status" class="grid gap-2 text-sm">
+    <div
+      v-if="receipt"
+      role="status"
+      class="grid gap-2 text-sm"
+    >
       <p>{{ t(`JRC_GLPI.receipts.${receipt.state}`) }}</p>
       <p v-if="receipt.error_code">
         {{ t('JRC_GLPI.source_code', { code: receipt.error_code }) }}

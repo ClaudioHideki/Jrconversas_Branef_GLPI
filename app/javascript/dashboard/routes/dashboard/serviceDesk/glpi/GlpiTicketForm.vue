@@ -62,7 +62,10 @@ const reset = () => {
 </script>
 
 <template>
-  <Panel :title="t('JRC_GLPI.new_ticket')" icon="i-lucide-ticket-plus">
+  <Panel
+    :title="t('JRC_GLPI.new_ticket')"
+    icon="i-lucide-ticket-plus"
+  >
     <div
       v-if="receipt"
       class="mb-4 grid gap-3 rounded-lg border border-n-weak bg-n-slate-2 p-4"
@@ -75,7 +78,10 @@ const reset = () => {
           })
         }}
       </p>
-      <p v-if="receipt.error_code" class="text-sm">
+      <p
+        v-if="receipt.error_code"
+        class="text-sm"
+      >
         {{ t('JRC_GLPI.source_code', { code: receipt.error_code }) }}
       </p>
       <p
@@ -107,7 +113,11 @@ const reset = () => {
         />
       </div>
     </div>
-    <form v-if="!receipt" class="grid gap-4" @submit.prevent="submit">
+    <form
+      v-if="!receipt"
+      class="grid gap-4"
+      @submit.prevent="submit"
+    >
       <p class="text-sm text-n-slate-11">
         {{
           t(
@@ -126,7 +136,10 @@ const reset = () => {
           :disabled="busy || attempted"
           @change="form.category_id = ''"
         >
-          <option value="" disabled>
+          <option
+            value=""
+            disabled
+          >
             {{ t('JRC_SERVICE_DESK.COMMON.select') }}
           </option>
           <option
@@ -138,18 +151,19 @@ const reset = () => {
           </option>
         </select>
       </label>
-      <label class="grid gap-1 text-sm"
-        >{{ t('JRC_GLPI.title')
-        }}<input
+      <label class="grid gap-1 text-sm">
+        {{ t('JRC_GLPI.title') }}
+        <input
           v-model="form.title"
           required
           maxlength="255"
           :disabled="busy || attempted"
           class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
-      /></label>
-      <label class="grid gap-1 text-sm"
-        >{{ t('JRC_GLPI.description')
-        }}<textarea
+        />
+      </label>
+      <label class="grid gap-1 text-sm">
+        {{ t('JRC_GLPI.description') }}
+        <textarea
           v-model="form.description"
           required
           maxlength="50000"
@@ -159,9 +173,9 @@ const reset = () => {
         />
       </label>
       <div class="grid gap-4 sm:grid-cols-3">
-        <label class="grid gap-1 text-sm"
-          >{{ t('JRC_GLPI.type')
-          }}<select
+        <label class="grid gap-1 text-sm">
+          {{ t('JRC_GLPI.type') }}
+          <select
             v-model.number="form.type"
             :disabled="busy || attempted"
             class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
@@ -170,27 +184,32 @@ const reset = () => {
               {{ t('JRC_GLPI.incident') }}
             </option>
             <option :value="2">{{ t('JRC_GLPI.request') }}</option>
-          </select></label
-        >
+          </select>
+        </label>
         <label
           v-for="field in ['urgency', 'impact']"
           :key="field"
           class="grid gap-1 text-sm"
-          >{{ t(`JRC_GLPI.${field}`)
-          }}<select
+        >
+          {{ t(`JRC_GLPI.${field}`) }}
+          <select
             v-model.number="form[field]"
             :disabled="busy || attempted"
             class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
           >
-            <option v-for="value in 5" :key="value" :value="value">
+            <option
+              v-for="value in 5"
+              :key="value"
+              :value="value"
+            >
               {{ t(`JRC_GLPI.priorities.${value}`) }}
             </option>
-          </select></label
-        >
+          </select>
+        </label>
       </div>
-      <label class="grid gap-1 text-sm"
-        >{{ t('JRC_GLPI.category')
-        }}<select
+      <label class="grid gap-1 text-sm">
+        {{ t('JRC_GLPI.category') }}
+        <select
           v-model="form.category_id"
           :disabled="busy || attempted"
           class="!mb-0 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
@@ -205,8 +224,8 @@ const reset = () => {
           >
             {{ category.name }}
           </option>
-        </select></label
-      >
+        </select>
+      </label>
       <div class="flex flex-wrap gap-2">
         <Button
           v-if="!attempted"
@@ -220,7 +239,8 @@ const reset = () => {
             :label="t('JRC_GLPI.check_send')"
             :disabled="busy"
             @click="check"
-          /><Button
+          />
+          <Button
             type="button"
             :label="t('JRC_GLPI.retry_same')"
             variant="outline"

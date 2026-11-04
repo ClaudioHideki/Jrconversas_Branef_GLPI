@@ -37,7 +37,8 @@
         "app/javascript/dashboard/routes/dashboard/serviceDesk/views/TicketDetailView.vue",
         "app/javascript/dashboard/routes/dashboard/serviceDesk/caseWorkspace/**/*.vue",
         "app/javascript/portal/requester/*.vue",
-        "app/javascript/dashboard/routes/dashboard/serviceDesk/components/AssigneesManager.vue"
+        "app/javascript/dashboard/routes/dashboard/serviceDesk/components/AssigneesManager.vue",
+        "app/javascript/dashboard/routes/dashboard/serviceDesk/glpi/**/*.vue"
       ],
       "options": {
         "singleAttributePerLine": true,

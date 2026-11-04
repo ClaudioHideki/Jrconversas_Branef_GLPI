@@ -76,7 +76,10 @@ load();
 </script>
 
 <template>
-  <section class="grid gap-4" data-testid="glpi-overview">
+  <section
+    class="grid gap-4"
+    data-testid="glpi-overview"
+  >
     <GlpiFilters
       :entities="glpi.state.context.entities"
       :busy="glpi.state.loading.overview"
@@ -85,7 +88,10 @@ load();
         load();
       "
     />
-    <p v-if="glpi.state.loading.overview" role="status">
+    <p
+      v-if="glpi.state.loading.overview"
+      role="status"
+    >
       {{ t('JRC_GLPI.loading') }}
     </p>
     <template v-if="report">
@@ -148,8 +154,14 @@ load();
       <p class="text-xs text-n-slate-11">{{ t('JRC_GLPI.report_scope') }}</p>
     </template>
     <template v-if="screen === 'sla'">
-      <GlpiResourceBoard :glpi="glpi" resource="sla" />
-      <GlpiResourceBoard :glpi="glpi" resource="calendars" />
+      <GlpiResourceBoard
+        :glpi="glpi"
+        resource="sla"
+      />
+      <GlpiResourceBoard
+        :glpi="glpi"
+        resource="calendars"
+      />
     </template>
     <section
       v-if="glpi.state.context.can_export"
@@ -169,9 +181,13 @@ load();
       />
       <template v-if="receipt">
         <p role="status">
-          {{ t(`JRC_GLPI.exports.${receipt.state}`) }} ·
-          {{ receipt.processed }} /
-          {{ receipt.total ?? t('JRC_GLPI.workspace.unavailable_value') }}
+          {{
+            t('JRC_GLPI.workspace.export_progress', {
+              state: t(`JRC_GLPI.exports.${receipt.state}`),
+              processed: receipt.processed,
+              total: receipt.total ?? t('JRC_GLPI.workspace.unavailable_value'),
+            })
+          }}
         </p>
         <progress
           v-if="receipt.total"
@@ -181,10 +197,16 @@ load();
           :aria-label="t('JRC_GLPI.workspace.export_heading')"
         />
         <GlpiCoverage :coverage="receipt.coverage" />
-        <p v-if="receipt.error_code" role="alert">
+        <p
+          v-if="receipt.error_code"
+          role="alert"
+        >
           {{ t('JRC_GLPI.source_code', { code: receipt.error_code }) }}
         </p>
-        <p v-if="receipt.verified_from" class="text-xs">
+        <p
+          v-if="receipt.verified_from"
+          class="text-xs"
+        >
           {{
             t('JRC_GLPI.workspace.verified_interval', {
               from: receipt.verified_from,

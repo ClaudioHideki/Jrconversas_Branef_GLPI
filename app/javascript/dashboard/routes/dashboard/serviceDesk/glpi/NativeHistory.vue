@@ -67,21 +67,39 @@ watch(
 </script>
 
 <template>
-  <section class="grid gap-4" data-testid="jrc-native-history">
+  <section
+    class="grid gap-4"
+    data-testid="jrc-native-history"
+  >
     <h2 class="text-xl font-semibold">
       {{ t('JRC_GLPI.workspace.native_history') }}
     </h2>
     <p class="text-sm text-n-slate-11">
       {{ t('JRC_GLPI.workspace.native_history_help') }}
     </p>
-    <p v-if="loading" role="status">{{ t('JRC_GLPI.loading') }}</p>
-    <p v-if="error" role="alert">{{ t('JRC_GLPI.error') }}</p>
+    <p
+      v-if="loading"
+      role="status"
+    >
+      {{ t('JRC_GLPI.loading') }}
+    </p>
+    <p
+      v-if="error"
+      role="alert"
+    >
+      {{ t('JRC_GLPI.error') }}
+    </p>
     <article
       v-if="selected"
       class="grid gap-3 rounded-xl border border-n-weak p-4"
     >
       <h3 class="font-semibold">
-        {{ selected.number }} · {{ selected.title }}
+        {{
+          t('JRC_GLPI.workspace.record_title', {
+            number: selected.number,
+            title: selected.title,
+          })
+        }}
       </h3>
       <p class="whitespace-pre-wrap break-words text-sm">
         {{ selected.description }}
@@ -101,7 +119,12 @@ watch(
         class="rounded-lg border border-n-weak p-3 text-left text-sm hover:bg-n-slate-2"
         @click="load(row)"
       >
-        {{ row.number }} · {{ row.title }}
+        {{
+          t('JRC_GLPI.workspace.record_title', {
+            number: row.number,
+            title: row.title,
+          })
+        }}
       </button>
       <p v-if="!loading && !error && !items.length">
         {{ t('JRC_GLPI.empty_history') }}

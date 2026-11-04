@@ -34,7 +34,10 @@ watch(
 </script>
 
 <template>
-  <section class="grid gap-4" data-testid="glpi-service-desk">
+  <section
+    class="grid gap-4"
+    data-testid="glpi-service-desk"
+  >
     <header class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 class="text-xl font-semibold">{{ t('JRC_GLPI.heading') }}</h2>
@@ -58,7 +61,10 @@ watch(
       {{ t('JRC_GLPI.error') }}
       {{ t('JRC_GLPI.source_code', { code: error.code }) }}
     </div>
-    <p v-if="state.loading.context" role="status">
+    <p
+      v-if="state.loading.context"
+      role="status"
+    >
       {{ t('JRC_GLPI.loading') }}
     </p>
     <p
@@ -94,7 +100,11 @@ watch(
         :glpi="glpi"
         :resource="screenDefinition.resource"
       />
-      <p v-else role="status" class="rounded-lg border border-n-weak p-4">
+      <p
+        v-else
+        role="status"
+        class="rounded-lg border border-n-weak p-4"
+      >
         {{ t('JRC_GLPI.workspace.not_applicable') }}
       </p>
     </template>

@@ -3,7 +3,7 @@ export const SERVICE_DESK_ROUTES = Object.freeze([
   {
     key: 'documents',
     path: 'documents',
-    page: 'planned',
+    page: 'glpiServiceDesk',
     icon: 'i-lucide-paperclip',
     group: 'governance',
     resource: 'tickets',
@@ -11,7 +11,7 @@ export const SERVICE_DESK_ROUTES = Object.freeze([
   {
     key: 'native_history',
     path: 'jrc-history',
-    page: 'planned',
+    page: 'nativeHistory',
     icon: 'i-lucide-archive',
     group: 'management',
     resource: 'tickets',
