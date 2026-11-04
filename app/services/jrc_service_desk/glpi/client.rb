@@ -3,12 +3,19 @@
 require 'ssrf_filter'
 require 'json'
 require 'uri'
+require_relative 'collection'
 
 class JrcServiceDesk::Glpi::Client
-  attr_reader :connection
+  MUTABLE_TYPES = %w[Ticket TicketTask ITILFollowup ITILSolution TicketValidation Document Document_Item
+                     Ticket_User Group_Ticket Supplier_Ticket Item_Ticket Problem Change Problem_Ticket Change_Ticket
+                     ProblemTask ChangeTask Problem_User Group_Problem Change_User Group_Change
+                     KnowbaseItem KnowbaseItem_Item ITILCategory TicketTemplate TicketTemplateMandatoryField
+                     TicketTemplateHiddenField TicketTemplatePredefinedField].freeze
+  attr_reader :connection, :last_response
 
   def initialize(connection)
     @connection = connection
+    @last_response = {}.freeze
   end
 
   def session
@@ -32,10 +39,47 @@ class JrcServiceDesk::Glpi::Client
   end
 
   def create_ticket(input)
-    request(:post, 'Ticket/', body: { input: input })
+    result = create_item('Ticket', input)
+    raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless result.is_a?(Hash)
+
+    result
+  end
+
+  def collection(path, parameters = {}, batch_size: 200)
+    JrcServiceDesk::Glpi::Collection.new(self, path, parameters, batch_size: batch_size).each
+  end
+
+  def create_item(type, input)
+    mutable_type!(type)
+    request(:post, "#{type}/", body: { input: input })
+  end
+
+  def update_item(type, id, input)
+    mutable_type!(type)
+    id = item_id!(id)
+    request(:patch, "#{type}/#{id}", body: { input: input.merge('id' => id) })
+  end
+
+  def delete_item(type, id, purge: false)
+    mutable_type!(type)
+    id = item_id!(id)
+    raise ArgumentError unless [true, false].include?(purge)
+
+    result = request(:delete, "#{type}/#{id}", body: { input: { id: id }, force_purge: purge })
+    last_response[:status] == 204 ? { 'id' => id, 'deleted' => true } : result
   end
 
   private
+
+  def mutable_type!(type)
+    raise ArgumentError unless MUTABLE_TYPES.include?(type)
+  end
+
+  def item_id!(id)
+    raise ArgumentError unless id.to_s.match?(/\A[1-9]\d*\z/)
+
+    id.to_i
+  end
 
   def query_pairs(value, prefix = nil)
     case value
@@ -46,6 +90,8 @@ class JrcServiceDesk::Glpi::Client
   end
 
   def request(method, path, parameters: {}, body: nil, auth: false)
+    raise ArgumentError unless path.is_a?(String) && path.match?(/\A[A-Za-z][A-Za-z0-9_]*(?:\/[A-Za-z0-9_]+)*\/?\z/)
+
     url = "#{connection.base_url.delete_suffix('/')}/#{path}"
     url += "?#{URI.encode_www_form(query_pairs(parameters))}" if parameters.any?
     headers = { 'Content-Type' => 'application/json', 'App-Token' => connection.app_token }
@@ -56,13 +102,16 @@ class JrcServiceDesk::Glpi::Client
                           sensitive_headers: %w[authorization app-token session-token],
                           http_options: { open_timeout: 5, read_timeout: 30 }) do |response|
       status = response.code.to_i
+      @last_response = { status: status, content_range: response['content-range'], accept_range: response['accept-range'] }.freeze
       response.read_body do |chunk|
         response_body << chunk
         raise JrcServiceDesk::Glpi::Error.new('response_too_large') if response_body.bytesize > 8.megabytes
       end
     end
+    return nil if status == 204
+
     data = JSON.parse(response_body)
-    unless [200, 201, 206].include?(status)
+    unless [200, 201, 206, 207].include?(status)
       code = data.is_a?(Array) && data.first.is_a?(String) && data.first.match?(/\AERROR_[A-Z_]+\z/) ? data.first : 'remote_error'
       raise JrcServiceDesk::Glpi::Error.new(code, [401, 403].include?(status) ? 403 : status == 404 ? 404 : 502)
     end
