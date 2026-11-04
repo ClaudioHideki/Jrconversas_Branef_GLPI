@@ -56,4 +56,12 @@ class GlpiCommandContractTest < Minitest::Test
         attributes: { 'parent_id' => 101, 'content' => 'Task', 'begin' => '2026-11-04 10:15:00' })
     end
   end
+
+  def test_all_nine_template_verbs_use_the_real_inherited_itiltemplate_profile_right
+    operations = JrcServiceDesk::Glpi::OperationCatalogue::OPERATIONS.select { |name, _| name.start_with?('template') }
+    assert_equal 9, operations.size
+    operations.each do |name, descriptor|
+      assert_equal 'itiltemplate', descriptor[:source_right].first, name
+    end
+  end
 end
