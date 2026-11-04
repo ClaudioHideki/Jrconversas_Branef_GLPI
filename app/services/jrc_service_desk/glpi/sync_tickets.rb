@@ -37,6 +37,7 @@ class JrcServiceDesk::Glpi::SyncTickets
   def collect(client)
     coverage = {}
     @access.entity_ids.each do |entity|
+      current_access!
       coverage[entity.to_s] = collect_entity(client, entity)
       @run.update!(coverage: coverage)
     end
