@@ -10,14 +10,37 @@ class JrcNico::Helpdesk::GlpiActions
              value = JrcServiceDesk::Glpi::Access.new(context).ready!
              JrcServiceDesk::Glpi::Reference.new(arguments.fetch('reference')).authorize_local!(access: value, operational: true)
            end
-    { 'glpi_account_id' => access.account.id, 'glpi_connection_id' => glpi.connection.id,
+    binding = { 'glpi_account_id' => access.account.id, 'glpi_connection_id' => glpi.connection.id,
       'glpi_connection_version' => glpi.connection.lock_version }
+    if name == 'create_glpi_ticket'
+      selection = creation_selection(arguments)
+      form = JrcServiceDesk::Glpi::Client.new(glpi.connection).session do |client|
+        JrcServiceDesk::Glpi::TicketForm.new.call(access: glpi, client: client, filters: selection)
+      end
+      raise JrcServiceDesk::Glpi::Error.new('template_fields_unsupported', 422) unless form.fetch(:supported)
+
+      binding.merge!('glpi_template_version' => form.fetch(:version), 'glpi_template_selection' => selection)
+    end
+    binding
   end
 
   def self.validate_binding!(access, command)
+    validate_preparation!(access, command.execution_context)
+    return true unless command.tool == 'create_glpi_ticket'
+
+    version = command.execution_context['glpi_template_version']
+    unless version.is_a?(String) && version.match?(/\A[0-9a-f]{64}\z/) &&
+           command.execution_context['glpi_template_selection'] == creation_selection(command.arguments)
+      raise Pundit::NotAuthorizedError
+    end
+    true
+  end
+
+  # Called under the Account lock AFTER source proof, before storing a preview.
+  # It deliberately performs only fresh local authorization/configuration reads.
+  def self.validate_preparation!(access, binding)
     access.authorize!
     glpi = JrcServiceDesk::Glpi::Access.new(account: access.account, user: access.user, account_user: access.membership).ready!
-    binding = command.execution_context
     unless binding['glpi_account_id'].to_s == access.account.id.to_s && binding['glpi_connection_id'].to_s == glpi.connection.id.to_s &&
            binding.key?('glpi_connection_version')
       raise Pundit::NotAuthorizedError
@@ -25,7 +48,23 @@ class JrcNico::Helpdesk::GlpiActions
     unless binding['glpi_connection_version'] == glpi.connection.lock_version && glpi.connection.primary_source?
       raise JrcServiceDesk::Glpi::Error.new('configuration_changed', 409)
     end
+    if binding['glpi_template_selection']
+      JrcServiceDesk::Glpi::Destination.new('connection_id' => glpi.connection.id,
+        'connection_version' => binding['glpi_connection_version'], 'entity_id' => binding['glpi_template_selection'].fetch('entity_id'))
+        .access!(account: access.account, user: access.user, account_user: access.membership)
+    end
     true
+  end
+
+  def self.creation_selection(arguments)
+    destination = JrcServiceDesk::Glpi::Destination.new(arguments.fetch('destination'))
+    attributes = arguments.fetch('attributes').stringify_keys
+    contract = JrcServiceDesk::Glpi::CommandInput.new(operation: 'ticket.create', target_id: nil,
+      entity_id: destination.values.fetch('entity_id'), attributes: attributes, partial: true)
+    selector = attributes['template_id']
+    selector = JrcServiceDesk::Glpi::Identifiers.remote(selector) unless selector.nil? || selector == ''
+    { 'entity_id' => destination.values.fetch('entity_id'), 'type' => contract.input.fetch('type', 1),
+      'category_id' => contract.input.fetch('itilcategories_id', 0), 'template_id' => selector.presence }
   end
 
   def initialize(access, command: nil)
@@ -40,7 +79,8 @@ class JrcNico::Helpdesk::GlpiActions
     if name == 'create_glpi_ticket'
       approved_command!(name, arguments)
       return receipt_result(JrcServiceDesk::Glpi::AutomationCommand.new(authorizer: -> { approved_command!(name, arguments) }).create(user_context: @context,
-        destination: arguments.fetch('destination'), attributes: arguments.fetch('attributes'), idempotency_key: request_key))
+        destination: arguments.fetch('destination'), attributes: arguments.fetch('attributes'), idempotency_key: request_key,
+        template_version: @command.execution_context.fetch('glpi_template_version')))
     end
     ref = JrcServiceDesk::Glpi::Reference.new(arguments.fetch('reference'))
     if name == 'read_glpi_reference'

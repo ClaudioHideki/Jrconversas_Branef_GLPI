@@ -9,7 +9,8 @@ class GlpiCommandSource
     @writes = []
     @rows = { 'Ticket/101' => { 'id' => 101, 'entities_id' => 0, 'date_mod' => 'v1', 'type' => 1 },
       'Problem/201' => { 'id' => 201, 'entities_id' => 0, 'date_mod' => 'v1' },
-      'Change/301' => { 'id' => 301, 'entities_id' => 0, 'date_mod' => 'v1' } }
+      'Change/301' => { 'id' => 301, 'entities_id' => 0, 'date_mod' => 'v1' },
+      'Entity/0' => { 'id' => 0, 'entities_id' => nil, 'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 } }
   end
 
   def session
@@ -27,7 +28,6 @@ class GlpiCommandSource
       '10' => { 'table' => 'glpi_tickets', 'field' => 'urgency' }, '11' => { 'table' => 'glpi_tickets', 'field' => 'impact' },
       '3' => { 'table' => 'glpi_tickets', 'field' => 'priority' }, '12' => { 'table' => 'glpi_tickets', 'field' => 'status' },
       '7' => { 'table' => 'glpi_itilcategories', 'field' => 'completename' } } if path == 'listSearchOptions/Ticket/'
-    return { 'id' => 0, 'entities_id' => nil, 'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 } if path == 'Entity/0'
     return { 'session' => { 'glpiID' => 900 } } if path == 'getFullSession/'
     return { 'myentities' => [{ 'id' => 0, 'name' => 'Synthetic root' }] } if path == 'getMyEntities/'
     return { 'totalcount' => 1, 'data' => [{ '2' => 101, '1' => 'Synthetic', '80' => 'Root' }] } if path == 'search/Ticket/'

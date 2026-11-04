@@ -530,8 +530,12 @@ class JrcNico::OperatorSession
 
     require_recipient_choice!(command, name, arguments)
     if JrcNico::HelpdeskToolCatalog::GLPI_MUTATIONS.include?(name)
+      raise Pundit::NotAuthorizedError if command.source_notice_id
+
+      # Template policy reads happen here, outside Account/session/command locks.
       binding = JrcNico::Helpdesk::GlpiActions.prepare_binding(access, name, arguments)
-      command.update!(execution_context: command.execution_context.merge(binding))
+      prepare_glpi(command, name, arguments, reply.presence || definition[:description], binding)
+      return
     end
     coordinated = JrcNico::BrokerSendCoordinator.prepare(access: access, command: command, arguments: arguments) if name == 'send_message'
     command.update!(tool: name, arguments: arguments, status: 'awaiting_confirmation',
@@ -542,6 +546,23 @@ class JrcNico::OperatorSession
         session.update!(context: session.context.merge('conversation_ids' => ids))
       end
       session.append('assistant', "Prévia: #{command.reply}")
+    end
+  end
+
+  def prepare_glpi(command, name, arguments, reply, binding)
+    Account.transaction do
+      Account.where(id: access.account.id).lock('FOR SHARE').take!
+      session.with_lock do
+        command.with_lock do
+          raise Pundit::NotAuthorizedError unless command.session_id == session.id && command.status == 'planning' && !command.source_notice_id
+
+          JrcNico::ToolCatalog.new(access).validate!(name, arguments)
+          JrcNico::Helpdesk::GlpiActions.validate_preparation!(access, binding)
+          command.update!(execution_context: command.execution_context.merge(binding), tool: name, arguments: arguments,
+            status: 'awaiting_confirmation', reply: reply, result: {})
+          session.append('assistant', "Prévia: #{command.reply}")
+        end
+      end
     end
   end
 
