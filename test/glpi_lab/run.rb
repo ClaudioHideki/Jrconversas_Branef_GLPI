@@ -5,6 +5,7 @@ require_relative '../jrc_service_desk/glpi_test_helper'
 require_relative 'transport'
 require 'json'
 require 'stringio'
+require 'csv'
 
 GlpiLabTransport.install!
 
@@ -238,6 +239,31 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
     GlpiLabEvidence::CHECKS << 'actual multipart file bytes, durable idempotency, shared link removal without file deletion'
   end
 
+  def test_actual_async_export_has_fresh_one_use_proof_and_purges_on_local_revocation
+    run = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member)
+    assert_equal 'complete', run.state
+    exporter = JrcServiceDesk::Glpi::Export.new
+    record = exporter.prepare(access: access, filters: { 'search' => 'SYNTHETIC BRANEF root' })
+    assert_equal 'queued', record.state
+    assert_equal 1, record.total
+    exporter.generate(id: record.id)
+    assert_equal 'ready', record.reload.state, record.error_code
+    csv = record.artifact.download
+    assert_equal 2, CSV.parse(csv).size
+    assert_equal @fixtures.fetch('tickets').fetch('root').to_s, CSV.parse(csv)[1][0]
+    assert_equal 'verifying', exporter.download(access: access, id: record.id).state
+    exporter.verify(id: record.id)
+    assert record.reload.receipt.fetch(:can_download), record.error_code
+    delivered = exporter.download(access: access, id: record.id)
+    assert_equal record.id, delivered.id
+    assert_equal csv, delivered.artifact.download
+    refute record.reload.receipt.fetch(:can_download)
+    @member.update!(role: 'agent')
+    assert_raises(Pundit::NotAuthorizedError) { exporter.download(access: access, id: record.id) }
+    refute record.reload.artifact.attached?
+    GlpiLabEvidence::CHECKS << 'actual scoped CSV, async source verification, one-use proof, fresh native revocation purges artifact'
+  end
+
   def test_transport_refuses_every_non_laboratory_target
     %w[http://glpi.example.invalid:14443/apirest.php/Ticket https://localhost:14443/apirest.php/Ticket
        https://glpi.example.invalid:443/apirest.php/Ticket https://glpi.example.invalid:14443/other
@@ -368,7 +394,7 @@ Minitest.after_run do
     required_operations: GlpiLabEvidence::REQUIRED.size, operations: GlpiLabEvidence::RESULTS,
     untested_operations: missing, checks: GlpiLabEvidence::CHECKS, observations: GlpiLabEvidence::OBSERVATIONS, transport_requests: GlpiLabTransport::COUNTS,
     item_mutations: GlpiLabTransport::ITEM_MUTATIONS, session_control_posts: GlpiLabTransport::SESSION_CONTROL_POSTS,
-    actual_jrc_components: %w[Client TicketQuery ResourceQuery SyncTickets Overview Execute Documents] }
+    actual_jrc_components: %w[Client TicketQuery ResourceQuery SyncTickets Overview Execute Documents Export] }
   File.write(File.expand_path('.runtime/laboratory-results.json', __dir__), JSON.pretty_generate(evidence))
   puts JSON.generate(version: evidence[:version], required_operations: evidence[:required_operations],
     recorded_operations: evidence[:operations].size, untested: missing.size, customer_requests: 0, observations: evidence[:observations])
