@@ -291,4 +291,12 @@ class GlpiAutomationTest < GlpiIntegrationTest
     assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
     assert_empty @remote.writes
   end
+
+  def test_native_reporting_scope_requires_explicit_historical_mode_after_glpi_selection
+    context = JrcNico::Helpdesk::Context.new(@member)
+    policy = Struct.new(:account_id, :definition).new(@account.id, { 'unit_ids' => [@unit.id], 'company_ids' => [] })
+    assert_raises(JrcServiceDesk::Glpi::Error) { JrcNico::Helpdesk::ReportingScope.new(context, policy).tickets }
+    scope = JrcNico::Helpdesk::ReportingScope.new(context, policy, {}, historical: true).tickets
+    assert_equal 0, scope.count
+  end
 end
