@@ -2,6 +2,7 @@
 
 class JrcServiceDesk::CreateIncidentService < JrcServiceDesk::BaseService
   def call(unit_id:, attributes:, idempotency_key:)
+    JrcServiceDesk::NativeSourceGuard.call(@native_context)
     values = JrcServiceDesk::CaseInput.call(attributes, creating: true)
     ids = ticket_ids(values)
     key = JrcServiceDesk::Input.request_key(idempotency_key)

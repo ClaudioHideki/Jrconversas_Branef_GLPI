@@ -44,6 +44,7 @@ class JrcServiceDesk::BaseService
   end
 
   def with_ticket(ticket_id, query)
+    JrcServiceDesk::NativeSourceGuard.call(@native_context)
     ticket_id = JrcServiceDesk::Input.id(ticket_id)
     initial = fresh_context!
     candidate = JrcServiceDesk::TicketPolicy::Scope.new(initial.to_h, JrcServiceDesk::Ticket).resolve.find(ticket_id)

@@ -8,6 +8,7 @@ class GlpiAutomationTest < GlpiIntegrationTest
     super
     @connection.update!(primary_source: true)
     @account.update!(custom_attributes: @account.custom_attributes.merge('nico_enabled' => true))
+    @unit_member = JrcServiceDesk::UnitMembership.create!(account: @account, unit: @unit, account_user: @member, active: true)
     @remote = GlpiCommandSource.new
     @reference = { 'account_id' => @account.id, 'connection_id' => @connection.id,
       'itemtype' => 'Ticket', 'remote_id' => 101, 'entity_id' => 0 }
@@ -51,11 +52,36 @@ class GlpiAutomationTest < GlpiIntegrationTest
     end
     assert_equal 'not_configured', error.code
     @connection.update!(enabled: true)
-    @member.update!(role: 'agent')
+    @unit_member.update!(active: false)
     assert_raises(Pundit::NotAuthorizedError) do
       service.call(user_context: @identity, reference: @reference, operation: 'ticket.close', attributes: {}, idempotency_key: 'revoked')
     end
     assert_empty @remote.writes
+  end
+
+  def test_conversation_and_case_links_store_typed_remote_identity_without_a_native_ticket
+    channel = Channel::Api.create!(account: @account)
+    inbox = Inbox.create!(account: @account, channel: channel, name: 'Synthetic GLPI conversation')
+    contact = Contact.create!(account: @account, name: 'Synthetic requester')
+    contact_inbox = ContactInbox.create!(contact: contact, inbox: inbox, source_id: SecureRandom.uuid)
+    conversation = Conversation.create!(account: @account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
+    incident = JrcServiceDesk::Incident.create!(account: @account, unit: @unit, created_by_membership: @unit_member,
+      title: 'Native historical case', severity: 'normal', status: 'open', resource_kind: 'incident', started_at: Time.current,
+      idempotency_key: SecureRandom.uuid, request_fingerprint: 'a' * 64)
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+      service = JrcServiceDesk::Glpi::LinkLocalReference.new
+      one = service.call(user_context: @identity, reference: @reference, conversation_id: conversation.id)
+      assert_equal one.id, service.call(user_context: @identity, reference: @reference, conversation_id: conversation.id).id
+      case_link = service.call(user_context: @identity, reference: @reference, incident_id: incident.id)
+      assert_equal 'Ticket', one.glpi_reference.itemtype
+      assert_equal 101, one.glpi_reference.remote_id
+      assert_equal incident.id, case_link.incident_id
+      assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
+      @unit_member.update!(active: false)
+      assert_raises(Pundit::NotAuthorizedError) do
+        service.call(user_context: @identity, reference: @reference, conversation_id: conversation.id)
+      end
+    end
   end
 
   def test_native_mutation_guards_refuse_selected_glpi_even_when_disabled_but_keep_native_history_readable
@@ -102,6 +128,15 @@ class GlpiAutomationTest < GlpiIntegrationTest
       assert JrcServiceDesk::GlpiCommand.where(account: @account, account_user: @member, state: 'succeeded').exists?
       operator.execute(command)
       assert_equal 1, @remote.writes.size
+      @remote.failure = 'source_unavailable'
+      uncertain = operator.ask(message: 'Synthetic ambiguous write', request_id: SecureRandom.uuid,
+        prepared: { 'tool' => 'execute_glpi_operation', 'arguments' => { 'reference' => @reference,
+          'operation' => 'ticket.update', 'attributes' => { 'name' => 'Uncertain' }, 'expected_version' => 'v2' } })
+      operator.execute(uncertain)
+      assert_equal 'unknown', uncertain.reload.status
+      assert_equal 'indeterminate', uncertain.result.dig('command', 'state')
+      operator.execute(uncertain)
+      assert_equal 2, @remote.writes.size
     end
   end
 

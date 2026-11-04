@@ -81,6 +81,9 @@ class JrcNico::ToolCatalog
       next if group == 'campaigns' && !@access.campaigns?
       next if group == 'contacts' && !@access.policy(Contact).public_send(name == 'create_contact' ? :create? : :index?)
       next if group == 'service_desk_helpdesk' && !JrcNico::HelpdeskToolCatalog.available?(@access, name)
+      if group == 'service_desk' && name != 'service_desk_context' && JrcServiceDesk::NativeSourceGuard.selected_glpi?(@access.account)
+        next
+      end
 
       if %w[service_desk projects projects_create relationship].include?(group)
         domain_access ||= JrcNico::DomainAccess.new(@access)

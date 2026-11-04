@@ -7,6 +7,7 @@ class JrcServiceDesk::CreateTicketService < JrcServiceDesk::BaseService
   CLASSIFICATION_FIELDS = %w[ticket_type_id subcategory_id contract_id impact_code urgency_code].freeze
 
   def call(unit_id:, attributes:, idempotency_key:, service_id: nil, origin_channel: 'manual', intake_conversation: nil)
+    JrcServiceDesk::NativeSourceGuard.call(@native_context)
     raise ArgumentError unless %w[manual portal].include?(origin_channel)
 
     with_unit(unit_id) do |unit|

@@ -16,6 +16,7 @@ class JrcNico::Helpdesk::ReportingScope
   end
 
   def tickets
+    JrcServiceDesk::NativeSourceGuard.call(@context.native.to_h)
     scope = @context.tickets.where(unit_id: @policy.definition.fetch('unit_ids'), company_id: @policy.definition.fetch('company_ids'))
     COLUMNS.each do |key, column|
       next unless filters.key?(key)

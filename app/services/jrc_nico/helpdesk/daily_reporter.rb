@@ -6,6 +6,7 @@ class JrcNico::Helpdesk::DailyReporter
   end
 
   def call
+    return [] if JrcServiceDesk::NativeSourceGuard.selected_glpi?(@policy.account)
     settings = @policy.definition.fetch('daily')
     return [] unless @policy.published? && @policy.enabled? && settings.fetch('enabled')
 
