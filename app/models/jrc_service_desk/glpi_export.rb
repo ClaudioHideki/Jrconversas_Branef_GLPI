@@ -12,7 +12,7 @@ class JrcServiceDesk::GlpiExport < JrcServiceDesk::AccountRecord
   end
 
   def receipt
-    { id: id.to_s, state: state, processed: processed, total: total, error_code: error_code,
+    { id: id.to_s, state: state, processed: processed, total: total, error_code: error_code, filters: filters.slice(*JrcServiceDesk::Glpi::TicketQuery::FIELDS),
       created_at: created_at.iso8601, finished_at: finished_at&.iso8601, expires_at: expires_at&.iso8601,
       coverage: coverage, can_download: state == 'ready' && expires_at&.future? == true && verification_nonce.present? && verification_expires_at&.future? == true,
       verified_from: verified_from&.iso8601, verified_until: verified_until&.iso8601,
