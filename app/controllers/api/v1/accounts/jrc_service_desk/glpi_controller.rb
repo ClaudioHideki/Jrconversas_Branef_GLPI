@@ -37,16 +37,32 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     permit!(:manage?)
     allowed = %w[base_url user_token app_token enabled primary_source timezone entity_mappings user_mappings categories lock_version]
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters, allowed)
-    connection = access.connection || ::JrcServiceDesk::GlpiConnection.new(account: access.context.account)
-    raise ActiveRecord::StaleObjectError if connection.persisted? && values['lock_version'] != connection.lock_version
+    connection = nil
+    Account.transaction do
+      # Native mutations hold this Account FOR SHARE. The exclusive lock also
+      # serializes first-connection insertion, where no connection row exists yet.
+      Account.where(id: Current.account.id).lock('FOR UPDATE').take!
+      fresh = ::JrcServiceDesk::Glpi::Access.new(pundit_user)
+      raise Pundit::NotAuthorizedError unless ::JrcServiceDesk::GlpiPolicy.new(fresh.context.to_h, :glpi).manage?
 
-    values.delete('lock_version')
-    %w[user_token app_token].each { |key| values.delete(key) if values[key].blank? }
-    connection.assign_attributes(values)
-    connection.save!
-    audit!('glpi_configuration', connection,
-           { enabled: connection.enabled?, credentials_changed: values.key?('user_token') || values.key?('app_token') })
+      connection = fresh.connection || ::JrcServiceDesk::GlpiConnection.new(account: fresh.context.account)
+      raise ActiveRecord::StaleObjectError if connection.persisted? && values['lock_version'] != connection.lock_version
+
+      values.delete('lock_version')
+      %w[user_token app_token].each { |key| values.delete(key) if values[key].blank? }
+      connection.assign_attributes(values)
+      connection.save!
+      audit!('glpi_configuration', connection,
+             { enabled: connection.enabled?, credentials_changed: values.key?('user_token') || values.key?('app_token') })
+    end
+    @glpi_access = nil
     render json: configuration_payload(connection)
+  rescue ActiveRecord::RecordInvalid => error
+    if error.record.is_a?(::JrcServiceDesk::GlpiConnection) && error.record.errors.of_kind?(:base_url, :connection_namespace_locked)
+      raise ::JrcServiceDesk::Glpi::Error.new('connection_namespace_locked', 409)
+    end
+
+    raise
   end
 
   def validate_connection

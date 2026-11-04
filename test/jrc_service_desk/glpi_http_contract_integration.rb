@@ -141,6 +141,34 @@ class GlpiHttpContractTest < GlpiIntegrationTest
     worker&.join(10)
   end
 
+  def test_source_namespace_cannot_change_after_a_remote_reference_is_recorded
+    JrcServiceDesk::GlpiCommand.create!(account: @account, glpi_connection: @connection, account_user: @member,
+      unit: @unit, entity_id: 0, idempotency_key: SecureRandom.uuid, fingerprint: 'namespace-proof', state: 'succeeded',
+      operation: 'ticket.update', itemtype: 'Ticket', target_id: 101, remote_id: 101, correlation_id: SecureRandom.uuid)
+    @http.patch("#{@base}/connection", headers: @headers,
+      params: { base_url: 'https://other-glpi.example.invalid/apirest.php', lock_version: @connection.lock_version }, as: :json)
+    assert_equal 409, @http.response.status
+    assert_equal 'connection_namespace_locked', JSON.parse(@http.response.body)['source_code']
+    assert_equal 'https://glpi.example.invalid/apirest.php', @connection.reload.base_url
+  end
+
+  def test_model_namespace_guard_preserves_history_and_allows_equivalent_url_and_token_rotation
+    JrcServiceDesk::GlpiTicketSnapshot.create!(account: @account, glpi_connection: @connection, unit: @unit,
+      remote_id: 101, entity_id: 0, connection_version: 0, payload: {}, observed_at: Time.current)
+    @connection.base_url = 'https://other-glpi.example.invalid/apirest.php'
+    refute @connection.valid?
+    assert @connection.errors.of_kind?(:base_url, :connection_namespace_locked)
+    @connection.base_url = 'https://GLPI.example.invalid:443/apirest.php/'
+    @connection.user_token = 'synthetic-replacement-token'
+    assert @connection.save
+    assert_equal 'synthetic-replacement-token', @connection.reload.user_token
+  end
+
+  def test_unused_connection_endpoint_can_be_corrected
+    @connection.update!(base_url: 'https://corrected-glpi.example.invalid/apirest.php')
+    assert_equal 'https://corrected-glpi.example.invalid/apirest.php', @connection.reload.base_url
+  end
+
   private
 
   def bound_headers
