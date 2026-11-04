@@ -49,6 +49,11 @@ class GlpiTicketFormSource < GlpiCommandSource
     if (match = path.match(%r{\AUser/(\d+)/Profile_User/\z}))
       return user_profiles.fetch(match[1].to_i, []).deep_dup
     end
+    if (match = path.match(%r{\ATicket/(\d+)/Ticket_User/\z}))
+      ticket = rows.fetch("Ticket/#{match[1]}")
+      requester = ticket['_users_id_requester']
+      return requester ? [{ 'id' => 1, 'tickets_id' => match[1].to_i, 'users_id' => requester, 'type' => 1 }] : []
+    end
     if (match = path.match(%r{\ATicketTemplate/(\d+)/TicketTemplate(Mandatory|Hidden|Predefined)Field/\z}))
       raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if metadata_denied == path
 

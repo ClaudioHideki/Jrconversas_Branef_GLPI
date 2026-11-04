@@ -3,10 +3,12 @@
 require 'cgi'
 
 class JrcServiceDesk::Glpi::CommandInput
-  attr_reader :operation, :descriptor, :target_id, :parent_id, :entity_id, :input, :expected_version, :reason, :content_format
+  attr_reader :operation, :descriptor, :target_id, :parent_id, :entity_id, :input, :expected_version, :reason, :content_format, :template_id
 
-  def initialize(operation:, target_id:, entity_id:, attributes:, expected_version: nil, reason: nil, prepared: false)
+  def initialize(operation:, target_id:, entity_id:, attributes:, expected_version: nil, reason: nil, prepared: false, partial: false)
     @operation = operation
+    raise ArgumentError if partial && operation != 'ticket.create'
+    @partial = partial
     @descriptor = JrcServiceDesk::Glpi::OperationCatalogue.fetch(operation)
     @entity_id = JrcServiceDesk::Glpi::Identifiers.remote(entity_id)
     @target_id = target_id.nil? ? nil : JrcServiceDesk::Input.id(target_id)
@@ -22,6 +24,11 @@ class JrcServiceDesk::Glpi::CommandInput
     @reason = reason
     allowed = descriptor[:fields] + %w[content_format] + (descriptor[:parent] ? %w[parent_id] : [])
     values = JrcServiceDesk::Input.attributes(attributes, allowed)
+    if operation == 'ticket.create'
+      selected = values.delete('template_id')
+      @template_id = JrcServiceDesk::Glpi::Identifiers.remote(selected) unless selected.nil? || selected == ''
+      @template_id = nil if @template_id == 0
+    end
     explicit_format = values.key?('content_format')
     @content_format = values.delete('content_format') || 'plain'
     raise ArgumentError unless %w[plain rich].include?(content_format)
@@ -29,7 +36,7 @@ class JrcServiceDesk::Glpi::CommandInput
       raise ArgumentError, 'Content format requires content or answer'
     end
     @parent_id = JrcServiceDesk::Input.id(values.delete('parent_id')) if descriptor[:parent]
-    raise ArgumentError, 'Required fields missing' unless (descriptor[:required] - values.keys).empty?
+    raise ArgumentError, 'Required fields missing' unless partial || (descriptor[:required] - values.keys).empty?
 
     @input = values.dup
     input.each do |field, value|
@@ -58,15 +65,18 @@ class JrcServiceDesk::Glpi::CommandInput
   end
 
   def fingerprint(connection_version)
-    JrcServiceDesk::CanonicalJson.digest(operation: operation, type: descriptor[:type], target_id: target_id,
+    values = { operation: operation, type: descriptor[:type], target_id: target_id,
       parent_id: parent_id, entity_id: entity_id, input: input, expected_version: expected_version,
-      reason: reason, content_format: content_format, connection_version: connection_version)
+      reason: reason, content_format: content_format, connection_version: connection_version }
+    values[:template_id] = template_id if template_id
+    JrcServiceDesk::CanonicalJson.digest(values)
   end
 
   private
 
   def normalize(field, value, prepared)
     if %w[name content answer comment comment_submission comment_validation value].include?(field)
+      return '' if @partial && %w[name content].include?(field) && value.is_a?(String) && value.strip.empty?
       maximum = field == 'name' ? 255 : 50_000
       raise ArgumentError unless value.is_a?(String) && value.strip.length.between?(1, maximum)
 
