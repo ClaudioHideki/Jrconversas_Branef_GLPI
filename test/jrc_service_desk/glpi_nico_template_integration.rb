@@ -100,12 +100,22 @@ class GlpiNicoTemplateTest < GlpiIntegrationTest
   end
 
   def test_connection_change_after_prepare_source_proof_cannot_store_an_approved_preview
-    @remote.on_template_read = -> { @connection.update!(timezone: 'Europe/London') }
-    JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
-      error = assert_raises(JrcServiceDesk::Glpi::Error) { prepare }
-      assert_equal 'configuration_changed', error.code
-      refute @operator.session.commands.where(status: 'awaiting_confirmation').exists?
-      assert_empty @remote.writes
+    form = JrcServiceDesk::Glpi::TicketForm.new
+    read = form.method(:call)
+    after_proof = lambda do |**arguments|
+      policy = read.call(**arguments)
+      @account.with_lock { @connection.update!(timezone: 'Europe/London') }
+      policy
+    end
+    form.stub(:call, after_proof) do
+      JrcServiceDesk::Glpi::TicketForm.stub(:new, -> { form }) do
+        JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { @remote }) do
+          error = assert_raises(JrcServiceDesk::Glpi::Error) { prepare }
+          assert_equal 'configuration_changed', error.code
+          refute @operator.session.commands.where(status: 'awaiting_confirmation').exists?
+          assert_empty @remote.writes
+        end
+      end
     end
   end
 
