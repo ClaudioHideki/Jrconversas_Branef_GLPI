@@ -68,4 +68,21 @@ class GlpiProjectionTest < GlpiIntegrationTest
     assert_equal 'partial', run.state
     assert_equal 'ERROR_RIGHT_MISSING', run.coverage.fetch('0').fetch('error')
   end
+
+  def test_denied_detail_does_not_hide_later_readable_tickets
+    client = Object.new
+    def client.collection(*)
+      [{ '2' => 101 }, { '2' => 102 }]
+    end
+    def client.get(path)
+      raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if path == 'Ticket/101'
+
+      { 'id' => 102, 'entities_id' => 0, 'name' => 'Readable' }
+    end
+    run = JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: client)
+    assert_equal 'partial', run.state
+    assert_equal 2, run.coverage.fetch('0').fetch('observed')
+    assert_equal 1, run.coverage.fetch('0').fetch('indexed')
+    assert_equal 102, JrcServiceDesk::GlpiTicketSnapshot.where(glpi_connection: @connection).sole.remote_id
+  end
 end
