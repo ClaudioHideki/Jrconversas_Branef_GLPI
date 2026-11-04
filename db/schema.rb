@@ -6177,6 +6177,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     t.index ["inbox_id"], name: "index_working_hours_on_inbox_id"
   end
 
+  add_foreign_key "jrc_service_desk_glpi_sync_runs", "account_users"
+  add_foreign_key "jrc_service_desk_glpi_sync_runs", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_sync_runs", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
+  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
+  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "jrc_service_desk_glpi_sync_runs", column: "glpi_sync_run_id"
+  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "jrc_service_desk_units", column: "unit_id"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "companies", "companies", column: ["account_id", "parent_company_id"], primary_key: ["account_id", "id"], name: "jrc_master_company_parent_fk", validate: false
@@ -6748,13 +6755,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
   add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
   add_foreign_key "jrc_service_desk_glpi_commands", "jrc_service_desk_units", column: "unit_id"
   add_foreign_key "jrc_service_desk_glpi_connections", "accounts"
-  add_foreign_key "jrc_service_desk_glpi_sync_runs", "account_users"
-  add_foreign_key "jrc_service_desk_glpi_sync_runs", "accounts"
-  add_foreign_key "jrc_service_desk_glpi_sync_runs", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
-  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "accounts"
-  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
-  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "jrc_service_desk_glpi_sync_runs", column: "glpi_sync_run_id"
-  add_foreign_key "jrc_service_desk_glpi_ticket_snapshots", "jrc_service_desk_units", column: "unit_id"
   add_foreign_key "jrc_service_desk_incident_entries", "jrc_service_desk_incidents", column: ["account_id", "unit_id", "incident_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_case_entry_incident_fk"
   add_foreign_key "jrc_service_desk_incident_entries", "jrc_service_desk_unit_memberships", column: ["account_id", "unit_id", "actor_membership_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_case_entry_actor_fk"
   add_foreign_key "jrc_service_desk_incidents", "companies", column: ["account_id", "approval_issuer_company_id"], primary_key: ["account_id", "id"], name: "jrc_sd_problem_issuer_fk"
@@ -7074,49 +7074,49 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_contact_center_agent_state_events" DROP CONSTRAINT "jrc_cc_agent_state";
   JRC_SCHEMA_SQL_7d8e7fc7adb6
 
-  execute <<~'JRC_SCHEMA_SQL_8f8e06390a0d'
-    ALTER TABLE "jrc_contact_center_agent_state_events" ADD CONSTRAINT "jrc_cc_agent_state" CHECK (((state)::text = ANY (ARRAY[('offline'::character varying)::text, ('available'::character varying)::text, ('busy'::character varying)::text, ('ringing'::character varying)::text, ('in_call'::character varying)::text, ('acw'::character varying)::text, ('paused'::character varying)::text, ('unavailable'::character varying)::text])));
-  JRC_SCHEMA_SQL_8f8e06390a0d
+  execute <<~'JRC_SCHEMA_SQL_6734e8b39e8b'
+    ALTER TABLE "jrc_contact_center_agent_state_events" ADD CONSTRAINT "jrc_cc_agent_state" CHECK (((state)::text = ANY ((ARRAY['offline'::character varying, 'available'::character varying, 'busy'::character varying, 'ringing'::character varying, 'in_call'::character varying, 'acw'::character varying, 'paused'::character varying, 'unavailable'::character varying])::text[])));
+  JRC_SCHEMA_SQL_6734e8b39e8b
 
   execute <<~'JRC_SCHEMA_SQL_c62a5c85a918'
     ALTER TABLE "jrc_contact_center_call_legs" DROP CONSTRAINT "jrc_cc_leg_direction";
   JRC_SCHEMA_SQL_c62a5c85a918
 
-  execute <<~'JRC_SCHEMA_SQL_5c91f1d7d038'
-    ALTER TABLE "jrc_contact_center_call_legs" ADD CONSTRAINT "jrc_cc_leg_direction" CHECK (((direction)::text = ANY (ARRAY[('inbound'::character varying)::text, ('outbound'::character varying)::text, ('internal'::character varying)::text])));
-  JRC_SCHEMA_SQL_5c91f1d7d038
+  execute <<~'JRC_SCHEMA_SQL_c9af237ef780'
+    ALTER TABLE "jrc_contact_center_call_legs" ADD CONSTRAINT "jrc_cc_leg_direction" CHECK (((direction)::text = ANY ((ARRAY['inbound'::character varying, 'outbound'::character varying, 'internal'::character varying])::text[])));
+  JRC_SCHEMA_SQL_c9af237ef780
 
   execute <<~'JRC_SCHEMA_SQL_1c1a146c4702'
     ALTER TABLE "jrc_contact_center_call_legs" DROP CONSTRAINT "jrc_cc_leg_status";
   JRC_SCHEMA_SQL_1c1a146c4702
 
-  execute <<~'JRC_SCHEMA_SQL_591783d0b18e'
-    ALTER TABLE "jrc_contact_center_call_legs" ADD CONSTRAINT "jrc_cc_leg_status" CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('ringing'::character varying)::text, ('queued'::character varying)::text, ('connected'::character varying)::text, ('held'::character varying)::text, ('transferred'::character varying)::text, ('ended'::character varying)::text, ('failed'::character varying)::text])));
-  JRC_SCHEMA_SQL_591783d0b18e
+  execute <<~'JRC_SCHEMA_SQL_e1b0cb4202be'
+    ALTER TABLE "jrc_contact_center_call_legs" ADD CONSTRAINT "jrc_cc_leg_status" CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'ringing'::character varying, 'queued'::character varying, 'connected'::character varying, 'held'::character varying, 'transferred'::character varying, 'ended'::character varying, 'failed'::character varying])::text[])));
+  JRC_SCHEMA_SQL_e1b0cb4202be
 
   execute <<~'JRC_SCHEMA_SQL_4e09531b72bf'
     ALTER TABLE "jrc_contact_center_call_sessions" DROP CONSTRAINT "jrc_cc_session_direction";
   JRC_SCHEMA_SQL_4e09531b72bf
 
-  execute <<~'JRC_SCHEMA_SQL_933c04d35f5e'
-    ALTER TABLE "jrc_contact_center_call_sessions" ADD CONSTRAINT "jrc_cc_session_direction" CHECK (((direction)::text = ANY (ARRAY[('inbound'::character varying)::text, ('outbound'::character varying)::text])));
-  JRC_SCHEMA_SQL_933c04d35f5e
+  execute <<~'JRC_SCHEMA_SQL_3329109def30'
+    ALTER TABLE "jrc_contact_center_call_sessions" ADD CONSTRAINT "jrc_cc_session_direction" CHECK (((direction)::text = ANY ((ARRAY['inbound'::character varying, 'outbound'::character varying])::text[])));
+  JRC_SCHEMA_SQL_3329109def30
 
   execute <<~'JRC_SCHEMA_SQL_85f9d93636c8'
     ALTER TABLE "jrc_contact_center_call_sessions" DROP CONSTRAINT "jrc_cc_session_status";
   JRC_SCHEMA_SQL_85f9d93636c8
 
-  execute <<~'JRC_SCHEMA_SQL_0042ab0e4c09'
-    ALTER TABLE "jrc_contact_center_call_sessions" ADD CONSTRAINT "jrc_cc_session_status" CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('ringing'::character varying)::text, ('queued'::character varying)::text, ('connected'::character varying)::text, ('held'::character varying)::text, ('transferring'::character varying)::text, ('ended'::character varying)::text, ('failed'::character varying)::text])));
-  JRC_SCHEMA_SQL_0042ab0e4c09
+  execute <<~'JRC_SCHEMA_SQL_aa981e13c43b'
+    ALTER TABLE "jrc_contact_center_call_sessions" ADD CONSTRAINT "jrc_cc_session_status" CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'ringing'::character varying, 'queued'::character varying, 'connected'::character varying, 'held'::character varying, 'transferring'::character varying, 'ended'::character varying, 'failed'::character varying])::text[])));
+  JRC_SCHEMA_SQL_aa981e13c43b
 
   execute <<~'JRC_SCHEMA_SQL_a77ee3fdb4d3'
     ALTER TABLE "jrc_contact_center_callbacks" DROP CONSTRAINT "jrc_cc_callback_state";
   JRC_SCHEMA_SQL_a77ee3fdb4d3
 
-  execute <<~'JRC_SCHEMA_SQL_dbf9bc92ed65'
-    ALTER TABLE "jrc_contact_center_callbacks" ADD CONSTRAINT "jrc_cc_callback_state" CHECK (((state)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('in_progress'::character varying)::text, ('completed'::character varying)::text, ('failed'::character varying)::text, ('canceled'::character varying)::text])));
-  JRC_SCHEMA_SQL_dbf9bc92ed65
+  execute <<~'JRC_SCHEMA_SQL_8c419727dbd2'
+    ALTER TABLE "jrc_contact_center_callbacks" ADD CONSTRAINT "jrc_cc_callback_state" CHECK (((state)::text = ANY ((ARRAY['scheduled'::character varying, 'in_progress'::character varying, 'completed'::character varying, 'failed'::character varying, 'canceled'::character varying])::text[])));
+  JRC_SCHEMA_SQL_8c419727dbd2
 
   execute <<~'JRC_SCHEMA_SQL_07185d7fae43'
     ALTER TABLE "jrc_contact_center_callbacks" DROP CONSTRAINT "jrc_cc_callback_target";
@@ -7130,25 +7130,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_contact_center_cases" DROP CONSTRAINT "jrc_cc_case_priority";
   JRC_SCHEMA_SQL_36324bc0b0e1
 
-  execute <<~'JRC_SCHEMA_SQL_e1d03c128fc7'
-    ALTER TABLE "jrc_contact_center_cases" ADD CONSTRAINT "jrc_cc_case_priority" CHECK (((priority)::text = ANY (ARRAY[('low'::character varying)::text, ('normal'::character varying)::text, ('high'::character varying)::text, ('urgent'::character varying)::text])));
-  JRC_SCHEMA_SQL_e1d03c128fc7
+  execute <<~'JRC_SCHEMA_SQL_a6cd5d7db7e6'
+    ALTER TABLE "jrc_contact_center_cases" ADD CONSTRAINT "jrc_cc_case_priority" CHECK (((priority)::text = ANY ((ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying])::text[])));
+  JRC_SCHEMA_SQL_a6cd5d7db7e6
 
   execute <<~'JRC_SCHEMA_SQL_5eac10afeaf8'
     ALTER TABLE "jrc_contact_center_cases" DROP CONSTRAINT "jrc_cc_case_status";
   JRC_SCHEMA_SQL_5eac10afeaf8
 
-  execute <<~'JRC_SCHEMA_SQL_c51a659cbab1'
-    ALTER TABLE "jrc_contact_center_cases" ADD CONSTRAINT "jrc_cc_case_status" CHECK (((status)::text = ANY (ARRAY[('open'::character varying)::text, ('in_progress'::character varying)::text, ('waiting'::character varying)::text, ('resolved'::character varying)::text, ('closed'::character varying)::text, ('canceled'::character varying)::text])));
-  JRC_SCHEMA_SQL_c51a659cbab1
+  execute <<~'JRC_SCHEMA_SQL_3d0c811edf66'
+    ALTER TABLE "jrc_contact_center_cases" ADD CONSTRAINT "jrc_cc_case_status" CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'in_progress'::character varying, 'waiting'::character varying, 'resolved'::character varying, 'closed'::character varying, 'canceled'::character varying])::text[])));
+  JRC_SCHEMA_SQL_3d0c811edf66
 
   execute <<~'JRC_SCHEMA_SQL_b42d4ff68c30'
     ALTER TABLE "jrc_contact_center_commands" DROP CONSTRAINT "jrc_cc_command_status";
   JRC_SCHEMA_SQL_b42d4ff68c30
 
-  execute <<~'JRC_SCHEMA_SQL_8944a6041a8e'
-    ALTER TABLE "jrc_contact_center_commands" ADD CONSTRAINT "jrc_cc_command_status" CHECK (((status)::text = ANY (ARRAY[('requested'::character varying)::text, ('accepted_by_gateway'::character varying)::text, ('confirmed_by_pabx'::character varying)::text, ('rejected'::character varying)::text, ('unknown'::character varying)::text])));
-  JRC_SCHEMA_SQL_8944a6041a8e
+  execute <<~'JRC_SCHEMA_SQL_1b88e3640a4d'
+    ALTER TABLE "jrc_contact_center_commands" ADD CONSTRAINT "jrc_cc_command_status" CHECK (((status)::text = ANY ((ARRAY['requested'::character varying, 'accepted_by_gateway'::character varying, 'confirmed_by_pabx'::character varying, 'rejected'::character varying, 'unknown'::character varying])::text[])));
+  JRC_SCHEMA_SQL_1b88e3640a4d
 
   execute <<~'JRC_SCHEMA_SQL_cb9620b79f94'
     ALTER TABLE "jrc_contact_center_daily_facts" DROP CONSTRAINT "jrc_cc_daily_fact_counts";
@@ -7162,25 +7162,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_contact_center_daily_facts" DROP CONSTRAINT "jrc_cc_daily_fact_direction";
   JRC_SCHEMA_SQL_f99ca6b86eb1
 
-  execute <<~'JRC_SCHEMA_SQL_b48fe24cb573'
-    ALTER TABLE "jrc_contact_center_daily_facts" ADD CONSTRAINT "jrc_cc_daily_fact_direction" CHECK (((direction)::text = ANY (ARRAY[('inbound'::character varying)::text, ('outbound'::character varying)::text, ('mixed'::character varying)::text])));
-  JRC_SCHEMA_SQL_b48fe24cb573
+  execute <<~'JRC_SCHEMA_SQL_b73100ce697e'
+    ALTER TABLE "jrc_contact_center_daily_facts" ADD CONSTRAINT "jrc_cc_daily_fact_direction" CHECK (((direction)::text = ANY ((ARRAY['inbound'::character varying, 'outbound'::character varying, 'mixed'::character varying])::text[])));
+  JRC_SCHEMA_SQL_b73100ce697e
 
   execute <<~'JRC_SCHEMA_SQL_5eebabc84119'
     ALTER TABLE "jrc_contact_center_event_inboxes" DROP CONSTRAINT "jrc_cc_event_status";
   JRC_SCHEMA_SQL_5eebabc84119
 
-  execute <<~'JRC_SCHEMA_SQL_3ce4fc6e3d28'
-    ALTER TABLE "jrc_contact_center_event_inboxes" ADD CONSTRAINT "jrc_cc_event_status" CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processed'::character varying)::text, ('failed'::character varying)::text, ('ignored'::character varying)::text])));
-  JRC_SCHEMA_SQL_3ce4fc6e3d28
+  execute <<~'JRC_SCHEMA_SQL_d2a8c8f5ad5e'
+    ALTER TABLE "jrc_contact_center_event_inboxes" ADD CONSTRAINT "jrc_cc_event_status" CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processed'::character varying, 'failed'::character varying, 'ignored'::character varying])::text[])));
+  JRC_SCHEMA_SQL_d2a8c8f5ad5e
 
   execute <<~'JRC_SCHEMA_SQL_b9074cfb0bd4'
     ALTER TABLE "jrc_contact_center_fallback_events" DROP CONSTRAINT "jrc_cc_fallback_result";
   JRC_SCHEMA_SQL_b9074cfb0bd4
 
-  execute <<~'JRC_SCHEMA_SQL_7a05a3e1a5fd'
-    ALTER TABLE "jrc_contact_center_fallback_events" ADD CONSTRAINT "jrc_cc_fallback_result" CHECK (((result)::text = ANY (ARRAY[('requested'::character varying)::text, ('confirmed'::character varying)::text, ('rejected'::character varying)::text, ('failed'::character varying)::text, ('terminal'::character varying)::text])));
-  JRC_SCHEMA_SQL_7a05a3e1a5fd
+  execute <<~'JRC_SCHEMA_SQL_ceffbf1a95c1'
+    ALTER TABLE "jrc_contact_center_fallback_events" ADD CONSTRAINT "jrc_cc_fallback_result" CHECK (((result)::text = ANY ((ARRAY['requested'::character varying, 'confirmed'::character varying, 'rejected'::character varying, 'failed'::character varying, 'terminal'::character varying])::text[])));
+  JRC_SCHEMA_SQL_ceffbf1a95c1
 
   execute <<~'JRC_SCHEMA_SQL_07e1dda99a18'
     ALTER TABLE "jrc_contact_center_qualifications" DROP CONSTRAINT "jrc_cc_qualification_completion";
@@ -7210,9 +7210,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_contact_center_queue_memberships" DROP CONSTRAINT "jrc_cc_membership_role";
   JRC_SCHEMA_SQL_a8a0c402d7af
 
-  execute <<~'JRC_SCHEMA_SQL_8e49545b93b8'
-    ALTER TABLE "jrc_contact_center_queue_memberships" ADD CONSTRAINT "jrc_cc_membership_role" CHECK (((role)::text = ANY (ARRAY[('agent'::character varying)::text, ('supervisor'::character varying)::text])));
-  JRC_SCHEMA_SQL_8e49545b93b8
+  execute <<~'JRC_SCHEMA_SQL_8afe3d46f0f2'
+    ALTER TABLE "jrc_contact_center_queue_memberships" ADD CONSTRAINT "jrc_cc_membership_role" CHECK (((role)::text = ANY ((ARRAY['agent'::character varying, 'supervisor'::character varying])::text[])));
+  JRC_SCHEMA_SQL_8afe3d46f0f2
 
   execute <<~'JRC_SCHEMA_SQL_24bdb771085d'
     ALTER TABLE "jrc_contact_center_queue_memberships" DROP CONSTRAINT "jrc_cc_membership_window";
@@ -7226,9 +7226,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_contact_center_queues" DROP CONSTRAINT "jrc_cc_queues_status";
   JRC_SCHEMA_SQL_72ea2b2cd37e
 
-  execute <<~'JRC_SCHEMA_SQL_9b542e7d0967'
-    ALTER TABLE "jrc_contact_center_queues" ADD CONSTRAINT "jrc_cc_queues_status" CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('inactive'::character varying)::text])));
-  JRC_SCHEMA_SQL_9b542e7d0967
+  execute <<~'JRC_SCHEMA_SQL_1775e3ec3763'
+    ALTER TABLE "jrc_contact_center_queues" ADD CONSTRAINT "jrc_cc_queues_status" CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'inactive'::character varying])::text[])));
+  JRC_SCHEMA_SQL_1775e3ec3763
 
   execute <<~'JRC_SCHEMA_SQL_1c6b1248eccf'
     ALTER TABLE "jrc_contact_center_queues" DROP CONSTRAINT "jrc_cc_queues_wait";
@@ -7250,25 +7250,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_contact_center_recording_links" DROP CONSTRAINT "jrc_cc_recording_status";
   JRC_SCHEMA_SQL_ac8ed794fee5
 
-  execute <<~'JRC_SCHEMA_SQL_aec5b54305bf'
-    ALTER TABLE "jrc_contact_center_recording_links" ADD CONSTRAINT "jrc_cc_recording_status" CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('available'::character varying)::text, ('expired'::character varying)::text, ('revoked'::character varying)::text])));
-  JRC_SCHEMA_SQL_aec5b54305bf
+  execute <<~'JRC_SCHEMA_SQL_4a4db7dc005f'
+    ALTER TABLE "jrc_contact_center_recording_links" ADD CONSTRAINT "jrc_cc_recording_status" CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'available'::character varying, 'expired'::character varying, 'revoked'::character varying])::text[])));
+  JRC_SCHEMA_SQL_4a4db7dc005f
 
   execute <<~'JRC_SCHEMA_SQL_4e2d6a439a8c'
     ALTER TABLE "jrc_contact_center_routing_rules" DROP CONSTRAINT "jrc_cc_routing_kind";
   JRC_SCHEMA_SQL_4e2d6a439a8c
 
-  execute <<~'JRC_SCHEMA_SQL_06c051e70538'
-    ALTER TABLE "jrc_contact_center_routing_rules" ADD CONSTRAINT "jrc_cc_routing_kind" CHECK (((kind)::text = ANY (ARRAY[('ddd'::character varying)::text, ('customer'::character varying)::text, ('portfolio'::character varying)::text, ('service'::character varying)::text, ('fallback'::character varying)::text])));
-  JRC_SCHEMA_SQL_06c051e70538
+  execute <<~'JRC_SCHEMA_SQL_d37ddaadc175'
+    ALTER TABLE "jrc_contact_center_routing_rules" ADD CONSTRAINT "jrc_cc_routing_kind" CHECK (((kind)::text = ANY ((ARRAY['ddd'::character varying, 'customer'::character varying, 'portfolio'::character varying, 'service'::character varying, 'fallback'::character varying])::text[])));
+  JRC_SCHEMA_SQL_d37ddaadc175
 
   execute <<~'JRC_SCHEMA_SQL_e75acf7a9656'
     ALTER TABLE "jrc_contact_center_routing_rules" DROP CONSTRAINT "jrc_cc_routing_state";
   JRC_SCHEMA_SQL_e75acf7a9656
 
-  execute <<~'JRC_SCHEMA_SQL_91c7b23ac542'
-    ALTER TABLE "jrc_contact_center_routing_rules" ADD CONSTRAINT "jrc_cc_routing_state" CHECK (((state)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])));
-  JRC_SCHEMA_SQL_91c7b23ac542
+  execute <<~'JRC_SCHEMA_SQL_846dbd3358aa'
+    ALTER TABLE "jrc_contact_center_routing_rules" ADD CONSTRAINT "jrc_cc_routing_state" CHECK (((state)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])));
+  JRC_SCHEMA_SQL_846dbd3358aa
 
   execute <<~'JRC_SCHEMA_SQL_e0a5206778be'
     ALTER TABLE "jrc_contact_center_routing_rules" DROP CONSTRAINT "jrc_cc_routing_target";
@@ -7290,17 +7290,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_contact_center_units" DROP CONSTRAINT "jrc_cc_units_kind";
   JRC_SCHEMA_SQL_5a0cbe71096b
 
-  execute <<~'JRC_SCHEMA_SQL_35a087beec42'
-    ALTER TABLE "jrc_contact_center_units" ADD CONSTRAINT "jrc_cc_units_kind" CHECK (((kind)::text = ANY (ARRAY[('sac'::character varying)::text, ('finance'::character varying)::text, ('coe'::character varying)::text, ('administrative'::character varying)::text])));
-  JRC_SCHEMA_SQL_35a087beec42
+  execute <<~'JRC_SCHEMA_SQL_729b64ab7ca5'
+    ALTER TABLE "jrc_contact_center_units" ADD CONSTRAINT "jrc_cc_units_kind" CHECK (((kind)::text = ANY ((ARRAY['sac'::character varying, 'finance'::character varying, 'coe'::character varying, 'administrative'::character varying])::text[])));
+  JRC_SCHEMA_SQL_729b64ab7ca5
 
   execute <<~'JRC_SCHEMA_SQL_f4381e7a2eec'
     ALTER TABLE "jrc_contact_center_units" DROP CONSTRAINT "jrc_cc_units_status";
   JRC_SCHEMA_SQL_f4381e7a2eec
 
-  execute <<~'JRC_SCHEMA_SQL_a02868492144'
-    ALTER TABLE "jrc_contact_center_units" ADD CONSTRAINT "jrc_cc_units_status" CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('inactive'::character varying)::text])));
-  JRC_SCHEMA_SQL_a02868492144
+  execute <<~'JRC_SCHEMA_SQL_d049c80f7eab'
+    ALTER TABLE "jrc_contact_center_units" ADD CONSTRAINT "jrc_cc_units_status" CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'inactive'::character varying])::text[])));
+  JRC_SCHEMA_SQL_d049c80f7eab
 
   execute <<~'JRC_SCHEMA_SQL_9f52f87a5903'
     ALTER TABLE "jrc_crm_team_scopes" DROP CONSTRAINT "jrc_crm_team_scope_shape";
@@ -7346,17 +7346,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_effect_receipts" DROP CONSTRAINT "jrc_effect_operation";
   JRC_SCHEMA_SQL_c6c8b33227c6
 
-  execute <<~'JRC_SCHEMA_SQL_bf43c37189f7'
-    ALTER TABLE "jrc_flow_effect_receipts" ADD CONSTRAINT "jrc_effect_operation" CHECK (((operation)::text = ANY (ARRAY[('tag'::character varying)::text, ('attribute'::character varying)::text, ('note'::character varying)::text, ('resolve'::character varying)::text, ('domain'::character varying)::text])));
-  JRC_SCHEMA_SQL_bf43c37189f7
+  execute <<~'JRC_SCHEMA_SQL_93f50c32295a'
+    ALTER TABLE "jrc_flow_effect_receipts" ADD CONSTRAINT "jrc_effect_operation" CHECK (((operation)::text = ANY ((ARRAY['tag'::character varying, 'attribute'::character varying, 'note'::character varying, 'resolve'::character varying, 'domain'::character varying])::text[])));
+  JRC_SCHEMA_SQL_93f50c32295a
 
   execute <<~'JRC_SCHEMA_SQL_f7687db7a9cf'
     ALTER TABLE "jrc_flow_effect_receipts" DROP CONSTRAINT "jrc_effect_resource";
   JRC_SCHEMA_SQL_f7687db7a9cf
 
-  execute <<~'JRC_SCHEMA_SQL_808c0e830c46'
-    ALTER TABLE "jrc_flow_effect_receipts" ADD CONSTRAINT "jrc_effect_resource" CHECK (((((operation)::text = ANY (ARRAY[('tag'::character varying)::text, ('attribute'::character varying)::text])) AND (resource_id IS NOT NULL) AND (resource_revision IS NOT NULL)) OR (((operation)::text <> ALL (ARRAY[('tag'::character varying)::text, ('attribute'::character varying)::text])) AND (resource_id IS NULL) AND (resource_revision IS NULL))));
-  JRC_SCHEMA_SQL_808c0e830c46
+  execute <<~'JRC_SCHEMA_SQL_2f81cdd1063d'
+    ALTER TABLE "jrc_flow_effect_receipts" ADD CONSTRAINT "jrc_effect_resource" CHECK (((((operation)::text = ANY ((ARRAY['tag'::character varying, 'attribute'::character varying])::text[])) AND (resource_id IS NOT NULL) AND (resource_revision IS NOT NULL)) OR (((operation)::text <> ALL ((ARRAY['tag'::character varying, 'attribute'::character varying])::text[])) AND (resource_id IS NULL) AND (resource_revision IS NULL))));
+  JRC_SCHEMA_SQL_2f81cdd1063d
 
   execute <<~'JRC_SCHEMA_SQL_a37f4c63bd48'
     ALTER TABLE "jrc_flow_effect_receipts" DROP CONSTRAINT "jrc_effect_revision";
@@ -7370,9 +7370,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_native_bindings" DROP CONSTRAINT "jrc_flow_binding_transport_revision";
   JRC_SCHEMA_SQL_bf84ce6bd681
 
-  execute <<~'JRC_SCHEMA_SQL_3fa62a97b271'
-    ALTER TABLE "jrc_flow_native_bindings" ADD CONSTRAINT "jrc_flow_binding_transport_revision" CHECK ((((transport)::text = ANY (ARRAY[('BROKER_TRANSPORT'::character varying)::text, ('CENTRAL_TRANSPORT'::character varying)::text])) AND (registration_revision > 0)));
-  JRC_SCHEMA_SQL_3fa62a97b271
+  execute <<~'JRC_SCHEMA_SQL_5953ef637ad7'
+    ALTER TABLE "jrc_flow_native_bindings" ADD CONSTRAINT "jrc_flow_binding_transport_revision" CHECK ((((transport)::text = ANY ((ARRAY['BROKER_TRANSPORT'::character varying, 'CENTRAL_TRANSPORT'::character varying])::text[])) AND (registration_revision > 0)));
+  JRC_SCHEMA_SQL_5953ef637ad7
 
   execute <<~'JRC_SCHEMA_SQL_33fe2fa6e256'
     ALTER TABLE "jrc_flow_native_configurations" DROP CONSTRAINT "jrc_flow_configuration_revisions_positive";
@@ -7386,9 +7386,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_native_installations" DROP CONSTRAINT "jrc_flow_installation_active_complete";
   JRC_SCHEMA_SQL_6ae2f6b87f4a
 
-  execute <<~'JRC_SCHEMA_SQL_d55cda38c094'
-    ALTER TABLE "jrc_flow_native_installations" ADD CONSTRAINT "jrc_flow_installation_active_complete" CHECK ((((state)::text <> ALL (ARRAY[('ACTIVE'::character varying)::text, ('RENEWING'::character varying)::text])) OR ((encrypted_grant IS NOT NULL) AND (expires_at IS NOT NULL))));
-  JRC_SCHEMA_SQL_d55cda38c094
+  execute <<~'JRC_SCHEMA_SQL_d9b9f7332423'
+    ALTER TABLE "jrc_flow_native_installations" ADD CONSTRAINT "jrc_flow_installation_active_complete" CHECK ((((state)::text <> ALL ((ARRAY['ACTIVE'::character varying, 'RENEWING'::character varying])::text[])) OR ((encrypted_grant IS NOT NULL) AND (expires_at IS NOT NULL))));
+  JRC_SCHEMA_SQL_d9b9f7332423
 
   execute <<~'JRC_SCHEMA_SQL_eafb18ccf769'
     ALTER TABLE "jrc_flow_native_installations" DROP CONSTRAINT "jrc_flow_installation_revoked_cipher";
@@ -7402,9 +7402,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_native_installations" DROP CONSTRAINT "jrc_flow_installation_valid";
   JRC_SCHEMA_SQL_b50bee7f49ef
 
-  execute <<~'JRC_SCHEMA_SQL_2c9bd3d97f2d'
-    ALTER TABLE "jrc_flow_native_installations" ADD CONSTRAINT "jrc_flow_installation_valid" CHECK (((generation > 0) AND ((state)::text = ANY (ARRAY[('PENDING'::character varying)::text, ('ACTIVE'::character varying)::text, ('RENEWING'::character varying)::text, ('UNKNOWN'::character varying)::text, ('REVOKED'::character varying)::text])) AND ((tuple_digest)::text ~ '^[a-f0-9]{64}$'::text) AND ((callback_digest)::text ~ '^[a-f0-9]{64}$'::text)));
-  JRC_SCHEMA_SQL_2c9bd3d97f2d
+  execute <<~'JRC_SCHEMA_SQL_30240f819318'
+    ALTER TABLE "jrc_flow_native_installations" ADD CONSTRAINT "jrc_flow_installation_valid" CHECK (((generation > 0) AND ((state)::text = ANY ((ARRAY['PENDING'::character varying, 'ACTIVE'::character varying, 'RENEWING'::character varying, 'UNKNOWN'::character varying, 'REVOKED'::character varying])::text[])) AND ((tuple_digest)::text ~ '^[a-f0-9]{64}$'::text) AND ((callback_digest)::text ~ '^[a-f0-9]{64}$'::text)));
+  JRC_SCHEMA_SQL_30240f819318
 
   execute <<~'JRC_SCHEMA_SQL_2ee96ed22d4b'
     ALTER TABLE "jrc_flow_native_registrations" DROP CONSTRAINT "jrc_flow_active_registration_complete";
@@ -7426,17 +7426,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_native_registrations" DROP CONSTRAINT "jrc_flow_revoked_keys_removed";
   JRC_SCHEMA_SQL_1added38ad59
 
-  execute <<~'JRC_SCHEMA_SQL_496845bfbb16'
-    ALTER TABLE "jrc_flow_native_registrations" ADD CONSTRAINT "jrc_flow_revoked_keys_removed" CHECK ((((state)::text <> ALL (ARRAY[('CANCELED'::character varying)::text, ('REVOKED'::character varying)::text])) OR ((callback_digest IS NULL) AND (encrypted_outbound_credential IS NULL) AND (encrypted_pending_callback IS NULL) AND (revoked_at IS NOT NULL))));
-  JRC_SCHEMA_SQL_496845bfbb16
+  execute <<~'JRC_SCHEMA_SQL_7517c3ca40f5'
+    ALTER TABLE "jrc_flow_native_registrations" ADD CONSTRAINT "jrc_flow_revoked_keys_removed" CHECK ((((state)::text <> ALL ((ARRAY['CANCELED'::character varying, 'REVOKED'::character varying])::text[])) OR ((callback_digest IS NULL) AND (encrypted_outbound_credential IS NULL) AND (encrypted_pending_callback IS NULL) AND (revoked_at IS NOT NULL))));
+  JRC_SCHEMA_SQL_7517c3ca40f5
 
   execute <<~'JRC_SCHEMA_SQL_e95bbae02b0a'
     ALTER TABLE "jrc_flow_native_registrations" DROP CONSTRAINT "jrc_flow_state_valid";
   JRC_SCHEMA_SQL_e95bbae02b0a
 
-  execute <<~'JRC_SCHEMA_SQL_e5aec7ae27ee'
-    ALTER TABLE "jrc_flow_native_registrations" ADD CONSTRAINT "jrc_flow_state_valid" CHECK (((state)::text = ANY (ARRAY[('PENDING'::character varying)::text, ('CHALLENGE_VERIFIED'::character varying)::text, ('ACTIVE'::character varying)::text, ('CANCELED'::character varying)::text, ('REVOKED'::character varying)::text])));
-  JRC_SCHEMA_SQL_e5aec7ae27ee
+  execute <<~'JRC_SCHEMA_SQL_def1c00d0c4a'
+    ALTER TABLE "jrc_flow_native_registrations" ADD CONSTRAINT "jrc_flow_state_valid" CHECK (((state)::text = ANY ((ARRAY['PENDING'::character varying, 'CHALLENGE_VERIFIED'::character varying, 'ACTIVE'::character varying, 'CANCELED'::character varying, 'REVOKED'::character varying])::text[])));
+  JRC_SCHEMA_SQL_def1c00d0c4a
 
   execute <<~'JRC_SCHEMA_SQL_0af1897fac12'
     ALTER TABLE "jrc_flow_native_session_handles" DROP CONSTRAINT "jrc_flow_handle_scope_bound";
@@ -7450,9 +7450,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_ownership_effects" DROP CONSTRAINT "jrc_ownership_effect_valid";
   JRC_SCHEMA_SQL_3c8fa9168141
 
-  execute <<~'JRC_SCHEMA_SQL_7da5310032cb'
-    ALTER TABLE "jrc_flow_ownership_effects" ADD CONSTRAINT "jrc_ownership_effect_valid" CHECK (((generation > 0) AND ((kind)::text = ANY (ARRAY[('EXTERNAL'::character varying)::text, ('DATABASE'::character varying)::text, ('MESSAGE'::character varying)::text])) AND ((state)::text = ANY (ARRAY[('DISPATCHED'::character varying)::text, ('OBSERVED'::character varying)::text, ('QUEUED'::character varying)::text, ('CONFIRMED'::character varying)::text, ('CANCELED'::character varying)::text, ('UNKNOWN'::character varying)::text]))));
-  JRC_SCHEMA_SQL_7da5310032cb
+  execute <<~'JRC_SCHEMA_SQL_921b781ec3ac'
+    ALTER TABLE "jrc_flow_ownership_effects" ADD CONSTRAINT "jrc_ownership_effect_valid" CHECK (((generation > 0) AND ((kind)::text = ANY ((ARRAY['EXTERNAL'::character varying, 'DATABASE'::character varying, 'MESSAGE'::character varying])::text[])) AND ((state)::text = ANY ((ARRAY['DISPATCHED'::character varying, 'OBSERVED'::character varying, 'QUEUED'::character varying, 'CONFIRMED'::character varying, 'CANCELED'::character varying, 'UNKNOWN'::character varying])::text[]))));
+  JRC_SCHEMA_SQL_921b781ec3ac
 
   execute <<~'JRC_SCHEMA_SQL_49e709c0a0a2'
     ALTER TABLE "jrc_flow_ownership_epochs" DROP CONSTRAINT "jrc_ownership_bot_pair";
@@ -7466,9 +7466,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_ownership_epochs" DROP CONSTRAINT "jrc_ownership_epoch_valid";
   JRC_SCHEMA_SQL_acaee3912924
 
-  execute <<~'JRC_SCHEMA_SQL_8c5da42f8643'
-    ALTER TABLE "jrc_flow_ownership_epochs" ADD CONSTRAINT "jrc_ownership_epoch_valid" CHECK (((cutover_revision > 0) AND (registration_revision > 0) AND (generation > 0) AND (expected_owner_revision >= 0) AND ((state)::text = ANY (ARRAY[('FENCED'::character varying)::text, ('DRAINED'::character varying)::text, ('NOT_STARTED_RETIRED'::character varying)::text, ('REOPENED'::character varying)::text]))));
-  JRC_SCHEMA_SQL_8c5da42f8643
+  execute <<~'JRC_SCHEMA_SQL_6eacbe30b663'
+    ALTER TABLE "jrc_flow_ownership_epochs" ADD CONSTRAINT "jrc_ownership_epoch_valid" CHECK (((cutover_revision > 0) AND (registration_revision > 0) AND (generation > 0) AND (expected_owner_revision >= 0) AND ((state)::text = ANY ((ARRAY['FENCED'::character varying, 'DRAINED'::character varying, 'NOT_STARTED_RETIRED'::character varying, 'REOPENED'::character varying])::text[]))));
+  JRC_SCHEMA_SQL_6eacbe30b663
 
   execute <<~'JRC_SCHEMA_SQL_7f1290fc7bc6'
     ALTER TABLE "jrc_flow_ownership_executions" DROP CONSTRAINT "jrc_ownership_execution_authority";
@@ -7482,17 +7482,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_flow_ownership_executions" DROP CONSTRAINT "jrc_ownership_execution_valid";
   JRC_SCHEMA_SQL_efe4d0be7492
 
-  execute <<~'JRC_SCHEMA_SQL_df0fef2716ef'
-    ALTER TABLE "jrc_flow_ownership_executions" ADD CONSTRAINT "jrc_ownership_execution_valid" CHECK (((generation > 0) AND ((state)::text = ANY (ARRAY[('RUNNING'::character varying)::text, ('QUIESCENT'::character varying)::text, ('UNKNOWN'::character varying)::text]))));
-  JRC_SCHEMA_SQL_df0fef2716ef
+  execute <<~'JRC_SCHEMA_SQL_6fa7b6f6a01b'
+    ALTER TABLE "jrc_flow_ownership_executions" ADD CONSTRAINT "jrc_ownership_execution_valid" CHECK (((generation > 0) AND ((state)::text = ANY ((ARRAY['RUNNING'::character varying, 'QUIESCENT'::character varying, 'UNKNOWN'::character varying])::text[]))));
+  JRC_SCHEMA_SQL_6fa7b6f6a01b
 
   execute <<~'JRC_SCHEMA_SQL_3b7c065e47f8'
     ALTER TABLE "jrc_flow_ownership_scopes" DROP CONSTRAINT "jrc_ownership_scope_valid";
   JRC_SCHEMA_SQL_3b7c065e47f8
 
-  execute <<~'JRC_SCHEMA_SQL_3f9d713729e0'
-    ALTER TABLE "jrc_flow_ownership_scopes" ADD CONSTRAINT "jrc_ownership_scope_valid" CHECK (((generation > 0) AND ((state)::text = ANY (ARRAY[('LEGACY'::character varying)::text, ('FENCED'::character varying)::text]))));
-  JRC_SCHEMA_SQL_3f9d713729e0
+  execute <<~'JRC_SCHEMA_SQL_fb5ad7b7f970'
+    ALTER TABLE "jrc_flow_ownership_scopes" ADD CONSTRAINT "jrc_ownership_scope_valid" CHECK (((generation > 0) AND ((state)::text = ANY ((ARRAY['LEGACY'::character varying, 'FENCED'::character varying])::text[]))));
+  JRC_SCHEMA_SQL_fb5ad7b7f970
 
   execute <<~'JRC_SCHEMA_SQL_e1be20685b8b'
     ALTER TABLE "jrc_nico_broker_send_operations" DROP CONSTRAINT "nico_broker_send_actor";
@@ -7506,9 +7506,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_nico_broker_send_operations" DROP CONSTRAINT "nico_broker_send_fact_state";
   JRC_SCHEMA_SQL_57f8153d1223
 
-  execute <<~'JRC_SCHEMA_SQL_33dfaada12a8'
-    ALTER TABLE "jrc_nico_broker_send_operations" ADD CONSTRAINT "nico_broker_send_fact_state" CHECK (((message_created_at IS NULL) OR ((state)::text = ANY (ARRAY[('MESSAGE_CREATED'::character varying)::text, ('COMPLETED'::character varying)::text, ('HALTED'::character varying)::text]))));
-  JRC_SCHEMA_SQL_33dfaada12a8
+  execute <<~'JRC_SCHEMA_SQL_ff7fbc24c93c'
+    ALTER TABLE "jrc_nico_broker_send_operations" ADD CONSTRAINT "nico_broker_send_fact_state" CHECK (((message_created_at IS NULL) OR ((state)::text = ANY ((ARRAY['MESSAGE_CREATED'::character varying, 'COMPLETED'::character varying, 'HALTED'::character varying])::text[]))));
+  JRC_SCHEMA_SQL_ff7fbc24c93c
 
   execute <<~'JRC_SCHEMA_SQL_8953ced74385'
     ALTER TABLE "jrc_nico_broker_send_operations" DROP CONSTRAINT "nico_broker_send_lease";
@@ -7530,9 +7530,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_nico_broker_send_operations" DROP CONSTRAINT "nico_broker_send_state";
   JRC_SCHEMA_SQL_5d75081a3051
 
-  execute <<~'JRC_SCHEMA_SQL_c8a0306b70b9'
-    ALTER TABLE "jrc_nico_broker_send_operations" ADD CONSTRAINT "nico_broker_send_state" CHECK (((state)::text = ANY (ARRAY[('PREVIEW'::character varying)::text, ('PAUSING'::character varying)::text, ('DRAINING'::character varying)::text, ('UNKNOWN'::character varying)::text, ('MESSAGE_CREATED'::character varying)::text, ('COMPLETED'::character varying)::text, ('CANCELING'::character varying)::text, ('CANCELED'::character varying)::text, ('HALTED'::character varying)::text])));
-  JRC_SCHEMA_SQL_c8a0306b70b9
+  execute <<~'JRC_SCHEMA_SQL_b9de1d29e1cb'
+    ALTER TABLE "jrc_nico_broker_send_operations" ADD CONSTRAINT "nico_broker_send_state" CHECK (((state)::text = ANY ((ARRAY['PREVIEW'::character varying, 'PAUSING'::character varying, 'DRAINING'::character varying, 'UNKNOWN'::character varying, 'MESSAGE_CREATED'::character varying, 'COMPLETED'::character varying, 'CANCELING'::character varying, 'CANCELED'::character varying, 'HALTED'::character varying])::text[])));
+  JRC_SCHEMA_SQL_b9de1d29e1cb
 
   execute <<~'JRC_SCHEMA_SQL_ad494432d29a'
     ALTER TABLE "jrc_nico_helpdesk_delivery_receipts" DROP CONSTRAINT "nico_hd_receipt_attempt";
@@ -7642,9 +7642,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_relationship_batch_items" DROP CONSTRAINT "rel_batch_item_state";
   JRC_SCHEMA_SQL_8901f8a61af4
 
-  execute <<~'JRC_SCHEMA_SQL_3a44135c0641'
-    ALTER TABLE "jrc_relationship_batch_items" ADD CONSTRAINT "rel_batch_item_state" CHECK ((((state)::text = ANY (ARRAY[('pending'::character varying)::text, ('applied'::character varying)::text, ('failed'::character varying)::text, ('canceled'::character varying)::text])) AND ((ordinal >= 0) AND (ordinal <= 49)) AND (((state)::text = 'applied'::text) = (receipt IS NOT NULL))));
-  JRC_SCHEMA_SQL_3a44135c0641
+  execute <<~'JRC_SCHEMA_SQL_a03e15dfd33a'
+    ALTER TABLE "jrc_relationship_batch_items" ADD CONSTRAINT "rel_batch_item_state" CHECK ((((state)::text = ANY ((ARRAY['pending'::character varying, 'applied'::character varying, 'failed'::character varying, 'canceled'::character varying])::text[])) AND ((ordinal >= 0) AND (ordinal <= 49)) AND (((state)::text = 'applied'::text) = (receipt IS NOT NULL))));
+  JRC_SCHEMA_SQL_a03e15dfd33a
 
   execute <<~'JRC_SCHEMA_SQL_afdb17d9cb0d'
     ALTER TABLE "jrc_relationship_batch_reviews" DROP CONSTRAINT "rel_batch_bounds";
@@ -7658,33 +7658,33 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_relationship_batch_reviews" DROP CONSTRAINT "rel_batch_state";
   JRC_SCHEMA_SQL_d0d0862cdd25
 
-  execute <<~'JRC_SCHEMA_SQL_2915c93244de'
-    ALTER TABLE "jrc_relationship_batch_reviews" ADD CONSTRAINT "rel_batch_state" CHECK ((((state)::text = ANY (ARRAY[('previewed'::character varying)::text, ('running'::character varying)::text, ('completed'::character varying)::text, ('canceled'::character varying)::text, ('attention'::character varying)::text])) AND (revision > 0)));
-  JRC_SCHEMA_SQL_2915c93244de
+  execute <<~'JRC_SCHEMA_SQL_054b3b324e9e'
+    ALTER TABLE "jrc_relationship_batch_reviews" ADD CONSTRAINT "rel_batch_state" CHECK ((((state)::text = ANY ((ARRAY['previewed'::character varying, 'running'::character varying, 'completed'::character varying, 'canceled'::character varying, 'attention'::character varying])::text[])) AND (revision > 0)));
+  JRC_SCHEMA_SQL_054b3b324e9e
 
   execute <<~'JRC_SCHEMA_SQL_6bbd761caa64'
     ALTER TABLE "jrc_relationship_cadence_enrollments" DROP CONSTRAINT "rel_cadence_state";
   JRC_SCHEMA_SQL_6bbd761caa64
 
-  execute <<~'JRC_SCHEMA_SQL_c5c91fed89f1'
-    ALTER TABLE "jrc_relationship_cadence_enrollments" ADD CONSTRAINT "rel_cadence_state" CHECK ((((state)::text = ANY (ARRAY[('active'::character varying)::text, ('completed'::character varying)::text, ('stopped'::character varying)::text])) AND (revision > 0) AND (((state)::text = 'stopped'::text) = (stop_reason IS NOT NULL)) AND (octet_length((snapshot)::text) <= 1048576)));
-  JRC_SCHEMA_SQL_c5c91fed89f1
+  execute <<~'JRC_SCHEMA_SQL_07800ca039b4'
+    ALTER TABLE "jrc_relationship_cadence_enrollments" ADD CONSTRAINT "rel_cadence_state" CHECK ((((state)::text = ANY ((ARRAY['active'::character varying, 'completed'::character varying, 'stopped'::character varying])::text[])) AND (revision > 0) AND (((state)::text = 'stopped'::text) = (stop_reason IS NOT NULL)) AND (octet_length((snapshot)::text) <= 1048576)));
+  JRC_SCHEMA_SQL_07800ca039b4
 
   execute <<~'JRC_SCHEMA_SQL_9ec274ac7fe8'
     ALTER TABLE "jrc_relationship_cadence_steps" DROP CONSTRAINT "rel_cadence_step_state";
   JRC_SCHEMA_SQL_9ec274ac7fe8
 
-  execute <<~'JRC_SCHEMA_SQL_6d722f6d5c20'
-    ALTER TABLE "jrc_relationship_cadence_steps" ADD CONSTRAINT "rel_cadence_step_state" CHECK ((((state)::text = ANY (ARRAY[('pending'::character varying)::text, ('applied'::character varying)::text, ('canceled'::character varying)::text])) AND ((ordinal >= 0) AND (ordinal <= 49)) AND (((state)::text = 'applied'::text) = (receipt IS NOT NULL))));
-  JRC_SCHEMA_SQL_6d722f6d5c20
+  execute <<~'JRC_SCHEMA_SQL_0bdc96bb434b'
+    ALTER TABLE "jrc_relationship_cadence_steps" ADD CONSTRAINT "rel_cadence_step_state" CHECK ((((state)::text = ANY ((ARRAY['pending'::character varying, 'applied'::character varying, 'canceled'::character varying])::text[])) AND ((ordinal >= 0) AND (ordinal <= 49)) AND (((state)::text = 'applied'::text) = (receipt IS NOT NULL))));
+  JRC_SCHEMA_SQL_0bdc96bb434b
 
   execute <<~'JRC_SCHEMA_SQL_6b3255b193bb'
     ALTER TABLE "jrc_service_desk_automation_publications" DROP CONSTRAINT "jrc_sd_automation_publication_kind";
   JRC_SCHEMA_SQL_6b3255b193bb
 
-  execute <<~'JRC_SCHEMA_SQL_c2e1bf84afcf'
-    ALTER TABLE "jrc_service_desk_automation_publications" ADD CONSTRAINT "jrc_sd_automation_publication_kind" CHECK ((((kind)::text = ANY (ARRAY[('lifecycle'::character varying)::text, ('operational'::character varying)::text])) AND (version > 0)));
-  JRC_SCHEMA_SQL_c2e1bf84afcf
+  execute <<~'JRC_SCHEMA_SQL_4ce5b70a3ba8'
+    ALTER TABLE "jrc_service_desk_automation_publications" ADD CONSTRAINT "jrc_sd_automation_publication_kind" CHECK ((((kind)::text = ANY ((ARRAY['lifecycle'::character varying, 'operational'::character varying])::text[])) AND (version > 0)));
+  JRC_SCHEMA_SQL_4ce5b70a3ba8
 
   execute <<~'JRC_SCHEMA_SQL_3fa9232f87de'
     ALTER TABLE "jrc_service_desk_case_links" DROP CONSTRAINT "jrc_sd_case_link_one_target";
@@ -7745,22 +7745,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
   execute <<~'JRC_SCHEMA_SQL_f2849c32a85f'
     ALTER TABLE "jrc_service_desk_categories" ADD CONSTRAINT "jrc_sd_r3_category_not_self" CHECK (((parent_id IS NULL) OR (parent_id <> id)));
   JRC_SCHEMA_SQL_f2849c32a85f
-
-  execute <<~'JRC_SCHEMA_SQL_21a7cfa6f07c'
-    ALTER TABLE "jrc_service_desk_glpi_commands" DROP CONSTRAINT "sd_glpi_command_state";
-  JRC_SCHEMA_SQL_21a7cfa6f07c
-
-  execute <<~'JRC_SCHEMA_SQL_8bd97a0c4af3'
-    ALTER TABLE "jrc_service_desk_glpi_commands" ADD CONSTRAINT "sd_glpi_command_state" CHECK (((state)::text = ANY (ARRAY[('pending'::character varying)::text, ('sending'::character varying)::text, ('succeeded'::character varying)::text, ('rejected'::character varying)::text, ('indeterminate'::character varying)::text])));
-  JRC_SCHEMA_SQL_8bd97a0c4af3
-
-  execute <<~'JRC_SCHEMA_SQL_1c5a4fae21e6'
-    ALTER TABLE "jrc_service_desk_glpi_sync_runs" DROP CONSTRAINT "sd_glpi_sync_state";
-  JRC_SCHEMA_SQL_1c5a4fae21e6
-
-  execute <<~'JRC_SCHEMA_SQL_0deb8a872a26'
-    ALTER TABLE "jrc_service_desk_glpi_sync_runs" ADD CONSTRAINT "sd_glpi_sync_state" CHECK (((state)::text = ANY ((ARRAY['running'::character varying, 'complete'::character varying, 'partial'::character varying, 'failed'::character varying])::text[])));
-  JRC_SCHEMA_SQL_0deb8a872a26
 
   execute <<~'JRC_SCHEMA_SQL_92c8b48856ae'
     ALTER TABLE "jrc_service_desk_incidents" DROP CONSTRAINT "jrc_sd_case_details_object";
@@ -7830,9 +7814,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_service_desk_ola_clocks" DROP CONSTRAINT "jrc_sd_ola_kind";
   JRC_SCHEMA_SQL_e9a613e19e7f
 
-  execute <<~'JRC_SCHEMA_SQL_d2893458b6ab'
-    ALTER TABLE "jrc_service_desk_ola_clocks" ADD CONSTRAINT "jrc_sd_ola_kind" CHECK (((kind)::text = ANY (ARRAY[('queue_residence'::character varying)::text, ('first_response'::character varying)::text, ('update'::character varying)::text, ('resolution'::character varying)::text])));
-  JRC_SCHEMA_SQL_d2893458b6ab
+  execute <<~'JRC_SCHEMA_SQL_4926d4c67350'
+    ALTER TABLE "jrc_service_desk_ola_clocks" ADD CONSTRAINT "jrc_sd_ola_kind" CHECK (((kind)::text = ANY ((ARRAY['queue_residence'::character varying, 'first_response'::character varying, 'update'::character varying, 'resolution'::character varying])::text[])));
+  JRC_SCHEMA_SQL_4926d4c67350
 
   execute <<~'JRC_SCHEMA_SQL_d215052bea68'
     ALTER TABLE "jrc_service_desk_operational_resources" DROP CONSTRAINT "jrc_sd_r3_resource_state";
@@ -7894,9 +7878,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     ALTER TABLE "jrc_service_desk_portal_grants" DROP CONSTRAINT "jrc_sd_pg_role";
   JRC_SCHEMA_SQL_7f2d6d1f2b15
 
-  execute <<~'JRC_SCHEMA_SQL_618a9ce79651'
-    ALTER TABLE "jrc_service_desk_portal_grants" ADD CONSTRAINT "jrc_sd_pg_role" CHECK (((role)::text = ANY (ARRAY[('requester'::character varying)::text, ('manager'::character varying)::text, ('organization_admin'::character varying)::text])));
-  JRC_SCHEMA_SQL_618a9ce79651
+  execute <<~'JRC_SCHEMA_SQL_37200f101565'
+    ALTER TABLE "jrc_service_desk_portal_grants" ADD CONSTRAINT "jrc_sd_pg_role" CHECK (((role)::text = ANY ((ARRAY['requester'::character varying, 'manager'::character varying, 'organization_admin'::character varying])::text[])));
+  JRC_SCHEMA_SQL_37200f101565
 
   execute <<~'JRC_SCHEMA_SQL_d1330ba4bb9b'
     ALTER TABLE "jrc_service_desk_portal_grants" DROP CONSTRAINT "jrc_sd_pg_visible_contacts";
@@ -8418,14 +8402,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     CREATE UNIQUE INDEX idx_project_comment_request ON public.jrc_projects_task_comments USING btree (account_id, task_id, user_id, request_key) WHERE (request_key IS NOT NULL);
   JRC_SCHEMA_SQL_0d7c8c4f864d
 
-  execute <<~'JRC_SCHEMA_SQL_eaabe397fad0'
-    DROP INDEX "idx_sd_glpi_sync_running";
-  JRC_SCHEMA_SQL_eaabe397fad0
-
-  execute <<~'JRC_SCHEMA_SQL_d88a6d4fc527'
-    CREATE UNIQUE INDEX idx_sd_glpi_sync_running ON public.jrc_service_desk_glpi_sync_runs USING btree (glpi_connection_id) WHERE ((state)::text = 'running'::text);
-  JRC_SCHEMA_SQL_d88a6d4fc527
-
   execute <<~'JRC_SCHEMA_SQL_c107a3424afc'
     DROP INDEX "index_companies_on_account_and_domain";
   JRC_SCHEMA_SQL_c107a3424afc
@@ -8702,9 +8678,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     DROP INDEX "jrc_sd_ola_active_kind_unique";
   JRC_SCHEMA_SQL_9d9b37c4529c
 
-  execute <<~'JRC_SCHEMA_SQL_d8a0863f614c'
-    CREATE UNIQUE INDEX jrc_sd_ola_active_kind_unique ON public.jrc_service_desk_ola_clocks USING btree (account_id, unit_id, ticket_id, kind) WHERE ((state)::text = ANY (ARRAY[('running'::character varying)::text, ('paused'::character varying)::text]));
-  JRC_SCHEMA_SQL_d8a0863f614c
+  execute <<~'JRC_SCHEMA_SQL_7b7dc50d3c15'
+    CREATE UNIQUE INDEX jrc_sd_ola_active_kind_unique ON public.jrc_service_desk_ola_clocks USING btree (account_id, unit_id, ticket_id, kind) WHERE ((state)::text = ANY ((ARRAY['running'::character varying, 'paused'::character varying])::text[]));
+  JRC_SCHEMA_SQL_7b7dc50d3c15
 
   execute <<~'JRC_SCHEMA_SQL_55dbdcbcc29f'
     DROP INDEX "jrc_sd_pending_deadline_scan";
@@ -8734,9 +8710,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     DROP INDEX "nico_broker_send_recovery";
   JRC_SCHEMA_SQL_2851322b0b5c
 
-  execute <<~'JRC_SCHEMA_SQL_21976b7fed80'
-    CREATE INDEX nico_broker_send_recovery ON public.jrc_nico_broker_send_operations USING btree (next_attempt_at, id) WHERE ((state)::text = ANY (ARRAY[('PAUSING'::character varying)::text, ('DRAINING'::character varying)::text, ('UNKNOWN'::character varying)::text, ('MESSAGE_CREATED'::character varying)::text, ('CANCELING'::character varying)::text]));
-  JRC_SCHEMA_SQL_21976b7fed80
+  execute <<~'JRC_SCHEMA_SQL_5d6b1142aa1e'
+    CREATE INDEX nico_broker_send_recovery ON public.jrc_nico_broker_send_operations USING btree (next_attempt_at, id) WHERE ((state)::text = ANY ((ARRAY['PAUSING'::character varying, 'DRAINING'::character varying, 'UNKNOWN'::character varying, 'MESSAGE_CREATED'::character varying, 'CANCELING'::character varying])::text[]));
+  JRC_SCHEMA_SQL_5d6b1142aa1e
 
   execute <<~'JRC_SCHEMA_SQL_92cc7fc579f0'
     DROP INDEX "rel_cadence_due";
@@ -8888,7 +8864,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
     AS $function$ BEGIN IF NEW IS DISTINCT FROM OLD THEN RAISE EXCEPTION 'jrc_effect_receipt_immutable' USING ERRCODE = '23514'; END IF; RETURN NEW; END $function$
   JRC_SCHEMA_SQL_5ef513db2e3c
 
-  execute <<~'JRC_SCHEMA_SQL_c2193a5d0e96'
+  execute <<~'JRC_SCHEMA_SQL_7f4ae9c15df6'
     CREATE OR REPLACE FUNCTION public.jrc_native_responder_config_fence()
      RETURNS trigger
      LANGUAGE plpgsql
@@ -8958,7 +8934,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_130000) do
       IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
     END;
     $function$
-  JRC_SCHEMA_SQL_c2193a5d0e96
+  JRC_SCHEMA_SQL_7f4ae9c15df6
 
   execute <<~'JRC_SCHEMA_SQL_98757180a316'
     CREATE OR REPLACE FUNCTION public.jrc_nico_preserve_send_fact()
