@@ -192,12 +192,12 @@ class JrcServiceDesk::Glpi::Documents
   end
 
   def authorize_download!(access, client, ticket_id, document_id)
-    ticket = authorized_ticket!(access, client, ticket_id)
+    authorized_ticket!(access, client, ticket_id)
     raise Pundit::NotAuthorizedError unless exact_link(client, ticket_id, document_id)
 
     document = client.get("Document/#{document_id}")
     @executor.verify_id!(document, document_id)
-    @executor.verify_entity!(document, ticket.fetch('entities_id'))
+    access.unit_for(JrcServiceDesk::Glpi::Identifiers.remote(document.fetch('entities_id')))
     document
   end
 
