@@ -30,6 +30,8 @@ permissions:
 
 jobs:
   glpi-integration:
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
@@ -81,6 +83,7 @@ jobs:
           bundle exec ruby test/jrc_service_desk/glpi_transport_test.rb
           bundle exec rails db:schema:load
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
+          bundle exec ruby test/jrc_service_desk/glpi_projection_integration.rb
 
   build-and-push:
     if: github.event_name == 'workflow_dispatch'
