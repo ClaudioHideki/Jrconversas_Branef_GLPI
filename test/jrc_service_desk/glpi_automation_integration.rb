@@ -350,6 +350,9 @@ class GlpiAutomationTest < GlpiIntegrationTest
     refute_nil queued
     JrcServiceDesk::Glpi::Client.stub(:new, ->(_) { flunk 'Deleting a local target must never contact GLPI' }) do
       DeleteObjectJob.deserialize(queued).perform_now
+      assert_raises(ActiveRecord::RecordNotFound) do
+        JrcServiceDesk::Glpi::LinkedReferences.new.call(user_context: @identity, conversation_id: conversation.id)
+      end
     end
     refute Conversation.exists?(conversation.id)
     assert_equal conversation.id, link.reload.conversation_id
