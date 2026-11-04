@@ -26,9 +26,17 @@ jobs:
         run: python3 test/glpi_lab/smoke.py
       - name: Laboratory diagnostics
         if: failure()
-        run: >-
-          docker compose -p branef-glpi-10-${{ github.run_id }} --env-file test/glpi_lab/.runtime/compose.env
-          -f test/glpi_lab/compose.yaml logs --tail 70
+        run: |
+          project=branef-glpi-10-${{ github.run_id }}
+          docker compose -p "$project" --env-file test/glpi_lab/.runtime/compose.env -f test/glpi_lab/compose.yaml ps
+          tls_id=$(docker compose -p "$project" --env-file test/glpi_lab/.runtime/compose.env -f test/glpi_lab/compose.yaml ps -q tls)
+          if [ -n "$tls_id" ]; then
+            docker inspect --format 'Requested ports: {{json .HostConfig.PortBindings}}' "$tls_id"
+            docker inspect --format 'Actual ports: {{json .NetworkSettings.Ports}}' "$tls_id"
+            docker exec "$tls_id" nginx -t
+            docker exec "$tls_id" sh -c 'cat /proc/net/tcp /proc/net/tcp6'
+          fi
+          docker compose -p "$project" --env-file test/glpi_lab/.runtime/compose.env -f test/glpi_lab/compose.yaml logs --tail 70
       - uses: actions/upload-artifact@v4
         if: success()
         with:
