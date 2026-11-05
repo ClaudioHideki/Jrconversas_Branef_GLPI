@@ -2,6 +2,7 @@
 
 require_relative 'glpi_test_helper'
 require 'csv'
+require 'timeout'
 
 class GlpiExportsTest < GlpiIntegrationTest
   # Only HTTP is synthetic: permissions, memberships, receipts, jobs and storage are real.
@@ -208,17 +209,50 @@ class GlpiExportsTest < GlpiIntegrationTest
       release.pop
     end
     results = nil
+    # Establish separate adapters serially before the race. Concurrent pg async
+    # connection establishment is not the behavior this nonce test exercises.
+    pool = ActiveRecord::Base.connection_pool
+    warmed = []
+    begin
+      2.times do
+        warmed << pool.checkout
+        warmed.last.select_value('SELECT 1')
+      end
+    ensure
+      warmed.each { |connection| pool.checkin(connection) }
+    end
+    account_id, user_id, member_id = @account.id, @user.id, @member.id
+    connection_ids = Queue.new
     JrcServiceDesk::Glpi::Client.stub(:new, source) do
       threads = 2.times.map do
         Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
-            JrcServiceDesk::Glpi::Export.new.download(access: access, id: record.id).state
+          pool.with_connection do |connection|
+            connection_ids << connection.object_id
+            identity = { account: Account.find(account_id), user: User.find(user_id), account_user: AccountUser.find(member_id) }
+            JrcServiceDesk::Glpi::Export.new.download(access: JrcServiceDesk::Glpi::Access.new(identity), id: record.id).state
           end
+        rescue StandardError => error
+          entered << error
+          raise
         end
       end
-      2.times { entered.pop }
-      2.times { release << true }
-      results = threads.map(&:value)
+      begin
+        Timeout.timeout(20) do
+          2.times do
+            entry = entered.pop
+            raise entry if entry.is_a?(Exception)
+          end
+        end
+        assert_equal 2, 2.times.map { connection_ids.pop }.uniq.size, 'The race requires independent database connections'
+        2.times { release << true }
+        results = Timeout.timeout(20) { threads.map(&:value) }
+      ensure
+        2.times { release << true }
+        threads.each do |thread|
+          thread.join(2)
+          thread.kill if thread.alive?
+        end
+      end
     end
     assert_equal %w[ready verifying], results.sort
     refute record.reload.receipt.fetch(:can_download)

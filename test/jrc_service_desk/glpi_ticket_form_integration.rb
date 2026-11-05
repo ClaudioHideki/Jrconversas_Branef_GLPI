@@ -67,6 +67,32 @@ class GlpiTicketFormSource < GlpiCommandSource
 end
 
 class GlpiTicketFormTest < GlpiIntegrationTest
+  def test_hidden_mandatory_zero_category_or_requester_makes_policy_unavailable
+    [7, 4].each do |num|
+      @remote.rules[10]['Hidden'] = [{ 'id' => 1, 'tickettemplates_id' => 10, 'num' => num }]
+      @remote.rules[10]['Mandatory'] = [{ 'id' => 2, 'tickettemplates_id' => 10, 'num' => num }]
+      @remote.rules[10]['Predefined'] = [{ 'id' => 3, 'tickettemplates_id' => 10, 'num' => num, 'value' => '0' }]
+      result = form
+      refute result[:supported]
+      assert_includes result[:unsupported_required], num == 7 ? 'itilcategories_id' : '_users_id_requester'
+      assert_equal 'template_fields_unsupported', create[:error_code]
+    end
+    assert_empty @remote.writes
+  end
+
+  def test_original_omitted_type_uses_entity_request_and_request_category_model_at_dispatch
+    @remote.rows['Entity/0']['tickettype'] = 2
+    @remote.rules[21]['Predefined'] = [{ 'id' => 1, 'tickettemplates_id' => 21, 'num' => 10, 'value' => '5' }]
+    policy = @form.call(access: @access, client: @remote, filters: { 'entity_id' => 0, 'category_id' => 7 })
+    assert_equal 2, policy[:type]
+    assert_equal 21, policy[:template_id]
+    receipt = create({ 'itilcategories_id' => 7 }, template_version: policy[:version])
+    assert_equal 'succeeded', receipt[:state], receipt.inspect
+    assert_equal 2, @remote.writes.last.last['type']
+    assert_equal 21, @remote.writes.last.last['_tickettemplate']
+    refute JrcServiceDesk::GlpiCommand.find(receipt[:id]).template_policy.fetch('selection').key?('type')
+  end
+
   def setup
     super
     @connection.update!(primary_source: true)

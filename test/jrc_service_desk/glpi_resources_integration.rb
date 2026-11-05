@@ -3,6 +3,45 @@
 require_relative 'glpi_test_helper'
 
 class GlpiResourcesTest < GlpiIntegrationTest
+  def test_asset_candidates_are_typed_scoped_searchable_and_distinct_from_associations
+    client = Minitest::Mock.new
+    client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
+    client.expect(:collection, [{ 'id' => 201, 'entities_id' => 0, 'name' => 'Synthetic laptop' },
+                                { 'id' => 202, 'entities_id' => 999, 'name' => 'Foreign laptop' }], ['Computer/'])
+    result = JrcServiceDesk::Glpi::AssetQuery.new.call(access: JrcServiceDesk::Glpi::Access.new(@identity), client: client,
+      filters: { 'ticket_id' => 101, 'asset_type' => 'Computer', 'search' => 'laptop' })
+    assert_equal [201], result[:items].map { |item| item['id'] }
+    assert_equal 'Computer', result[:items].first['itemtype']
+    refute result[:items].first.key?('tickets_id')
+    client.verify
+  end
+
+  def test_asset_detail_rejects_foreign_unmapped_and_untyped_targets
+    %w[Computer Profile].each do |type|
+      client = Object.new
+      def client.get(path)
+        path == 'Ticket/101' ? { 'id' => 101, 'entities_id' => 0 } : { 'id' => 201, 'entities_id' => 999, 'name' => 'Foreign' }
+      end
+      assert_raises(Pundit::NotAuthorizedError, ArgumentError) do
+        JrcServiceDesk::Glpi::AssetQuery.new.find(access: JrcServiceDesk::Glpi::Access.new(@identity), client: client, id: 201,
+          filters: { 'ticket_id' => 101, 'asset_type' => type })
+      end
+    end
+  end
+
+  def test_asset_source403_is_explicit_and_context_is_required
+    query = JrcServiceDesk::Glpi::AssetQuery.new
+    client = Object.new
+    def client.get(*) = { 'id' => 101, 'entities_id' => 0 }
+    def client.collection(*) = raise(JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403))
+    error = assert_raises(JrcServiceDesk::Glpi::Error) do
+      query.call(access: JrcServiceDesk::Glpi::Access.new(@identity), client: client,
+        filters: { 'ticket_id' => 101, 'asset_type' => 'Computer' })
+    end
+    assert_equal 403, error.http_status
+    assert_raises(KeyError) { query.call(access: JrcServiceDesk::Glpi::Access.new(@identity), client: client, filters: { 'asset_type' => 'Computer' }) }
+  end
+
   def test_complete_history_uses_pagination_and_does_not_cut_at_one_hundred
     client = Minitest::Mock.new
     client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])

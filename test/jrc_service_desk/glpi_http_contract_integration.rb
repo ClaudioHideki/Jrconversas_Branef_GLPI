@@ -3,6 +3,34 @@
 require_relative 'glpi_test_helper'
 
 class GlpiHttpContractTest < GlpiIntegrationTest
+  def test_configuration_boolean_source_round_trip_and_invalid_selectors
+    [true, false].each do |enabled|
+      [true, false, true].each do |primary|
+        @http.patch("#{@base}/connection", headers: @headers,
+          params: { enabled: enabled, primary_source: primary, lock_version: @connection.reload.lock_version }, as: :json)
+        assert_equal 200, @http.response.status, @http.response.body
+        assert_equal primary, JSON.parse(@http.response.body).fetch('connection').fetch('primary_source')
+        assert_equal primary, @connection.reload.primary_source?
+      end
+    end
+    ['native', 'glpi', 'false', 0, nil].each do |invalid|
+      @http.patch("#{@base}/connection", headers: @headers,
+        params: { primary_source: invalid, lock_version: @connection.reload.lock_version }, as: :json)
+      assert_equal 422, @http.response.status, invalid.inspect
+      assert @connection.reload.primary_source?
+    end
+  end
+
+  def test_trash_routes_are_administrative_and_bound_before_source_io
+    @member.update!(role: 'agent')
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(*) { flunk 'Agent trash discovery contacted source' }) do
+      @http.get("#{@base}/trash", headers: bound_headers)
+      assert_equal 403, @http.response.status
+      @http.get("#{@base}/trash/101", headers: bound_headers)
+      assert_equal 403, @http.response.status
+    end
+  end
+
   def setup
     super
     @http = ActionDispatch::Integration::Session.new(Rails.application)
