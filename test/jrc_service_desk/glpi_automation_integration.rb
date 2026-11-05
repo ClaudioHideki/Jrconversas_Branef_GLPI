@@ -4,6 +4,25 @@ require_relative 'glpi_test_helper'
 require_relative 'glpi_source_fixture'
 
 class GlpiAutomationTest < GlpiIntegrationTest
+  def test_linked_reference_coverage_counts_each_source_failure
+    incident = JrcServiceDesk::Incident.create!(account: @account, unit: @unit, created_by_membership: @unit_member,
+      title: 'Synthetic linked failures', severity: 'normal', status: 'open', resource_kind: 'incident', started_at: Time.current,
+      idempotency_key: SecureRandom.uuid, request_fingerprint: 'a' * 64)
+    [101, 102].each do |id|
+      reference = JrcServiceDesk::GlpiReference.create!(account: @account, glpi_connection: @connection, unit: @unit,
+        itemtype: 'Ticket', remote_id: id, entity_id: 0)
+      JrcServiceDesk::GlpiReferenceLink.create!(account: @account, unit: @unit, glpi_reference: reference, incident: incident, account_user: @member)
+    end
+    remote = Object.new
+    def remote.session = yield self
+    def remote.get(*) = raise(JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403))
+    JrcServiceDesk::Glpi::Client.stub(:new, remote) do
+      result = JrcServiceDesk::Glpi::LinkedReferences.new.call(user_context: @identity, incident_id: incident.id)
+      assert_equal({ 'ERROR_RIGHT_MISSING' => 2 }, result[:coverage][:errors])
+      refute result[:coverage][:complete]
+    end
+  end
+
   def setup
     super
     @connection.update!(primary_source: true)

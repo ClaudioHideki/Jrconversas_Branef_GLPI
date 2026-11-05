@@ -13,6 +13,10 @@ class JrcServiceDesk::GlpiPolicy < JrcServiceDesk::OperationalPolicy
     read? && operational_context.capability?(:tickets_create)
   end
 
+  def trash?
+    read? && operational_context.administrator?
+  end
+
   # Per-operation capabilities and live account/unit access are checked by Execute.
   def operate?
     read?

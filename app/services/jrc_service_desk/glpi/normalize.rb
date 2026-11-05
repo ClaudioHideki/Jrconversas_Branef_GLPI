@@ -18,7 +18,7 @@ module JrcServiceDesk::Glpi::Normalize
 
   def self.detail(row)
     row.slice('id', 'entities_id', 'status', 'priority', 'type', 'urgency', 'impact', 'date', 'date_mod', 'solvedate', 'closedate',
-              'time_to_resolve', 'time_to_own', 'itilcategories_id', 'slas_id_ttr', 'slas_id_tto').merge(
+              'time_to_resolve', 'time_to_own', 'itilcategories_id', 'slas_id_ttr', 'slas_id_tto', 'is_deleted').merge(
       'title' => text(row['name']), 'description' => text(row['content']),
       'description_html' => JrcServiceDesk::Glpi::Content.rich(row['content'], from_source: true), 'source' => 'glpi'
     )

@@ -12,7 +12,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     permit!(:read?)
     ready = access.connection&.enabled? && access.mappings.any? && (access.all_tickets? || access.glpi_user_id.present?)
     payload = { configured: access.connection.present?, enabled: access.connection&.enabled? == true, available: ready == true,
-                can_manage: policy.manage?, can_create: policy.create?, can_export: policy.export?,
+                can_manage: policy.manage?, can_manage_trash: policy.trash?, can_create: policy.create?, can_export: policy.export?,
                 user_mapping_required: !access.all_tickets? && access.glpi_user_id.nil? }
     if ready
       with_client do |client|
@@ -37,6 +37,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     permit!(:manage?)
     allowed = %w[base_url user_token app_token enabled primary_source timezone entity_mappings user_mappings categories lock_version]
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters, allowed)
+    raise ArgumentError if values.key?('primary_source') && ![true, false].include?(values['primary_source'])
     connection = nil
     Account.transaction do
       # Native mutations hold this Account FOR SHARE. The exclusive lock also
@@ -102,6 +103,28 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     render json: envelope.merge(payload)
   end
 
+  # Deleted records never enter the operational projection, counts or exports.
+  def trash
+    permit!(:trash?)
+    result = with_client do |client|
+      ::JrcServiceDesk::Glpi::TicketQuery.new(access, request.query_parameters, deleted: true).page(client)
+    end
+    render json: envelope.merge(result).merge(generated_at: Time.current.iso8601)
+  end
+
+  def show_trashed_ticket
+    permit!(:trash?)
+    raise ArgumentError unless request.query_parameters.empty?
+
+    payload = with_client do |client|
+      result = ::JrcServiceDesk::Glpi::Detail.new.call(access: access, client: client, ticket_id: ::JrcServiceDesk::Input.id(params[:remote_id]))
+      raise ActiveRecord::RecordNotFound unless [1, '1', true].include?(result.fetch(:ticket)['is_deleted'])
+
+      result
+    end
+    render json: envelope.merge(payload)
+  end
+
   def create_ticket
     permit!(:create?)
     receipt = ::JrcServiceDesk::Glpi::CreateTicket.new(access).call(request.request_parameters)
@@ -125,7 +148,11 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   def resources
     permit!(:read?)
     result = with_client do |client|
-      ::JrcServiceDesk::Glpi::ResourceQuery.new.call(access: access, client: client, kind: params[:kind], filters: request.query_parameters)
+      if params[:kind] == 'asset_candidates'
+        ::JrcServiceDesk::Glpi::AssetQuery.new.call(access: access, client: client, filters: request.query_parameters)
+      else
+        ::JrcServiceDesk::Glpi::ResourceQuery.new.call(access: access, client: client, kind: params[:kind], filters: request.query_parameters)
+      end
     end
     render json: envelope.merge(result)
   end
@@ -133,7 +160,13 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   def resource
     permit!(:read?)
     result = with_client do |client|
-      ::JrcServiceDesk::Glpi::ResourceQuery.new.find(access: access, client: client, kind: params[:kind], id: params[:remote_id])
+      if params[:kind] == 'asset_candidates'
+        ::JrcServiceDesk::Glpi::AssetQuery.new.find(access: access, client: client, id: params[:remote_id], filters: request.query_parameters)
+      else
+        raise ArgumentError unless request.query_parameters.empty?
+
+        ::JrcServiceDesk::Glpi::ResourceQuery.new.find(access: access, client: client, kind: params[:kind], id: params[:remote_id])
+      end
     end
     render json: envelope.merge(item: result)
   end
@@ -324,7 +357,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   end
 
   def verify_connection_binding!
-    modern = %w[operate capabilities ticket_form resources resource relations search_fields upload_document download_document overview
+    modern = %w[operate capabilities ticket_form trash show_trashed_ticket resources resource relations search_fields upload_document download_document overview
                 prepare_export export_status cancel_export download_export start_sync sync_status latest_sync cancel_sync]
     ::JrcServiceDesk::Glpi::ReferenceBinding.verify!(
       access: access, connection_id: request.headers['X-JRC-GLPI-Connection-Id'],

@@ -7,7 +7,8 @@ class GlpiResourcesTest < GlpiIntegrationTest
     client = Minitest::Mock.new
     client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
     client.expect(:collection, [{ 'id' => 201, 'entities_id' => 0, 'name' => 'Synthetic laptop' },
-                                { 'id' => 202, 'entities_id' => 999, 'name' => 'Foreign laptop' }], ['Computer/'])
+                                { 'id' => 202, 'entities_id' => 999, 'name' => 'Foreign laptop' }], ['Computer/', { 'sort' => 'id', 'order' => 'ASC' }])
+    client.expect(:get, { 'id' => 101, 'entities_id' => 0 }, ['Ticket/101'])
     result = JrcServiceDesk::Glpi::AssetQuery.new.call(access: JrcServiceDesk::Glpi::Access.new(@identity), client: client,
       filters: { 'ticket_id' => 101, 'asset_type' => 'Computer', 'search' => 'laptop' })
     assert_equal [201], result[:items].map { |item| item['id'] }

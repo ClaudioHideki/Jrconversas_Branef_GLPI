@@ -4,8 +4,11 @@ class JrcServiceDesk::Glpi::TicketQuery
   FIELDS = %w[entity_id status priority search from to mine type page per_page].freeze
   attr_reader :access, :filters
 
-  def initialize(access, parameters)
+  def initialize(access, parameters, deleted: false)
     @access = access.ready!
+    raise Pundit::NotAuthorizedError if deleted && !access.context.administrator?
+
+    @deleted = deleted
     @filters = JrcServiceDesk::Input.attributes(parameters, FIELDS)
   end
 
@@ -56,7 +59,7 @@ class JrcServiceDesk::Glpi::TicketQuery
     raise ArgumentError if filters['from'].present? && filters['to'].present? && filters['from'] > filters['to']
 
     { 'criteria' => criteria, 'forcedisplay' => JrcServiceDesk::Glpi::Normalize::FIELDS.keys, 'sort' => 2, 'order' => 'ASC',
-      'range' => "#{offset}-#{offset + size - 1}", 'is_deleted' => 0 }
+      'range' => "#{offset}-#{offset + size - 1}", 'is_deleted' => @deleted ? 1 : 0 }
   end
 
   def page(client)
@@ -65,7 +68,7 @@ class JrcServiceDesk::Glpi::TicketQuery
     raise ArgumentError unless page <= 100_000 && size <= 100
 
     result = client.get('search/Ticket/', parameters(offset: (page - 1) * size, size: size))
-    { items: result_rows(result).map { |row| JrcServiceDesk::Glpi::Normalize.search(row) },
+    { items: result_rows(result).map { |row| JrcServiceDesk::Glpi::Normalize.search(row).merge('is_deleted' => @deleted) },
       meta: { page: page, per_page: size, total: result.fetch('totalcount') } }
   end
 

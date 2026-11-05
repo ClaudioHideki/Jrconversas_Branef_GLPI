@@ -146,6 +146,8 @@ class JrcServiceDesk::Glpi::ResourceQuery
   def authorize_record!(access, client, type, row)
     access = bind_access!(access)
     if type == 'Ticket'
+      raise Pundit::NotAuthorizedError if [1, '1', true].include?(row['is_deleted']) && !access.context.administrator?
+
       access.authorize_ticket!(client, row)
     elsif ENTITY_TYPES.value?(type) || ASSET_TYPES.include?(type) || type == 'Document'
       access.unit_for(JrcServiceDesk::Glpi::Identifiers.remote(row.fetch('entities_id')))

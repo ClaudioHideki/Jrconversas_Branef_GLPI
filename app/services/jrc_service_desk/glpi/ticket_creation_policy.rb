@@ -59,7 +59,7 @@ class JrcServiceDesk::Glpi::TicketCreationPolicy
   end
 
   def missing?(value)
-    value.nil? || value == 0 || value == false || (value.is_a?(String) && JrcServiceDesk::Glpi::Normalize.text(value).strip.empty?)
+    JrcServiceDesk::Glpi::TicketForm.missing?(value)
   end
 
   def changed!

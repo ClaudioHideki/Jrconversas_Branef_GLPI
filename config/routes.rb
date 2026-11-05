@@ -117,6 +117,8 @@ Rails.application.routes.draw do
               patch 'connection', to: 'glpi#update_configuration'
               post 'connection/validate', to: 'glpi#validate_connection'
               get 'tickets', to: 'glpi#tickets'
+              get 'trash', to: 'glpi#trash'
+              get 'trash/:remote_id', to: 'glpi#show_trashed_ticket'
               post 'tickets', to: 'glpi#create_ticket'
               get 'tickets/:remote_id', to: 'glpi#show_ticket'
               get 'capabilities', to: 'glpi#capabilities'

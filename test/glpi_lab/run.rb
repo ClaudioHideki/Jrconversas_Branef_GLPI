@@ -38,6 +38,48 @@ module GlpiLabEvidence
 end
 
 class GlpiLaboratoryTest < GlpiIntegrationTest
+  def test_actual_service_asset_discovery_and_administrative_delete_discover_restore
+    ticket_id = nil
+    source do |client|
+      @fixture_client = client
+      ticket_id = fixture_object('Ticket')
+      candidates = JrcServiceDesk::Glpi::AssetQuery.new.call(access: access, client: client,
+        filters: { 'ticket_id' => ticket_id, 'asset_type' => 'Computer', 'search' => 'BRANEF LAB COMPUTER' })
+      asset = candidates.fetch(:items).find { |row| row['id'].to_i == @fixtures.fetch('catalogues').fetch('computer') }
+      refute_nil asset
+      target = JrcServiceDesk::Glpi::AssetQuery.new.find(access: access, client: client, id: asset['id'],
+        filters: { 'ticket_id' => ticket_id, 'asset_type' => 'Computer' })
+      assert_equal 'BRANEF LAB COMPUTER', target.fetch('name')
+    end
+    deleted = @executor.call(access: access, operation: 'ticket.delete', target_id: ticket_id, entity_id: 0,
+      attributes: {}, idempotency_key: SecureRandom.uuid, reason: 'Synthetic trash discovery regression')
+    assert_equal 'succeeded', deleted[:state], deleted.inspect
+    http = ActionDispatch::Integration::Session.new(Rails.application)
+    base = "/api/v1/accounts/#{@account.id}/jrc_service_desk/glpi"
+    headers = @user.create_new_auth_token.merge('X-JRC-GLPI-Connection-Id' => @connection.id.to_s,
+      'X-JRC-GLPI-Connection-Version' => @connection.lock_version.to_s)
+    http.get("#{base}/trash", headers: headers, params: { search: 'SYNTHETIC Ticket' })
+    assert_equal 200, http.response.status, http.response.body
+    found = JSON.parse(http.response.body).fetch('items').find { |row| row['id'].to_i == ticket_id }
+    refute_nil found, 'Deleted synthetic record must be discoverable without an exact-ID URL'
+    assert_equal true, found.fetch('is_deleted')
+    http.get("#{base}/trash/#{ticket_id}", headers: headers)
+    assert_equal 200, http.response.status, http.response.body
+    detail = JSON.parse(http.response.body)
+    assert_equal 1, detail.fetch('ticket').fetch('is_deleted').to_i
+    restored = @executor.call(access: access, operation: 'ticket.restore', target_id: ticket_id, entity_id: 0,
+      attributes: {}, idempotency_key: SecureRandom.uuid, expected_version: detail.fetch('source_version'))
+    assert_equal 'succeeded', restored[:state], restored.inspect
+    http.get("#{base}/trash", headers: headers, params: { search: ticket_id.to_s })
+    assert_equal 200, http.response.status
+    refute JSON.parse(http.response.body).fetch('items').any? { |row| row['id'].to_i == ticket_id }
+    source do |client|
+      assert_equal 0, client.get("Ticket/#{ticket_id}").fetch('is_deleted').to_i
+      assert JrcServiceDesk::Glpi::TicketQuery.new(access, 'search' => ticket_id.to_s).all(client).any? { |row| row['id'].to_i == ticket_id }
+    end
+    GlpiLabEvidence::CHECKS << 'actual typed asset discovery/detail and administrative delete/discover/detail/confirmed restore'
+  end
+
   FileUpload = Struct.new(:tempfile, :original_filename, :content_type)
 
   def setup

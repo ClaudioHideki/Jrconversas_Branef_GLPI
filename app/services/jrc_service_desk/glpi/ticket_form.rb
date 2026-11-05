@@ -17,6 +17,10 @@ class JrcServiceDesk::Glpi::TicketForm
   ACTORS = { 4 => '_users_id_requester', 5 => '_users_id_assign', 8 => '_groups_id_assign',
     65 => '_groups_id_observer', 66 => '_users_id_observer', 71 => '_groups_id_requester', -2 => '_add_validation' }.freeze
 
+  def self.missing?(value)
+    value.nil? || value == 0 || value == false || (value.is_a?(String) && JrcServiceDesk::Glpi::Normalize.text(value).strip.empty?)
+  end
+
   def call(access:, client:, filters:)
     values = JrcServiceDesk::Input.attributes(filters, %w[entity_id type category_id template_id])
     @entity = JrcServiceDesk::Glpi::Identifiers.remote(values.fetch('entity_id'))
@@ -207,7 +211,7 @@ class JrcServiceDesk::Glpi::TicketForm
     validate_references!(predefined)
     unsupported = (required - FIELDS) + Array(template&.fetch(:unsupported))
     hidden.each do |field|
-      unsupported << field if required.include?(field) && (predefined[field].blank? || (field == 'content'))
+      unsupported << field if required.include?(field) && (self.class.missing?(predefined[field]) || field == 'content')
     end
     status_capability = STATUS_CAPABILITIES[predefined.fetch('status')]
     unsupported << 'status' if status_capability && !@access.context.capability?(status_capability)
