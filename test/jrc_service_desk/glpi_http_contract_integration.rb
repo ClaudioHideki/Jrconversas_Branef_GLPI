@@ -43,7 +43,7 @@ class GlpiHttpContractTest < GlpiIntegrationTest
       { id: '1', state: 'succeeded' }
     end
     version = 'a' * 64
-    JrcServiceDesk::Glpi::Execute.stub(:new, service) do
+    JrcServiceDesk::Glpi::Execute.stub(:new, ->(*) { service }) do
       @http.post("#{@base}/operations", headers: bound_headers,
         params: { operation: 'ticket.create', entity_id: 0, attributes: { name: 'Synthetic form proof', template_id: 7 },
                   idempotency_key: 'http-form-version', template_version: version }, as: :json)
@@ -65,7 +65,7 @@ class GlpiHttpContractTest < GlpiIntegrationTest
       { entity_id: 0, type: 1, template_id: 7, version: 'a' * 64, supported: true }
     end
     JrcServiceDesk::Glpi::Client.stub(:new, source) do
-      JrcServiceDesk::Glpi::TicketForm.stub(:new, service) do
+      JrcServiceDesk::Glpi::TicketForm.stub(:new, ->(*) { service }) do
         @http.get("#{@base}/ticket_form", headers: bound_headers, params: { entity_id: 0, type: 1, template_id: 7 })
       end
     end
