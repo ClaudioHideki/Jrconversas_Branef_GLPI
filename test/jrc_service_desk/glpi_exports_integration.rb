@@ -406,7 +406,7 @@ class GlpiExportsTest < GlpiIntegrationTest
 
   def test_live_query_mine_always_uses_authenticated_glpi_identity
     @connection.update!(user_mappings: [{ account_user_id: @member.id, glpi_user_id: 55 }])
-    query = JrcServiceDesk::Glpi::TicketQuery.new(access, 'mine' => 'true', 'type' => '1')
+    query = JrcServiceDesk::Glpi::TicketQuery.new(access, { 'mine' => 'true', 'type' => '1' })
     parameters = query.parameters(offset: 0, size: 100)
     assert_includes parameters.fetch('criteria'), { 'field' => 14, 'searchtype' => 'equals', 'value' => 1, 'link' => 'AND' }
     assert_includes parameters.fetch('criteria'), { 'field' => 5, 'searchtype' => 'equals', 'value' => 55, 'link' => 'AND' }

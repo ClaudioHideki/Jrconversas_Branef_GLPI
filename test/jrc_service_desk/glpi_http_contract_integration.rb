@@ -31,6 +31,35 @@ class GlpiHttpContractTest < GlpiIntegrationTest
     end
   end
 
+  def test_admin_trash_is_separate_scoped_source_query_and_never_infers_deletion_from404
+    source = Object.new
+    source.define_singleton_method(:session) { |&block| block.call(self) }
+    requests = []
+    source.define_singleton_method(:get) do |path, parameters = {}|
+      requests << [path, parameters]
+      if path == 'search/Ticket/'
+        { 'data' => [{ '2' => 101, '1' => 'Synthetic trash' }], 'totalcount' => 1 }
+      else
+        raise JrcServiceDesk::Glpi::Error.new('ERROR_ITEM_NOT_FOUND', 404)
+      end
+    end
+    JrcServiceDesk::Glpi::Client.stub(:new, source) do
+      @http.get("#{@base}/trash", headers: bound_headers, params: { entity_id: 0, search: 'Synthetic' })
+      assert_equal 200, @http.response.status, @http.response.body
+      assert_equal true, JSON.parse(@http.response.body).fetch('items').first.fetch('is_deleted')
+      assert_equal 1, requests.last.last.fetch('is_deleted')
+      assert_equal 0, requests.last.last.fetch('criteria').first.fetch('criteria').first.fetch('value')
+      @http.get("#{@base}/tickets", headers: bound_headers)
+      assert_equal 200, @http.response.status
+      assert_equal 0, requests.last.last.fetch('is_deleted')
+      @http.get("#{@base}/tickets", headers: bound_headers, params: { is_deleted: 1 })
+      assert_equal 422, @http.response.status
+      @http.get("#{@base}/trash/101", headers: bound_headers)
+      assert_equal 404, @http.response.status
+      assert_equal 'ERROR_ITEM_NOT_FOUND', JSON.parse(@http.response.body).fetch('source_code')
+    end
+  end
+
   def setup
     super
     @http = ActionDispatch::Integration::Session.new(Rails.application)

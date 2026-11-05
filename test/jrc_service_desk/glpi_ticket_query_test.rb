@@ -52,12 +52,12 @@ class GlpiTicketQueryTest < Minitest::Test
   end
 
   def test_numeric_search_matches_ticket_number_or_title
-    criteria = JrcServiceDesk::Glpi::TicketQuery.new(Access.new, 'search' => '10205').parameters(offset: 0, size: 100).fetch('criteria')
+    criteria = JrcServiceDesk::Glpi::TicketQuery.new(Access.new, { 'search' => '10205' }).parameters(offset: 0, size: 100).fetch('criteria')
     assert_includes criteria, { 'link' => 'AND', 'criteria' => [
       { 'field' => 1, 'searchtype' => 'contains', 'value' => '10205', 'link' => 'AND' },
       { 'field' => 2, 'searchtype' => 'equals', 'value' => 10_205, 'link' => 'OR' }
     ] }
-    criteria = JrcServiceDesk::Glpi::TicketQuery.new(Access.new, 'search' => 'Reference 10205').parameters(offset: 0, size: 100).fetch('criteria')
+    criteria = JrcServiceDesk::Glpi::TicketQuery.new(Access.new, { 'search' => 'Reference 10205' }).parameters(offset: 0, size: 100).fetch('criteria')
     assert_includes criteria, { 'field' => 1, 'searchtype' => 'contains', 'value' => 'Reference 10205', 'link' => 'AND' }
   end
 end
