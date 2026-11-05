@@ -75,7 +75,7 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
     refute JSON.parse(http.response.body).fetch('items').any? { |row| row['id'].to_i == ticket_id }
     source do |client|
       assert_equal 0, client.get("Ticket/#{ticket_id}").fetch('is_deleted').to_i
-      assert JrcServiceDesk::Glpi::TicketQuery.new(access, 'search' => ticket_id.to_s).all(client).any? { |row| row['id'].to_i == ticket_id }
+      assert JrcServiceDesk::Glpi::TicketQuery.new(access, { 'search' => ticket_id.to_s }).all(client).any? { |row| row['id'].to_i == ticket_id }
     end
     GlpiLabEvidence::CHECKS << 'actual typed asset discovery/detail and administrative delete/discover/detail/confirmed restore'
   end

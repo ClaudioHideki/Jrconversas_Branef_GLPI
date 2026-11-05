@@ -26,7 +26,7 @@ const configuration = () => ({
       base_url: 'https://glpi.example.test/apirest.php',
       timezone: 'America/Sao_Paulo',
       enabled: false,
-      primary_source: 'glpi',
+      primary_source: true,
       user_token_configured: true,
       app_token_configured: true,
       entity_mappings: [],
@@ -68,16 +68,71 @@ describe('GLPI account source configuration', () => {
     await flushPromises();
     expect(
       wrapper.get('[data-testid="glpi-primary-source"]').element.value
-    ).toBe('glpi');
+    ).toBe('true');
     await wrapper.findAll('form')[0].trigger('submit');
     await flushPromises();
     expect(API.save.mock.calls[0][1]).toMatchObject({
       enabled: false,
-      primary_source: 'glpi',
+      primary_source: true,
       categories: [],
     });
     expect(wrapper.find('textarea').exists()).toBe(false);
     expect(holder.session.revalidate).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+  it.each([true, false])(
+    'selects native from a primary connection with enabled=%s',
+    async enabled => {
+      const payload = configuration();
+      payload.data.connection.enabled = enabled;
+      API.get.mockResolvedValue(payload);
+      const wrapper = mount(Settings, {
+        global: {
+          plugins: [
+            createI18n({
+              legacy: false,
+              locale: 'en',
+              messages: { en: { ...messages, ...serviceMessages } },
+            }),
+          ],
+        },
+      });
+      await flushPromises();
+      await wrapper
+        .get('[data-testid="glpi-primary-source"]')
+        .setValue('false');
+      await wrapper.findAll('form')[0].trigger('submit');
+      await flushPromises();
+      expect(API.save.mock.calls[0][1]).toMatchObject({
+        enabled,
+        primary_source: false,
+      });
+      wrapper.unmount();
+    }
+  );
+  it('loads the actual native boolean and switches to GLPI', async () => {
+    const payload = configuration();
+    payload.data.connection.primary_source = false;
+    API.get.mockResolvedValue(payload);
+    const wrapper = mount(Settings, {
+      global: {
+        plugins: [
+          createI18n({
+            legacy: false,
+            locale: 'en',
+            messages: { en: { ...messages, ...serviceMessages } },
+          }),
+        ],
+      },
+    });
+    await flushPromises();
+    expect(
+      wrapper.get('[data-testid="glpi-primary-source"]').element.value
+    ).toBe('false');
+    await wrapper.get('[data-testid="glpi-primary-source"]').setValue('true');
+    await wrapper.findAll('form')[0].trigger('submit');
+    await flushPromises();
+    expect(API.save.mock.calls[0][1].primary_source).toBe(true);
     wrapper.unmount();
   });
 });

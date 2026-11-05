@@ -56,7 +56,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
     found = 0
     items = []
     errors = []
-    client.collection("#{type}/", 'sort' => 'id', 'order' => 'ASC').each do |row|
+    client.collection("#{type}/", { 'sort' => 'id', 'order' => 'ASC' }).each do |row|
       begin
         metadata_scope ? metadata_scope.authorize!(type, row) : authorize_record!(access, client, type, row)
         next if private?(access, row)

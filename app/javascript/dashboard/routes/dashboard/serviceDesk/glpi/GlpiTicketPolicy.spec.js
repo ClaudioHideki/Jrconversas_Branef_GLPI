@@ -133,7 +133,7 @@ beforeEach(() => {
       ? envelope({
           form: policy({
             entity_id: Number(params.entity_id),
-            type: Number(params.type),
+            type: Number(params.type || 1),
             category_id: params.category_id || null,
           }),
         })
@@ -152,6 +152,143 @@ beforeEach(() => {
       command: { id: '81', state: 'indeterminate', technical_user_id: 9 },
     })
   );
+});
+describe('source-derived untouched selectors', () => {
+  it('does not turn a predefined type/category redirect into explicit input on later policy reads or dispatch', async () => {
+    API.get.mockImplementation(async (_account, path) =>
+      path === 'ticket_form'
+        ? envelope({
+            form: policy({
+              type: 2,
+              category_id: 5,
+              template_id: 21,
+              template_source: 'category_predefined',
+            }),
+          })
+        : envelope({
+            items: [{ id: 7, name: 'Explicit template' }],
+            meta: { total: 1 },
+          })
+    );
+    const wrapper = render();
+    await entity(wrapper).setValue(0);
+    await flushPromises();
+    expect(control(wrapper, 'type').element.value).toBe('2');
+    expect(control(wrapper, 'itilcategories_id').element.value).toBe('5');
+    await wrapper
+      .get('[data-testid="glpi-template-selector"] select')
+      .setValue(7);
+    await flushPromises();
+    const selection = API.get.mock.calls
+      .filter(call => call[1] === 'ticket_form')
+      .at(-1)[2];
+    expect(selection).toEqual({ entity_id: 0, template_id: 7 });
+    await control(wrapper, 'content').setValue('Actual description');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(API.execute.mock.calls[0][1].attributes).not.toHaveProperty('type');
+    expect(API.execute.mock.calls[0][1].attributes).not.toHaveProperty(
+      'itilcategories_id'
+    );
+    expect(API.execute.mock.calls[0][1].attributes.template_id).toBe(7);
+    wrapper.unmount();
+  });
+
+  it('re-resolves hidden source selectors instead of submitting a hidden override', async () => {
+    API.get.mockImplementation(async (_account, path, params) => {
+      if (path !== 'ticket_form')
+        return envelope({ items: [], meta: { total: 0 } });
+      return envelope({
+        form: policy({
+          type: 1,
+          hidden: params.type === 2 ? ['type'] : [],
+          version: (params.type === 2 ? 'b' : 'a').repeat(64),
+        }),
+      });
+    });
+    const wrapper = render();
+    await entity(wrapper).setValue(0);
+    await flushPromises();
+    await control(wrapper, 'type').setValue(2);
+    await flushPromises();
+    expect(
+      API.get.mock.calls.filter(call => call[1] === 'ticket_form').at(-1)[2]
+    ).not.toHaveProperty('type');
+    await control(wrapper, 'content').setValue('Actual description');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(API.execute.mock.calls[0][1].attributes).not.toHaveProperty('type');
+    expect(API.execute.mock.calls[0][1].template_version).toBe('a'.repeat(64));
+    wrapper.unmount();
+  });
+
+  it('omits the first type, resolves Request category models and keeps original selectors on submit', async () => {
+    API.get.mockImplementation(async (_account, path, params) => {
+      if (path !== 'ticket_form')
+        return envelope({
+          items: [{ id: 5, name: 'Category' }],
+          meta: { total: 1 },
+        });
+      const type = params.type || (Number(params.entity_id) === 0 ? 2 : 1);
+      const categoryTemplate = type === 2 ? 21 : 20;
+      return envelope({
+        form: policy({
+          type,
+          category_id: params.category_id || 0,
+          template_id: params.category_id ? categoryTemplate : 7,
+          version: (type === 2 ? 'b' : 'a').repeat(64),
+        }),
+      });
+    });
+    const wrapper = render();
+    await entity(wrapper).setValue(0);
+    await flushPromises();
+    expect(
+      API.get.mock.calls.find(call => call[1] === 'ticket_form')[2]
+    ).not.toHaveProperty('type');
+    expect(control(wrapper, 'type').element.value).toBe('2');
+    await control(wrapper, 'itilcategories_id').setValue(5);
+    await flushPromises();
+    expect(
+      API.get.mock.calls.filter(call => call[1] === 'ticket_form').at(-1)[2]
+    ).toMatchObject({ category_id: 5 });
+    expect(wrapper.text()).toContain('21');
+    await control(wrapper, 'content').setValue('Actual request');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(API.execute.mock.calls[0][1]).toMatchObject({
+      attributes: { itilcategories_id: 5 },
+      template_version: 'b'.repeat(64),
+    });
+    expect(API.execute.mock.calls[0][1].attributes).not.toHaveProperty('type');
+    wrapper.unmount();
+  });
+  it('recomputes an untouched type on entity change but preserves a deliberate operator choice', async () => {
+    API.get.mockImplementation(async (_account, path, params) =>
+      path === 'ticket_form'
+        ? envelope({
+            form: policy({
+              type: params.type || (Number(params.entity_id) === 0 ? 2 : 1),
+            }),
+          })
+        : envelope({ items: [], meta: { total: 0 } })
+    );
+    const wrapper = render();
+    await entity(wrapper).setValue(0);
+    await flushPromises();
+    expect(control(wrapper, 'type').element.value).toBe('2');
+    await entity(wrapper).setValue(2);
+    await flushPromises();
+    expect(control(wrapper, 'type').element.value).toBe('1');
+    await control(wrapper, 'type').setValue(2);
+    await flushPromises();
+    await entity(wrapper).setValue(0);
+    await flushPromises();
+    expect(
+      API.get.mock.calls.filter(call => call[1] === 'ticket_form').at(-1)[2]
+    ).toMatchObject({ entity_id: 0, type: 2 });
+    wrapper.unmount();
+  });
 });
 
 describe('primary-source ticket creation policy', () => {
@@ -195,7 +332,7 @@ describe('primary-source ticket creation policy', () => {
     await flushPromises();
     expect(
       API.get.mock.calls.some(
-        call => call[1] === 'ticket_form' && call[2].type === 1
+        call => call[1] === 'ticket_form' && !('type' in call[2])
       )
     ).toBe(true);
     expect(

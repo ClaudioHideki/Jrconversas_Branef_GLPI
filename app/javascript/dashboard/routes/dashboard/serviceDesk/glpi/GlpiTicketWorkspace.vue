@@ -18,20 +18,23 @@ const props = defineProps({
 const { t } = useI18n();
 const router = useRouter();
 const localId = ref(null);
+const trash = ref(false);
 const selectedId = computed(() => props.ticketId || localId.value);
 const page = ref(1);
 const filters = ref({});
 const relation = ref('followups');
 const list = computed(() => props.glpi.state.data.tickets);
 const detail = computed(() => props.glpi.state.data.detail);
+const deleted = computed(() =>
+  [true, 1, '1'].includes(detail.value?.ticket?.is_deleted)
+);
 const descriptors = computed(() =>
-  (props.glpi.state.data.capabilities?.operations || []).filter(
-    item =>
-      item.operation.startsWith('ticket.') &&
-      (props.screen === 'new'
-        ? item.operation === 'ticket.create'
-        : item.operation !== 'ticket.create')
-  )
+  (props.glpi.state.data.capabilities?.operations || []).filter(item => {
+    if (!item.operation.startsWith('ticket.')) return false;
+    if (props.screen === 'new') return item.operation === 'ticket.create';
+    if (deleted.value) return item.operation === 'ticket.restore';
+    return !['ticket.create', 'ticket.restore'].includes(item.operation);
+  })
 );
 const relations = [
   'followups',
@@ -52,8 +55,11 @@ const relations = [
 const load = () => {
   if (props.screen === 'new') return null;
   if (selectedId.value)
-    return props.glpi.read('detail', `tickets/${selectedId.value}`);
-  return props.glpi.read('tickets', 'tickets', {
+    return props.glpi.read(
+      'detail',
+      `${trash.value ? 'trash' : 'tickets'}/${selectedId.value}`
+    );
+  return props.glpi.read('tickets', trash.value ? 'trash' : 'tickets', {
     ...filters.value,
     ...props.fixedFilters,
     page: page.value,
@@ -66,12 +72,32 @@ watch(selectedId, () => {
 });
 watch(() => props.screen, load, { immediate: true });
 const open = id => {
+  if (trash.value) {
+    localId.value = id;
+    return;
+  }
   if (props.glpi.session.state.context?.data_source === 'glpi')
     router.push({
       name: serviceDeskRouteName('detail'),
       params: { accountId: props.glpi.session.accountId.value, ticketId: id },
     });
   else localId.value = id;
+};
+const toggleTrash = () => {
+  trash.value = !trash.value;
+  localId.value = null;
+  page.value = 1;
+  filters.value = {};
+  props.glpi.discard('tickets');
+  props.glpi.discard('detail');
+  load();
+};
+const succeeded = () => {
+  if (trash.value) {
+    localId.value = null;
+    props.glpi.discard('detail');
+  }
+  load();
 };
 const create = () =>
   router.push({
@@ -85,6 +111,16 @@ const create = () =>
     class="grid gap-4"
     data-testid="glpi-ticket-workspace"
   >
+    <p
+      v-if="glpi.state.errors[selectedId ? 'detail' : 'tickets']"
+      role="alert"
+    >
+      {{
+        t('JRC_GLPI.source_code', {
+          code: glpi.state.errors[selectedId ? 'detail' : 'tickets'].code,
+        })
+      }}
+    </p>
     <GlpiOperationForm
       v-if="screen === 'new'"
       :glpi="glpi"
@@ -99,7 +135,19 @@ const create = () =>
         {{ t('JRC_GLPI.loading') }}
       </p>
       <template v-if="detail">
+        <Button
+          v-if="trash"
+          :label="t('JRC_GLPI.workspace.trash_back')"
+          @click="localId = null"
+        />
         <article class="grid gap-3 rounded-xl border border-n-weak p-4">
+          <p
+            v-if="deleted"
+            data-testid="glpi-deleted-state"
+            class="text-sm text-n-ruby-11"
+          >
+            {{ t('JRC_GLPI.workspace.deleted') }}
+          </p>
           <h3 class="text-lg font-semibold">
             {{
               t('JRC_GLPI.workspace.record_title', {
@@ -151,9 +199,10 @@ const create = () =>
           :authorized-entity-id="detail.ticket.entities_id"
           :parent-version="detail.source_version || ''"
           :source-version="detail.source_version || ''"
-          @succeeded="load"
+          @succeeded="succeeded"
         />
         <nav
+          v-if="!deleted"
           class="flex flex-wrap gap-2"
           :aria-label="t('JRC_GLPI.workspace.relations')"
         >
@@ -167,6 +216,7 @@ const create = () =>
           />
         </nav>
         <GlpiResourceBoard
+          v-if="!deleted"
           :key="`${detail.ticket.id}:${relation}`"
           :glpi="glpi"
           :resource="relation"
@@ -188,7 +238,23 @@ const create = () =>
           }}
         </h3>
         <Button
-          v-if="glpi.session.state.context?.data_source === 'glpi'"
+          v-if="glpi.state.context?.can_manage_trash"
+          data-testid="glpi-trash-toggle"
+          :label="
+            trash
+              ? t('JRC_GLPI.workspace.active_tickets')
+              : t('JRC_GLPI.workspace.trash')
+          "
+          @click="toggleTrash"
+        />
+        <p
+          v-if="trash"
+          class="text-sm"
+        >
+          {{ t('JRC_GLPI.workspace.trash') }}
+        </p>
+        <Button
+          v-if="!trash && glpi.session.state.context?.data_source === 'glpi'"
           :label="t('JRC_GLPI.new_ticket')"
           @click="create"
         />

@@ -32,6 +32,9 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
   let previousEntity = '';
   let defaults = {};
   let used = false;
+  // Selection is the operator's original intent, distinct from effective source
+  // defaults. Dispatch must resolve the same policy, including template redirects.
+  const selectors = ref({});
   const limitations = computed(() => [
     ...(form.value?.unsupported_required || []),
     ...(form.value?.fields || []).filter(field => !supportedFields.has(field)),
@@ -104,6 +107,7 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
     }
     applying = true;
     if (String(entityId.value) !== previousEntity) {
+      delete selectors.value.category_id;
       templateId.value = '';
       ['itilcategories_id', '_users_id_requester'].forEach(field => {
         values[field] = '';
@@ -111,7 +115,6 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
       form.value = null;
       previousEntity = String(entityId.value);
     }
-    if (!values.type) values.type = 1;
     applying = false;
     if (entityId.value === '') {
       form.value = null;
@@ -121,10 +124,7 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
     pending.value = true;
     const response = await glpi.read('ticket_form', 'ticket_form', {
       entity_id: Number(entityId.value),
-      type: Number(values.type),
-      ...(values.itilcategories_id
-        ? { category_id: Number(values.itilcategories_id) }
-        : {}),
+      ...selectors.value,
       ...(templateId.value ? { template_id: Number(templateId.value) } : {}),
     });
     if (epoch !== generation) return;
@@ -140,6 +140,22 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
       return;
     }
     const resolved = response.form;
+    const hiddenSelectors = [
+      ['type', 'type'],
+      ['itilcategories_id', 'category_id'],
+    ].filter(
+      ([field, selector]) =>
+        resolved.hidden.includes(field) &&
+        selectors.value[selector] !== undefined
+    );
+    if (hiddenSelectors.length) {
+      hiddenSelectors.forEach(
+        ([, selector]) => delete selectors.value[selector]
+      );
+      form.value = null;
+      await load();
+      return;
+    }
     applying = true;
     const nextDefaults = {};
     supportedFields.forEach(field => {
@@ -179,6 +195,15 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
     ],
     (current, previous) => {
       if (applying) return;
+      if (previous.length && current[2] !== previous[2]) {
+        if (values.type) selectors.value.type = Number(values.type);
+        else delete selectors.value.type;
+      }
+      if (previous.length && current[3] !== previous[3]) {
+        if (values.itilcategories_id)
+          selectors.value.category_id = Number(values.itilcategories_id);
+        else delete selectors.value.category_id;
+      }
       if (
         (active.value || used) &&
         previous.length &&
@@ -194,6 +219,7 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
           rich[field] = false;
         });
         defaults = {};
+        selectors.value = {};
         previousEntity = '';
         form.value = null;
         applying = false;
@@ -208,6 +234,7 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
   });
   return {
     form,
+    selectors,
     fields,
     required,
     templateId,

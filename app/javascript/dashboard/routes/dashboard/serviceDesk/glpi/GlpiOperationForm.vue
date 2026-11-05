@@ -43,6 +43,16 @@ const blocked = computed(() =>
   descriptor.value ? operationBlock(descriptor.value) : 'unsupported'
 );
 const busy = computed(() => !!props.glpi.state.loading.operation);
+const requiresConfirmation = computed(
+  () =>
+    descriptor.value?.verb === 'delete' || operation.value === 'ticket.restore'
+);
+watch(
+  () => values.itemtype,
+  () => {
+    if (operation.value === 'asset.create') values.items_id = '';
+  }
+);
 const policyMode = computed(
   () =>
     operation.value === 'ticket.create' &&
@@ -119,9 +129,15 @@ const fieldDisabled = field =>
   (policyMode.value &&
     policyPending.value &&
     !['type', 'itilcategories_id'].includes(field));
-const lookupFilters = computed(() =>
-  policyMode.value ? { entity_id: Number(entityId.value) } : {}
-);
+const lookupFilters = computed(() => {
+  if (operation.value === 'asset.create')
+    return { ticket_id: parent.value, asset_type: values.itemtype };
+  return policyMode.value ? { entity_id: Number(entityId.value) } : {};
+});
+const lookupResource = field =>
+  field === 'items_id' && operation.value === 'asset.create'
+    ? 'asset_candidates'
+    : fieldResource(field);
 const multiline = field =>
   [
     'content',
@@ -234,6 +250,7 @@ const submit = async () => {
     receipt.value ||
     unknownField.value ||
     missingTarget.value ||
+    (requiresConfirmation.value && !confirmed.value) ||
     (policyMode.value && policyBlocked.value)
   )
     return;
@@ -245,6 +262,17 @@ const submit = async () => {
       : descriptor.value,
     values
   );
+  if (policyMode.value) {
+    // Backend repeats ORIGINAL source selection before applying effective values.
+    [
+      ['type', 'type'],
+      ['itilcategories_id', 'category_id'],
+    ].forEach(([field, selector]) => {
+      if (ticketPolicy.selectors.value[selector] !== undefined)
+        attributes[field] = ticketPolicy.selectors.value[selector];
+      else delete attributes[field];
+    });
+  }
   if (policyMode.value && templateId.value)
     attributes.template_id = Number(templateId.value);
   if (descriptor.value.verb === 'patch')
@@ -498,10 +526,19 @@ const submit = async () => {
           >
             {{ t(`JRC_GLPI.statuses.${values.status || 1}`) }}
           </span>
+          <span
+            v-else-if="
+              field === 'items_id' &&
+              operation === 'asset.create' &&
+              (!values.itemtype || !parent)
+            "
+          >
+            {{ t('JRC_GLPI.workspace.select_asset_context') }}
+          </span>
           <GlpiLookup
-            v-else-if="fieldResource(field)"
+            v-else-if="lookupResource(field)"
             v-model="values[field]"
-            :resource="fieldResource(field)"
+            :resource="lookupResource(field)"
             :filters="lookupFilters"
             :show-selected-reference="policyMode"
             :required="required(field)"
@@ -585,7 +622,7 @@ const submit = async () => {
           />
         </label>
         <label
-          v-if="descriptor.verb === 'delete'"
+          v-if="requiresConfirmation"
           class="flex gap-2 text-xs sm:col-span-2"
         >
           <input
@@ -594,7 +631,11 @@ const submit = async () => {
             required
             :disabled="busy || !!receipt"
           />
-          {{ t('JRC_GLPI.workspace.confirm_delete') }}
+          {{
+            operation === 'ticket.restore'
+              ? t('JRC_GLPI.workspace.confirm_restore')
+              : t('JRC_GLPI.workspace.confirm_delete')
+          }}
         </label>
         <Button
           type="submit"
@@ -605,7 +646,7 @@ const submit = async () => {
             missingTarget ||
             (policyMode && policyBlocked) ||
             (descriptor.parent && !parent) ||
-            (descriptor.verb === 'delete' && !confirmed)
+            (requiresConfirmation && !confirmed)
           "
         />
       </form>

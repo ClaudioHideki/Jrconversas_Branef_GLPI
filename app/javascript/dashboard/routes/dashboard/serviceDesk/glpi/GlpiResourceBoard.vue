@@ -6,6 +6,7 @@ import Pagination from 'dashboard/components-next/pagination/PaginationFooter.vu
 import GlpiCoverage from './GlpiCoverage.vue';
 import GlpiOperationForm from './GlpiOperationForm.vue';
 import GlpiDocuments from './GlpiDocuments.vue';
+import GlpiLookup from './GlpiLookup.vue';
 import { operationFamily } from '../helpers/glpiScreens';
 
 const props = defineProps({
@@ -20,6 +21,11 @@ const { t } = useI18n();
 const page = ref(1);
 const search = ref('');
 const selected = ref(null);
+const assetDetail = ref(null);
+const assetTicket = ref('');
+const selectedDetail = computed(() =>
+  props.resource === 'assets' ? assetDetail.value : selected.value
+);
 const relation = ref('tasks');
 const key = computed(
   () => `resource:${props.parentKind}:${props.parentId || ''}:${props.resource}`
@@ -66,6 +72,7 @@ const operations = computed(() =>
   })
 );
 const load = () => {
+  if (props.resource === 'assets' && !props.parentId) return null;
   let path = `resources/${props.resource}`;
   if (props.parentId)
     path =
@@ -84,6 +91,7 @@ watch(
   () => [props.resource, props.parentId, props.parentKind],
   () => {
     selected.value = null;
+    assetDetail.value = null;
     page.value = 1;
     load();
   },
@@ -91,6 +99,19 @@ watch(
 );
 const open = async row => {
   selected.value = row;
+  assetDetail.value = null;
+  if (props.resource === 'assets') {
+    const result = await props.glpi.read(
+      `${key.value}:detail`,
+      `resources/asset_candidates/${row.items_id}`,
+      {
+        ticket_id: props.parentId || row.tickets_id,
+        asset_type: row.itemtype,
+      }
+    );
+    if (selected.value === row && result?.item) assetDetail.value = result.item;
+    return;
+  }
   if (props.resource === 'templates') relation.value = 'template_mandatory';
   if (!['problems', 'changes', 'knowledge'].includes(props.resource)) return;
   const result = await props.glpi.read(
@@ -101,6 +122,9 @@ const open = async row => {
 };
 const summaryFields = [
   'name',
+  'itemtype',
+  'serial',
+  'otherserial',
   'content',
   'answer',
   'comment',
@@ -125,6 +149,28 @@ const summaryFields = [
 
 <template>
   <section
+    v-if="resource === 'assets' && !parentId"
+    class="grid gap-4"
+    :data-testid="`glpi-resource-${resource}`"
+  >
+    <h3 class="font-semibold">{{ t('JRC_GLPI.resources.assets') }}</h3>
+    <label class="grid gap-2 text-sm">
+      {{ t('JRC_GLPI.workspace.select_asset_ticket') }}
+      <GlpiLookup
+        v-model="assetTicket"
+        resource="tickets"
+      />
+    </label>
+    <GlpiResourceBoard
+      v-if="assetTicket"
+      :key="assetTicket"
+      :glpi="glpi"
+      resource="assets"
+      :parent-id="assetTicket"
+    />
+  </section>
+  <section
+    v-else
     class="grid gap-4"
     :data-testid="`glpi-resource-${resource}`"
   >
@@ -231,10 +277,22 @@ const summaryFields = [
       <h4 class="font-semibold">
         {{ t('JRC_GLPI.workspace.record_number', { id: selected.id }) }}
       </h4>
+      <p
+        v-if="glpi.state.errors[`${key}:detail`]"
+        role="alert"
+      >
+        {{
+          t('JRC_GLPI.source_code', {
+            code: glpi.state.errors[`${key}:detail`].code,
+          })
+        }}
+      </p>
       <dl class="grid gap-2">
         <template
           v-for="field in summaryFields.filter(
-            name => selected[name] !== undefined && selected[name] !== null
+            name =>
+              selectedDetail?.[name] !== undefined &&
+              selectedDetail?.[name] !== null
           )"
           :key="field"
         >
@@ -242,15 +300,15 @@ const summaryFields = [
             {{ t(`JRC_GLPI.fields.${field}`) }}
           </dt>
           <dd
-            v-if="selected[`${field}_html`]"
-            v-dompurify-html="selected[`${field}_html`]"
+            v-if="selectedDetail[`${field}_html`]"
+            v-dompurify-html="selectedDetail[`${field}_html`]"
             class="prose prose-sm max-w-none overflow-x-auto break-words"
           />
           <dd
             v-else
             class="whitespace-pre-wrap break-words text-sm"
           >
-            {{ selected[field] }}
+            {{ selectedDetail[field] }}
           </dd>
         </template>
       </dl>

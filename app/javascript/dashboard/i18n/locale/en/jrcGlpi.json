@@ -130,6 +130,13 @@
       "required": "Obrigatório"
     },
     "workspace": {
+      "select_asset_context": "Selecione o chamado e a família do ativo para pesquisar.",
+      "select_asset_ticket": "Chamado autorizado para consultar e vincular ativos",
+      "trash": "Lixeira administrativa GLPI",
+      "active_tickets": "Chamados ativos",
+      "trash_back": "Voltar à lixeira",
+      "deleted": "Registro excluído na origem GLPI · restauração administrativa",
+      "confirm_restore": "Confirmo a restauração deste chamado na origem GLPI.",
       "catalog": "Catálogo da origem GLPI",
       "source": "Origem oficial GLPI · mesmo escopo autorizado nas telas operacionais.",
       "unavailable": "A origem GLPI está selecionada, mas está indisponível. Revise a conexão, o mapeamento e as permissões.",
@@ -248,6 +255,8 @@
       "template_predefined": "Campos predefinidos do modelo"
     },
     "fields": {
+      "serial": "Número de série",
+      "otherserial": "Identificação do ativo",
       "name": "Título ou nome",
       "content": "Conteúdo",
       "answer": "Conteúdo do artigo",

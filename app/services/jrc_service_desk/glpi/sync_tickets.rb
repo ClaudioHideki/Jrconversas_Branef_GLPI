@@ -55,7 +55,7 @@ class JrcServiceDesk::Glpi::SyncTickets
     indexed = 0
     actor_unavailable = 0
     failures = []
-    query = JrcServiceDesk::Glpi::TicketQuery.new(@access, 'entity_id' => entity)
+    query = JrcServiceDesk::Glpi::TicketQuery.new(@access, { 'entity_id' => entity })
     client.collection('search/Ticket/', query.parameters(offset: 0, size: 200)).each do |row|
       access = current_access!
       id = JrcServiceDesk::Input.id(row.fetch('2'))

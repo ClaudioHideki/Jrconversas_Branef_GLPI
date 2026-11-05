@@ -45,6 +45,6 @@ class JrcServiceDesk::Glpi::LinkedReferences
       end
     end
     { items: items, meta: { page: page, per_page: 25, next_page: more ? page + 1 : nil },
-      coverage: { complete: errors.empty? && !more, errors: errors.uniq.tally, source: 'glpi', observed_at: Time.current.iso8601 } }
+      coverage: { complete: errors.empty? && !more, errors: errors.tally, source: 'glpi', observed_at: Time.current.iso8601 } }
   end
 end

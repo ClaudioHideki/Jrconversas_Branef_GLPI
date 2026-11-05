@@ -12,7 +12,7 @@ const form = reactive({
   base_url: '',
   timezone: 'America/Sao_Paulo',
   enabled: false,
-  primary_source: 'native',
+  primary_source: false,
   user_token: '',
   app_token: '',
   entity_mappings: [],
@@ -182,10 +182,10 @@ const reconcileCommand = async () => {
               data-testid="glpi-primary-source"
               class="!mb-0 h-10 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 text-sm"
             >
-              <option value="native">
+              <option :value="false">
                 {{ t('JRC_GLPI.workspace.source_native') }}
               </option>
-              <option value="glpi">
+              <option :value="true">
                 {{ t('JRC_GLPI.workspace.source_glpi') }}
               </option>
             </select>

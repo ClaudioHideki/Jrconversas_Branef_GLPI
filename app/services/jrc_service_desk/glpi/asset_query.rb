@@ -15,7 +15,7 @@ class JrcServiceDesk::Glpi::AssetQuery
 
     items = []
     found = 0
-    client.collection("#{type}/", 'sort' => 'id', 'order' => 'ASC').each do |row|
+    client.collection("#{type}/", { 'sort' => 'id', 'order' => 'ASC' }).each do |row|
       next unless visible?(access, parent, row)
 
       item = normalize(type, row)
