@@ -185,7 +185,9 @@ describe('service scoped discovery', () => {
     expect(wrapper.text()).toContain('Synthetic laptop');
     expect(wrapper.text()).toContain('LAB123');
     await wrapper.get('input[type="checkbox"]').setValue(true);
-    await wrapper.get('form input[maxlength="1000"]').setValue('Synthetic unlink');
+    await wrapper
+      .get('form input[maxlength="1000"]')
+      .setValue('Synthetic unlink');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(client.API.execute.mock.calls[0][1]).toMatchObject({
