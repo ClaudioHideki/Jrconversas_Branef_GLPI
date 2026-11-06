@@ -9,7 +9,7 @@ class JrcFlowEffects::Apply
 
     Conversation.transaction do
       @authority.authorize!(lock: true)
-      JrcDomainCommands::Scope.new(@authority).authorize!(input) if input['operation'] == 'domain'
+      JrcDomainCommands::Scope.new(@authority).authorize!(input, command: value.fetch('command')) if input['operation'] == 'domain'
       conversation = @authority.account.conversations.lock.find_by!(display_id: JrcFlowEffects::Request.integer(display_id))
       digest = JrcFlowEffects::Request.digest(input, account_id: @authority.account.id, conversation_id: conversation.display_id)
       replay(conversation, input, digest) || perform(conversation, input, value, digest)

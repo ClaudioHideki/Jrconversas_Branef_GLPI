@@ -105,6 +105,17 @@ $fixtures = ['version' => GLPI_VERSION, 'technical_user_id' => $technical, 'limi
     'app_token' => $appToken, 'user_token' => $technicalToken, 'limited_token' => $limitedToken,
     'narrow_token' => $narrowToken, 'narrow_user_id' => $narrow];
 require '/usr/local/lib/branef-glpi-template-fixtures.php';
+$intakeSlm = insert('glpi_slms', ['name' => 'SYNTHETIC INTAKE SLM', 'entities_id' => 0,
+    'is_recursive' => 1, 'use_ticket_calendar' => 0, 'calendars_id' => 0]);
+$fixtures['intake'] = [
+    'requester_id' => $limited,
+    'group_id' => $catalogues['group'],
+    'category_id' => insert('glpi_itilcategories', ['name' => 'SYNTHETIC INTAKE CATEGORY', 'entities_id' => 0,
+        'is_recursive' => 1, 'is_incident' => 1, 'is_request' => 1, 'is_helpdeskvisible' => 1]),
+    'sla_id' => insert('glpi_slas', ['name' => 'SYNTHETIC INTAKE FIVE DAYS', 'entities_id' => 0,
+        'slms_id' => $intakeSlm, 'is_recursive' => 1, 'type' => 0, 'number_time' => 5,
+        'definition_time' => 'day', 'end_of_working_day' => 0, 'use_ticket_calendar' => 0, 'calendars_id' => 0])
+];
 $path = '/lab-out/fixtures.json';
 file_put_contents($path, json_encode($fixtures, JSON_THROW_ON_ERROR));
 chmod($path, 0600);

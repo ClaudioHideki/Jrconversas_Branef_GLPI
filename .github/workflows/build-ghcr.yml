@@ -5,6 +5,10 @@ on:
     branches: ['codex/branef-glpi-*-20261104']
   workflow_dispatch:
     inputs:
+      validation_only:
+        description: Executar somente testes sem construir imagem
+        type: boolean
+        default: false
       publish:
         description: Publicar a imagem aprovada no GHCR
         type: boolean
@@ -86,6 +90,7 @@ jobs:
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update
           sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends libpq-dev libvips libvips-dev
       - uses: ruby/setup-ruby@v1
+        id: ruby
         with:
           ruby-version: '3.4.4'
           bundler: 2.5.16
@@ -110,6 +115,22 @@ jobs:
             bundle exec ruby "$suite" || result=1
           done
           exit "$result"
+      - name: Lint do intake e protocolo tipado
+        if: always() && steps.ruby.outcome == 'success'
+        run: >-
+          bundle exec rubocop
+          app/services/jrc_service_desk/intake
+          app/services/jrc_service_desk/glpi/intake_sla.rb
+          app/models/jrc_service_desk/intake_configuration.rb
+          app/models/jrc_service_desk/intake_demand.rb
+          app/jobs/jrc_service_desk/intake_delivery_job.rb
+          app/services/jrc_domain_commands
+          app/services/jrc_flow_effects/authority.rb
+          app/services/jrc_flow_effects/apply.rb
+          app/models/jrc_flow_effect_receipt.rb
+          app/controllers/api/v1/accounts/jrc_domain_commands_controller.rb
+          test/jrc_service_desk/intake_*rb
+          test/glpi_lab/intake_application.rb
       - uses: actions/upload-artifact@v4
         with:
           name: glpi-schema-${{ github.sha }}
@@ -136,7 +157,7 @@ jobs:
       - run: pnpm exec eslint app/javascript/dashboard/routes/dashboard/serviceDesk/glpi app/javascript/dashboard/api/serviceDeskGlpi.js app/javascript/dashboard/routes/dashboard/serviceDesk/helpers/contracts.js
 
   build-and-push:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && !inputs.validation_only
     needs: glpi-integration
     runs-on: ubuntu-24.04
     timeout-minutes: 90

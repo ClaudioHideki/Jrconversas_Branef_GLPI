@@ -9,7 +9,8 @@ class Api::V1::Accounts::JrcDomainCommandsController < Api::V1::Accounts::JrcFlo
       supported = JrcDomainCommands::Request.available?
       { protocol: JrcDomainCommands::Request::PROTOCOL, account_id: authority.account.id, inbox_id: inbox.id,
         organization_id: params[:organization_id], integration_id: params[:integration_id],
-        commands: supported ? JrcDomainCommands::Request::COMMANDS : [], owners: supported ? scope.owners : [] }
+        commands: supported ? scope.commands(inbox: inbox, intake_protocol: params[:intake_protocol]) : [],
+        owners: supported ? scope.owners : [] }
     end
     render json: value
   end

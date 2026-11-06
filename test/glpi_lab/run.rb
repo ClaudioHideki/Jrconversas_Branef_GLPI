@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 raise 'Laboratory confirmation required' unless ENV['GLPI_LAB_CONFIRM'] == 'isolated-synthetic'
-require_relative '../jrc_service_desk/glpi_test_helper'
+ENV['JRC_BROKER_ENABLED'] = 'true'
+require_relative '../jrc_service_desk/intake_test_helper'
 require_relative 'transport'
 require 'json'
 require 'stringio'
@@ -16,7 +17,7 @@ module GlpiLabEvidence
   CHECKS = []
   OBSERVATIONS = {}
   REQUIRED = begin
-    operations = %w[ticket.create ticket.update ticket.assign ticket.transfer ticket.priority ticket.pause ticket.resume
+    operations = %w[ticket.create ticket.update ticket.assign ticket.transfer ticket.priority ticket.sla ticket.pause ticket.resume
                     ticket.close ticket.reopen ticket.solve ticket.delete ticket.restore validation.request validation.decide]
     %w[followup task].each { |family| %w[create update delete].each { |verb| operations << "#{family}.#{verb}" } }
     %w[actor group supplier asset problem_link change_link knowledge_link document_link].each do |family|
@@ -347,6 +348,7 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
     family, verb = operation.split('.')
     return {} if verb == 'delete' || %w[pause resume close reopen restore].include?(verb)
     return { 'priority' => 5 } if verb == 'priority'
+    return { 'slas_id_ttr' => @fixtures.fetch('intake').fetch('sla_id') } if operation == 'ticket.sla'
     return { '_users_id_assign' => @fixtures.fetch('technical_user_id'), '_groups_id_assign' => @fixtures.fetch('catalogues').fetch('group') } if verb == 'assign'
     return { 'entities_id' => @fixtures.fetch('entities').fetch('support') } if verb == 'transfer'
     return { 'content' => 'Synthetic confirmed solution', 'solutiontypes_id' => @fixtures.fetch('catalogues').fetch('solution_type') } if verb == 'solve'
@@ -431,6 +433,7 @@ class GlpiLaboratoryTest < GlpiIntegrationTest
 end
 
 require_relative 'template_application'
+require_relative 'intake_application'
 
 Minitest.after_run do
   missing = GlpiLabEvidence::REQUIRED - GlpiLabEvidence::RESULTS.keys

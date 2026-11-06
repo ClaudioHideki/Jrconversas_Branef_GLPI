@@ -4,14 +4,16 @@ class JrcDomainCommands::Scope
     @account = authority.account
   end
 
-  def authorize!(input)
-    authorize_actor!
+  def authorize!(input, command: nil)
+    authorize_actor!(command)
     validate_identity!(input)
     binding = binding!(input)
     @account.inboxes.lock('FOR SHARE').find(binding.inbox_id)
   end
 
   def owners
+    return [] unless crm?
+
     members = @account.account_users.includes(:user).order(:id).limit(201).to_a
     raise ArgumentError, 'domain_owner_directory_bound' if members.size > 200
 
@@ -22,14 +24,39 @@ class JrcDomainCommands::Scope
     end
   end
 
+  def commands(inbox:, intake_protocol: nil)
+    available = crm? ? JrcDomainCommands::Request::COMMANDS.dup : []
+    configuration = JrcServiceDesk::IntakeConfiguration.find_by(account_id: @account.id, inbox_id: inbox.id, current: true, enabled: true)
+    available += JrcDomainCommands::Request::INTAKE_COMMANDS if intake_protocol == '1' && service_desk? && configuration
+    available
+  end
+
   private
 
-  def authorize_actor!
+  def authorize_actor!(command)
     raise Pundit::NotAuthorizedError unless JrcBroker::Configuration.enabled? && @account.feature_enabled?('jrc_broker')
 
     member = @account.account_users.lock('FOR SHARE').find_by!(user_id: @authority.user.id)
     CustomRole.lock('FOR SHARE').find(member.custom_role_id) if member.custom_role_id
-    raise Pundit::NotAuthorizedError unless JrcOperations::Access.crm?(member)
+    permitted = if JrcDomainCommands::Request::INTAKE_COMMANDS.include?(command)
+                  service_desk?
+                elsif command
+                  JrcDomainCommands::Request::COMMANDS.include?(command) && crm?
+                else
+                  crm? || service_desk?
+                end
+    raise Pundit::NotAuthorizedError unless permitted
+  end
+
+  def crm?
+    member = @account.account_users.find_by(user_id: @authority.user.id)
+    JrcOperations::Access.crm?(member)
+  end
+
+  def service_desk?
+    context = JrcServiceDesk::OperationalContext.new(account: @account, user: @authority.user,
+      account_user: @account.account_users.find_by(user_id: @authority.user.id))
+    context.native_operator? && context.capability?(:tickets_create)
   end
 
   def validate_identity!(input)

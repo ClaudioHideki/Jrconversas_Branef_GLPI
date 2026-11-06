@@ -24,7 +24,7 @@ class IntakeBrokerProtocolIntegrationTest < IntakeIntegrationTest
 
   def test_status_reads_the_same_episode_without_creating_another_demand
     initial = apply(@domain).domain_result
-    result = apply('command' => 'service_desk_status', 'episode_key' => @arguments.fetch('episode_key')).domain_result
+    result = apply({ 'command' => 'service_desk_status', 'episode_key' => @arguments.fetch('episode_key') }).domain_result
     assert_equal initial.fetch('resource_id'), result.fetch('resource_id')
     assert_equal false, result.fetch('created')
     assert_equal 1, JrcServiceDesk::IntakeDemand.where(account: @account).count

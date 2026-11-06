@@ -8,7 +8,13 @@ class JrcFlowEffectReceipt < ApplicationRecord
     same &&= ActiveSupport::SecurityUtils.secure_compare(dispatch_proof_hash, Digest::SHA256.hexdigest(proof))
     raise ArgumentError, 'receipt_conflict' unless same
 
-    JrcDomainCommands::ResourceScope.new(account: account, user: user).authorize_result!(domain_result) if operation == 'domain'
+    if operation == 'domain'
+      if domain_result['resource_type'] == 'JrcServiceDesk::IntakeDemand'
+        JrcServiceDesk::Intake::DomainCommand.new.authorize_receipt!(account: account, user: user, conversation: conversation, result: domain_result)
+      else
+        JrcDomainCommands::ResourceScope.new(account: account, user: user).authorize_result!(domain_result)
+      end
+    end
     self
   end
 

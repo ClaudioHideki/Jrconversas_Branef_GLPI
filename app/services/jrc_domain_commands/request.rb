@@ -2,6 +2,7 @@ require 'time'
 
 class JrcDomainCommands::Request
   COMMANDS = %w[create_lead create_task create_meeting].freeze
+  INTAKE_COMMANDS = %w[service_desk_intake service_desk_status].freeze
   PROTOCOL = 'jrc-domain-commands/1'.freeze
 
   def self.available?
@@ -10,12 +11,30 @@ class JrcDomainCommands::Request
 
   def self.parse(raw)
     value = decode(raw)
-    raise ArgumentError, 'domain_command' unless value.is_a?(Hash) && COMMANDS.include?(value['command'])
+    raise ArgumentError, 'domain_command' unless value.is_a?(Hash) && (COMMANDS + INTAKE_COMMANDS).include?(value['command'])
+    return validate_intake(value) if INTAKE_COMMANDS.include?(value['command'])
 
     keys = value['command'] == 'create_lead' ? ['command'] : %w[command title due_at owner_id]
     raise ArgumentError, 'domain_keys' unless value.keys.sort == keys.sort
 
     validate_activity(value) unless value['command'] == 'create_lead'
+    value
+  end
+
+  def self.validate_intake(value)
+    expected = value['command'] == 'service_desk_status' ? %w[command episode_key] :
+      %w[command configuration_id configuration_revision episode_key phase input]
+    raise ArgumentError, 'domain_keys' unless value.keys.sort == expected.sort
+    raise ArgumentError, 'intake_episode' unless value['episode_key'].is_a?(String) && JrcServiceDesk::Intake::Submission::UUID.match?(value['episode_key'])
+    return value if value['command'] == 'service_desk_status'
+
+    %w[configuration_id configuration_revision].each do |key|
+      raise ArgumentError, 'intake_configuration' unless valid_owner?(value[key])
+    end
+    raise ArgumentError, 'intake_phase' unless %w[qualified handoff].include?(value['phase'])
+    raise ArgumentError, 'intake_input' unless value['input'].is_a?(Hash) &&
+                                              (value['input'].keys - JrcServiceDesk::Intake::Input::FIELDS).empty?
+
     value
   end
 
