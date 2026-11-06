@@ -15,9 +15,9 @@ class IntakeReadinessProbe < JrcServiceDesk::Glpi::Client
     @source.get(path, parameters)
   end
 
-  def collection(path, *args)
+  def collection(path, *)
     @requests << [:get, path]
-    @source.collection(path, *args)
+    @source.collection(path, *)
   end
 
   private

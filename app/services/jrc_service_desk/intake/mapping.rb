@@ -47,10 +47,14 @@ class JrcServiceDesk::Intake::Mapping
 
   def attributes
     { 'name' => "#{input.fetch('system')} / #{input.fetch('subject_label')}".first(255),
-      'content' => "#{input.fetch('description')}\n\n#{input.fetch('identifier_type')}: #{input.fetch('identifier')}\n" \
-                   "Email: #{input.fetch('email')}\n#{SELECTORS.map { |key| "#{key}: #{input[key]}" }.join("\n")}",
+      'content' => content,
       'type' => input['reason'] == 'bug' ? 1 : 2, 'urgency' => input.fetch('urgency_value', 3), 'impact' => input.fetch('impact_value', 3),
       'itilcategories_id' => route.fetch('category_id'), '_users_id_requester' => requester_id }
+  end
+
+  def content
+    "#{input.fetch('description')}\n\n#{input.fetch('identifier_type')}: #{input.fetch('identifier')}\n" \
+      "Email: #{input.fetch('email')}\n#{SELECTORS.map { |key| "#{key}: #{input[key]}" }.join("\n")}"
   end
 
   def sla_attributes

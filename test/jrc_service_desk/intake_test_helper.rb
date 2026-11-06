@@ -7,6 +7,7 @@ require 'base64'
 require 'securerandom'
 ENV['JRC_BROKER_CREDENTIAL_KEY'] = Base64.strict_encode64(SecureRandom.random_bytes(32))
 ENV['JRC_BROKER_ALLOWED_ORIGINS'] = 'https://broker.example.test'
+ENV['FRONTEND_URL'] ||= 'https://example.invalid'
 require_relative 'glpi_test_helper'
 
 class IntakeIntegrationTest < GlpiIntegrationTest

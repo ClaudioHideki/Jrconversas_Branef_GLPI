@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 # Synthetic policy only: these weights are not Branef's production matrix.
-# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
 require_relative 'intake_delivery_test_helper'
 
 class IntakeClassificationIntegrationTest < IntakeDeliveryTest
@@ -17,7 +16,7 @@ class IntakeClassificationIntegrationTest < IntakeDeliveryTest
   def test_missing_or_unapproved_matrix_never_turns_a_hint_into_operational_criticality
     [nil, matrix.merge('approved' => false)].each do |policy|
       value = JrcServiceDesk::Intake::Classification.new(policy).call(impact: 'Synthetic affected scope', urgency: 'Synthetic deadline',
-        declared_severity: 'critical')
+                                                                      declared_severity: 'critical')
       assert_equal 'awaiting_human', value.fetch('classification_state')
       assert_nil value.fetch('severity')
       assert_nil value.fetch('impact_value')
@@ -47,7 +46,8 @@ class IntakeClassificationIntegrationTest < IntakeDeliveryTest
 
   def test_unconfigured_matrix_records_human_triage_without_applying_a_speculative_sla
     normalized = JrcServiceDesk::Intake::Input.new(JrcServiceDesk::Intake::Catalogue.new(@catalogue)).call(
-      bug_input.merge('impact' => 'Synthetic affected scope', 'urgency' => 'Synthetic urgency'))
+      bug_input.merge('impact' => 'Synthetic affected scope', 'urgency' => 'Synthetic urgency')
+    )
     assert_equal 'awaiting_human', normalized.fetch('classification_state')
     assert normalized.fetch('classification_required')
     assert_nil normalized.fetch('severity')
@@ -78,11 +78,14 @@ class IntakeClassificationIntegrationTest < IntakeDeliveryTest
 
   def test_mapping_keeps_the_two_native_axis_values_distinct
     normalized = JrcServiceDesk::Intake::Input.new(JrcServiceDesk::Intake::Catalogue.new(@catalogue), classification: matrix).call(
-      bug_input.merge('impact' => 'one', 'urgency' => 'blocked'))
+      bug_input.merge('impact' => 'one', 'urgency' => 'blocked')
+    )
     @demand.update!(normalized_input: normalized)
     mappings = @delivery_configuration.mappings.deep_dup
     mappings['routes'][0].merge!(normalized.slice('reason', 'subject', 'severity'))
-    @delivery_configuration.update_columns(mappings: mappings)
+    values = @delivery_configuration.attributes.except('id', 'created_at', 'updated_at')
+    replacement = JrcServiceDesk::IntakeConfiguration.create!(values.merge('revision' => 3, 'mappings' => mappings))
+    @demand.update!(intake_configuration: replacement)
     attributes = JrcServiceDesk::Intake::Mapping.new(@demand).attributes
     assert_equal 2, attributes.fetch('impact')
     assert_equal 5, attributes.fetch('urgency')
@@ -106,4 +109,3 @@ class IntakeClassificationIntegrationTest < IntakeDeliveryTest
                   { 'impact' => 'many', 'urgency' => 'blocked', 'severity' => 'critical' }] }
   end
 end
-# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Independent review regressions intentionally keep native end-to-end state visible.
-# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/ClassLength, Rails/RefuteMethods
+# rubocop:disable Metrics/AbcSize, Rails/RefuteMethods
 require_relative 'intake_delivery_test_helper'
 require_relative 'intake_readiness_probe'
 
@@ -33,7 +33,7 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
     end
     assert_raises(Pundit::NotAuthorizedError) do
       JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation,
-        arguments: @arguments.merge('configuration_id' => @delivery_configuration.id, 'configuration_revision' => 2))
+                                                  arguments: @arguments.merge('configuration_id' => @delivery_configuration.id, 'configuration_revision' => 2))
     end
     assert_raises(Pundit::NotAuthorizedError) do
       service.authorize_receipt!(account: @account, user: @user, conversation: @conversation, result: result)
@@ -54,9 +54,7 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
 
   def test_bot_change_before_delivery_receipt_cancels_the_clock
     assert_control_before_receipt do
-      row = AgentBot.insert!({ account_id: @account.id, name: 'Synthetic bot', outgoing_url: 'https://example.invalid/events',
-                               created_at: Time.current, updated_at: Time.current })
-      bot = AgentBot.find(row.rows.first.first)
+      bot = AgentBot.create!(account: @account, name: 'Synthetic bot', outgoing_url: 'https://example.invalid/events')
       @conversation.update!(assignee_agent_bot: bot)
     end
   end
@@ -67,9 +65,10 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
       result = JrcServiceDesk::Intake::Readiness.new.call(user_context: @identity, attributes: draft)
       assert result.fetch(:ready), result.inspect
       JrcServiceDesk::Intake::Publish.new.call(user_context: @identity,
-        attributes: draft.merge('expected_revision' => 2, 'remote_writes_enabled' => true))
+                                               attributes: draft.merge('expected_revision' => 2,
+                                                                       'remote_writes_enabled' => true))
     end
-    assert probe.requests.any? { |verb, path| verb == :get && path == 'initSession/' }
+    assert(probe.requests.any? { |verb, path| verb == :get && path == 'initSession/' })
     assert probe.requests.all? { |verb, _path| verb == :get }, probe.requests.inspect
     assert_empty @remote.writes
   end
@@ -83,7 +82,8 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
       assert_includes result.fetch(:blockers), 'operation_not_permitted'
       assert_raises(ArgumentError) do
         JrcServiceDesk::Intake::Publish.new.call(user_context: @identity,
-          attributes: draft.merge('expected_revision' => 2, 'remote_writes_enabled' => true))
+                                                 attributes: draft.merge('expected_revision' => 2,
+                                                                         'remote_writes_enabled' => true))
       end
     end
     assert_equal 2, JrcServiceDesk::IntakeConfiguration.where(account: @account).count
@@ -101,7 +101,7 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
     deliver
     @remote.rows.fetch('Ticket/501')['status'] = 4
     notice = JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',
-      operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
+                                                           operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
     JrcServiceDesk::IntakeNotificationJob.perform_now(notice.id)
     notice.reload
     JrcServiceDesk::Intake::NoticeExecution.new(notice.message).perform { notice.message.update!(source_id: 'synthetic-provider') }
@@ -125,4 +125,4 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
       'mappings' => @delivery_configuration.mappings, 'mode' => 'on_handoff', 'remote_writes_enabled' => false }
   end
 end
-# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/ClassLength, Rails/RefuteMethods
+# rubocop:enable Metrics/AbcSize, Rails/RefuteMethods

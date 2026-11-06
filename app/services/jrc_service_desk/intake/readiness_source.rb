@@ -31,7 +31,7 @@ class JrcServiceDesk::Intake::ReadinessSource
     operations.each do |operation|
       descriptor = JrcServiceDesk::Glpi::OperationCatalogue.fetch(operation)
       alternatives = [descriptor[:source_right]] + descriptor[:source_alternatives]
-      allowed = alternatives.any? { |right, mask| (profile.fetch(right, 0).to_i & mask).positive? }
+      allowed = alternatives.any? { |right, mask| profile.fetch(right, 0).to_i.anybits?(mask) }
       raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) unless allowed
     end
   end

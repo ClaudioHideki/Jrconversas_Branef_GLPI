@@ -47,8 +47,7 @@ class JrcServiceDesk::Intake::Submission
   end
 
   def persist(authority, context, target, configuration, values)
-    catalogue = JrcServiceDesk::Intake::Catalogue.new(configuration.catalogue)
-    normalized = JrcServiceDesk::Intake::Input.new(catalogue, classification: configuration.mappings['classification']).call(values.fetch('input'))
+    normalized = normalize_input(configuration, values.fetch('input'))
     fingerprint = JrcServiceDesk::CanonicalJson.digest(normalized.merge('configuration_id' => configuration.id))
     existing = JrcServiceDesk::IntakeDemand.lock.find_by(account_id: context.account.id, episode_key: values.fetch('episode_key'))
     return replay(existing, context, target, fingerprint, values.fetch('phase')) if existing
@@ -71,6 +70,11 @@ class JrcServiceDesk::Intake::Submission
 
     existing.update!(state: state_for(existing.intake_configuration, phase)) if existing.state == 'qualified' && phase == 'handoff'
     existing.receipt
+  end
+
+  def normalize_input(configuration, input)
+    catalogue = JrcServiceDesk::Intake::Catalogue.new(configuration.catalogue)
+    JrcServiceDesk::Intake::Input.new(catalogue, classification: configuration.mappings['classification']).call(input)
   end
 
   def state_for(configuration, phase)

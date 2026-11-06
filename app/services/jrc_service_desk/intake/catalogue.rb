@@ -41,11 +41,15 @@ class JrcServiceDesk::Intake::Catalogue
     copy('system' => system, 'location' => location, 'reason' => reason, 'subject' => subject,
          'profile' => blank_to_nil(options[:profile]), 'severity' => blank_to_nil(options[:severity]),
          'queue' => reason_row.fetch('queue'),
-         'sla' => options[:classification_pending] ? { 'unit' => 'none' } : sla_for(reason_row, location, options[:severity]),
+         'sla' => selection_sla(reason_row, location, options),
          'revision' => revision, 'subject_label' => subject_row.fetch('label'))
   end
 
   private
+
+  def selection_sla(reason_row, location, options)
+    options[:classification_pending] ? { 'unit' => 'none' } : sla_for(reason_row, location, options[:severity])
+  end
 
   def blank_to_nil(value) = value == '' ? nil : value
 
