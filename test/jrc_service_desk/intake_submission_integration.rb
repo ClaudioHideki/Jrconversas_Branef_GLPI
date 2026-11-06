@@ -100,9 +100,9 @@ class IntakeSubmissionIntegrationTest < IntakeIntegrationTest
 
   def test_handoff_mode_queues_only_when_human_requested
     JrcServiceDesk::UnitMembership.create!(account: @account, unit: @unit, account_user: @member, active: true)
-    mappings = { 'routes' => [@arguments.fetch('input').slice('system', 'location', 'reason', 'subject', 'profile').merge(
-      'entity_id' => 0, 'category_id' => 10, 'group_id' => 20, 'requester_policy' => 'mapped_contact')],
-      'requesters' => [{ 'contact_id' => @conversation.contact_id, 'entity_id' => 0, 'user_id' => 77 }] }
+    route = @arguments.fetch('input').slice('system', 'location', 'reason', 'subject', 'profile')
+    route.merge!('entity_id' => 0, 'category_id' => 10, 'group_id' => 20, 'requester_policy' => 'mapped_contact')
+    mappings = { 'routes' => [route], 'requesters' => [{ 'contact_id' => @conversation.contact_id, 'entity_id' => 0, 'user_id' => 77 }] }
     configuration = JrcServiceDesk::IntakeConfiguration.create!(
       account: @account, inbox: @inbox, created_by_account_user: @member, revision: 2, catalogue: @catalogue, mode: 'on_handoff',
       enabled: true, remote_writes_enabled: true, mappings: mappings

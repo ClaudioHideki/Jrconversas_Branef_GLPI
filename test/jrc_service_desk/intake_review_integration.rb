@@ -32,8 +32,9 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
       service.call(authority: @authority, conversation: @conversation, arguments: arguments, operation_id: SecureRandom.uuid)
     end
     assert_raises(Pundit::NotAuthorizedError) do
+      replay = @arguments.merge('configuration_id' => @delivery_configuration.id, 'configuration_revision' => 2)
       JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation,
-                                                  arguments: @arguments.merge('configuration_id' => @delivery_configuration.id, 'configuration_revision' => 2))
+                                                  arguments: replay)
     end
     assert_raises(Pundit::NotAuthorizedError) do
       service.authorize_receipt!(account: @account, user: @user, conversation: @conversation, result: result)

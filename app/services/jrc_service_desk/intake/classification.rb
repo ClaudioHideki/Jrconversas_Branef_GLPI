@@ -61,12 +61,15 @@ class JrcServiceDesk::Intake::Classification
   def validate_axis_row!(row)
     keys!(row, %w[code label value])
     raise ArgumentError, 'intake_classification_axis' unless row['code'].is_a?(String) &&
-                                                          JrcServiceDesk::Intake::Catalogue::CODE.match?(row['code'])
+                                                             JrcServiceDesk::Intake::Catalogue::CODE.match?(row['code'])
     raise ArgumentError, 'intake_classification_axis' unless row['value'].is_a?(Integer) && row['value'].between?(1, 5)
 
-    label = row['label']
+    validate_label!(row['label'])
+  end
+
+  def validate_label!(label)
     raise ArgumentError, 'intake_classification_label' unless label.is_a?(String) && label.strip.length.between?(1, 160) &&
-                                                           !label.match?(/[\x00-\x1f]|\{\{|\}\}/)
+                                                              !label.match?(/[\x00-\x1f]|\{\{|\}\}/)
   end
 
   def validate_cells!

@@ -80,13 +80,12 @@ class IntakeClassificationIntegrationTest < IntakeDeliveryTest
     normalized = JrcServiceDesk::Intake::Input.new(JrcServiceDesk::Intake::Catalogue.new(@catalogue), classification: matrix).call(
       bug_input.merge('impact' => 'one', 'urgency' => 'blocked')
     )
-    @demand.update!(normalized_input: normalized)
     mappings = @delivery_configuration.mappings.deep_dup
     mappings['routes'][0].merge!(normalized.slice('reason', 'subject', 'severity'))
     values = @delivery_configuration.attributes.except('id', 'created_at', 'updated_at')
     replacement = JrcServiceDesk::IntakeConfiguration.create!(values.merge('revision' => 3, 'mappings' => mappings))
-    @demand.update!(intake_configuration: replacement)
-    attributes = JrcServiceDesk::Intake::Mapping.new(@demand).attributes
+    candidate = JrcServiceDesk::Intake::ReadinessSource::Candidate.new(normalized, replacement, @conversation.contact_id, @captured_context)
+    attributes = JrcServiceDesk::Intake::Mapping.new(candidate).attributes
     assert_equal 2, attributes.fetch('impact')
     assert_equal 5, attributes.fetch('urgency')
   end

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "component": "jrc-native-flow-editor",
   "sourceRepository": "ClaudioHideki/BrokerJRCIA",
-  "sourceSha": "6893d09e53379b8809e07d13b48a157b5ab60d90",
+  "sourceSha": "2e418b450f9485f4c3c5e3f9fcdc27253d6c70c7",
   "sourceCommitted": true,
   "lockfileSha256": "dafcbad0115860b04c4b17525222e9d405964759458a0bda05bf7d53d8fc5829",
   "inputs": [
@@ -123,7 +123,7 @@
     },
     {
       "path": "apps/web/src/automations/node-editors/DomainCommandFields.tsx",
-      "sha256": "178201f3ac129f1bf400995d20b59280cd5f52a36c87ba3c2b5e4f10d9c0cf66",
+      "sha256": "34b4066f1e8682479db75a2702e6a76495741b06e55acaed936187bba4562df7",
       "dependency": false
     },
     {
@@ -858,7 +858,7 @@
     },
     {
       "path": "packages/contracts/src/automation-domain-command.ts",
-      "sha256": "f9d8b4d9a9cfd1659bebfb7f0350c32a7041594e353d5871b8d97560eed55afd",
+      "sha256": "da988782a627483c993e4925cb7141b5e3d23b89b449b48159a24e77653e9d2a",
       "dependency": false
     },
     {
@@ -1105,8 +1105,8 @@
     },
     {
       "path": "editor.js",
-      "bytes": 971178,
-      "sha256": "773beabdd75cdbc5b7b372acbdd47c127c9dcef2d01a5c778469d265cbcb9146"
+      "bytes": 971365,
+      "sha256": "c512f9474f0e5cce4ca502cd5d9dee5863e64e56cd7b5c60983a0154d04cd644"
     },
     {
       "path": "editor.js.LEGAL.txt",
