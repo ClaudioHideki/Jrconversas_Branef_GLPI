@@ -47,6 +47,7 @@ const accept = (request, response) => {
   return response.data;
 };
 const reset = () => {
+  busy.value = false;
   loaded.value = false;
   error.value = false;
   readiness.value = null;

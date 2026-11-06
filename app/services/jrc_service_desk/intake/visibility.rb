@@ -8,8 +8,9 @@ class JrcServiceDesk::Intake::Visibility
   def call(conversation)
     raise Pundit::NotAuthorizedError unless @context.native_operator? && @context.capability?(:tickets_view)
 
-    scope = JrcServiceDesk::IntakeDemand.where(account_id: @context.account.id, conversation_id: conversation.id,
-                                            inbox_id: conversation.inbox_id, contact_id: conversation.contact_id)
+    scope = JrcServiceDesk::IntakeDemand.where(
+      account_id: @context.account.id, conversation_id: conversation.id, inbox_id: conversation.inbox_id, contact_id: conversation.contact_id
+    )
     scope.order(id: :desc).limit(30).filter_map do |demand|
       present(demand) if visible?(demand)
     end

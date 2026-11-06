@@ -50,6 +50,42 @@ beforeEach(() => {
   );
 });
 describe('Intake configuration readiness', () => {
+  it('clears the busy state when leaving an account during a readiness request', async () => {
+    let finish;
+    API.preview.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    const wrapper = build();
+    await flushPromises();
+    await wrapper.get('[data-testid="intake-preview"]').trigger('click');
+    API.inboxes.mockResolvedValue({
+      data: {
+        account_id: '2',
+        user_id: '7',
+        inboxes: [{ id: '5', name: 'Other synthetic inbox' }],
+      },
+    });
+    API.get.mockResolvedValue({
+      data: {
+        account_id: '2',
+        user_id: '7',
+        record: { ...record, inbox_id: '5' },
+      },
+    });
+    await wrapper.setProps({ accountId: '2' });
+    await flushPromises();
+    expect(wrapper.get('[data-testid="intake-publish"]').element.disabled).toBe(
+      false
+    );
+    finish(scoped({ ready: true, blockers: [] }));
+    await flushPromises();
+    expect(wrapper.find('[data-testid="intake-readiness"]').exists()).toBe(
+      false
+    );
+  });
   it('keeps real writes disabled when source mappings or calendar are missing', async () => {
     const wrapper = build();
     await flushPromises();

@@ -13,11 +13,12 @@ class JrcServiceDesk::Intake::PendingClosure
     ticket = source_ticket(access)
     raise JrcServiceDesk::Glpi::Error.new('intake_source_not_waiting', 409) unless ticket['status'].to_i == 4
 
-    @demand.update!(lifecycle_state: 'closing', completion_cause: 'no_response')
+    @demand.update!(lifecycle_state: 'closing')
     @command = JrcServiceDesk::Glpi::AutomationCommand.new(authorizer: -> { @control.access! })
     return unless solution!(ticket)
     return unless close!
 
+    @demand.update!(completion_cause: 'no_response')
     complete!
   rescue JrcServiceDesk::Intake::PendingControl::Cancelled, Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound
     fail_state('cancelled', 'intake_pending_cancelled')
