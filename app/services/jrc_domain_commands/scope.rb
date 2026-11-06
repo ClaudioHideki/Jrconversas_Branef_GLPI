@@ -55,7 +55,7 @@ class JrcDomainCommands::Scope
 
   def service_desk?
     context = JrcServiceDesk::OperationalContext.new(account: @account, user: @authority.user,
-      account_user: @account.account_users.find_by(user_id: @authority.user.id))
+                                                     account_user: @account.account_users.find_by(user_id: @authority.user.id))
     context.native_operator? && context.capability?(:tickets_create)
   end
 

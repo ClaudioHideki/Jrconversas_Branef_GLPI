@@ -16,9 +16,7 @@ class IntakeGlpiSource < GlpiCommandSource
   end
 
   def write!(verb, type, id, input)
-    if assignment_failed?(verb, type, input)
-      raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403)
-    end
+    raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403) if assignment_failed?(verb, type, input)
 
     result = super
     raise JrcServiceDesk::Glpi::Error.new('transport_timeout', 502) if fail_after_create && type == 'Ticket' && verb == :post
@@ -30,4 +28,3 @@ class IntakeGlpiSource < GlpiCommandSource
     fail_assignment && type == 'Ticket' && verb == :patch && input.key?('_groups_id_assign')
   end
 end
-

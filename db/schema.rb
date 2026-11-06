@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_04_135000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_06_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -4939,6 +4939,57 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_135000) do
     t.check_constraint "resource_kind::text = ANY (ARRAY['incident'::character varying::text, 'problem'::character varying::text])", name: "jrc_sd_r3_incident_kind"
   end
 
+  create_table "jrc_service_desk_intake_configurations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "created_by_account_user_id", null: false
+    t.integer "revision", null: false
+    t.jsonb "catalogue", null: false
+    t.jsonb "responses", default: [], null: false
+    t.jsonb "mappings", default: {}, null: false
+    t.string "mode", default: "on_handoff", null: false
+    t.boolean "enabled", default: false, null: false
+    t.boolean "current", default: false, null: false
+    t.boolean "remote_writes_enabled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "inbox_id", "revision"], name: "idx_intake_configuration_revision", unique: true
+    t.index ["account_id"], name: "index_jrc_service_desk_intake_configurations_on_account_id"
+    t.index ["created_by_account_user_id"], name: "idx_on_created_by_account_user_id_4e7499c64e"
+    t.index ["inbox_id"], name: "idx_current_intake_configuration", unique: true, where: "(current = true)"
+    t.index ["inbox_id"], name: "index_jrc_service_desk_intake_configurations_on_inbox_id"
+    t.check_constraint "mode::text = ANY (ARRAY['on_handoff'::character varying, 'on_qualification'::character varying]::text[])", name: "intake_creation_mode"
+    t.check_constraint "revision > 0", name: "intake_positive_revision"
+  end
+
+  create_table "jrc_service_desk_intake_demands", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "account_user_id", null: false
+    t.bigint "intake_configuration_id", null: false
+    t.uuid "episode_key", null: false
+    t.string "fingerprint", limit: 64, null: false
+    t.text "normalized_input", null: false
+    t.jsonb "source_context", default: {}, null: false
+    t.jsonb "delivery_receipts", default: {}, null: false
+    t.string "state", default: "qualified", null: false
+    t.bigint "remote_id"
+    t.string "error_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "conversation_id", "created_at"], name: "idx_intake_conversation_history"
+    t.index ["account_id", "episode_key"], name: "idx_intake_episode_identity", unique: true
+    t.index ["account_id"], name: "index_jrc_service_desk_intake_demands_on_account_id"
+    t.index ["account_user_id"], name: "index_jrc_service_desk_intake_demands_on_account_user_id"
+    t.index ["contact_id"], name: "index_jrc_service_desk_intake_demands_on_contact_id"
+    t.index ["conversation_id"], name: "index_jrc_service_desk_intake_demands_on_conversation_id"
+    t.index ["inbox_id"], name: "index_jrc_service_desk_intake_demands_on_inbox_id"
+    t.index ["intake_configuration_id"], name: "idx_on_intake_configuration_id_07e96fdc9f"
+    t.check_constraint "state::text = ANY (ARRAY['qualified'::character varying, 'queued'::character varying, 'sending'::character varying, 'confirmed'::character varying, 'partial'::character varying, 'rejected'::character varying, 'indeterminate'::character varying, 'test_only'::character varying]::text[])", name: "intake_demand_state"
+  end
+
   create_table "jrc_service_desk_lifecycle_pauses", force: :cascade do |t|
     t.integer "account_id", null: false
     t.bigint "unit_id", null: false
@@ -6859,6 +6910,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_135000) do
   add_foreign_key "jrc_service_desk_incidents", "jrc_service_desk_unit_memberships", column: ["account_id", "unit_id", "created_by_membership_id"], primary_key: ["account_id", "unit_id", "id"], name: "incidents_created_by_fk"
   add_foreign_key "jrc_service_desk_incidents", "jrc_service_desk_unit_memberships", column: ["account_id", "unit_id", "owner_membership_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_r3_incident_owner_fk"
   add_foreign_key "jrc_service_desk_incidents", "jrc_service_desk_units", column: ["account_id", "unit_id"], primary_key: ["account_id", "id"], name: "jrc_sd_incident_unit_fk"
+  add_foreign_key "jrc_service_desk_intake_configurations", "account_users", column: "created_by_account_user_id"
+  add_foreign_key "jrc_service_desk_intake_configurations", "accounts"
+  add_foreign_key "jrc_service_desk_intake_configurations", "inboxes"
+  add_foreign_key "jrc_service_desk_intake_demands", "account_users"
+  add_foreign_key "jrc_service_desk_intake_demands", "accounts"
+  add_foreign_key "jrc_service_desk_intake_demands", "contacts"
+  add_foreign_key "jrc_service_desk_intake_demands", "conversations"
+  add_foreign_key "jrc_service_desk_intake_demands", "inboxes"
+  add_foreign_key "jrc_service_desk_intake_demands", "jrc_service_desk_intake_configurations", column: "intake_configuration_id"
   add_foreign_key "jrc_service_desk_lifecycle_pauses", "accounts"
   add_foreign_key "jrc_service_desk_lifecycle_pauses", "jrc_service_desk_lifecycle_policy_versions", column: ["account_id", "unit_id", "lifecycle_policy_version_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_lc_ff94180ace6ba8957c3c_fk"
   add_foreign_key "jrc_service_desk_lifecycle_pauses", "jrc_service_desk_sla_cycles", column: ["account_id", "unit_id", "ticket_id", "sla_cycle_id"], primary_key: ["account_id", "unit_id", "ticket_id", "id"], name: "jrc_sd_lc_2eed46e90db61ccb1a49_fk"
@@ -9156,5 +9216,37 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_135000) do
   execute <<~'JRC_SCHEMA_SQL_213d81448354'
     CREATE TRIGGER jrc_effect_message_control BEFORE INSERT ON messages FOR EACH ROW EXECUTE FUNCTION jrc_effect_message_control();
   JRC_SCHEMA_SQL_213d81448354
+
+  execute <<~'JRC_SCHEMA_SQL_f9ffb3f2c9c4'
+    ALTER TABLE "jrc_service_desk_intake_configurations" DROP CONSTRAINT "intake_creation_mode";
+  JRC_SCHEMA_SQL_f9ffb3f2c9c4
+
+  execute <<~'JRC_SCHEMA_SQL_fd82af58cd38'
+    ALTER TABLE "jrc_service_desk_intake_configurations" ADD CONSTRAINT "intake_creation_mode" CHECK (((mode)::text = ANY ((ARRAY['on_handoff'::character varying, 'on_qualification'::character varying])::text[])));
+  JRC_SCHEMA_SQL_fd82af58cd38
+
+  execute <<~'JRC_SCHEMA_SQL_82c57e066685'
+    ALTER TABLE "jrc_service_desk_intake_configurations" DROP CONSTRAINT "intake_positive_revision";
+  JRC_SCHEMA_SQL_82c57e066685
+
+  execute <<~'JRC_SCHEMA_SQL_ea04a884d370'
+    ALTER TABLE "jrc_service_desk_intake_configurations" ADD CONSTRAINT "intake_positive_revision" CHECK ((revision > 0));
+  JRC_SCHEMA_SQL_ea04a884d370
+
+  execute <<~'JRC_SCHEMA_SQL_3cc7f4dbf1e0'
+    ALTER TABLE "jrc_service_desk_intake_demands" DROP CONSTRAINT "intake_demand_state";
+  JRC_SCHEMA_SQL_3cc7f4dbf1e0
+
+  execute <<~'JRC_SCHEMA_SQL_86188a7eace9'
+    ALTER TABLE "jrc_service_desk_intake_demands" ADD CONSTRAINT "intake_demand_state" CHECK (((state)::text = ANY ((ARRAY['qualified'::character varying, 'queued'::character varying, 'sending'::character varying, 'confirmed'::character varying, 'partial'::character varying, 'rejected'::character varying, 'indeterminate'::character varying, 'test_only'::character varying])::text[])));
+  JRC_SCHEMA_SQL_86188a7eace9
+
+  execute <<~'JRC_SCHEMA_SQL_845d786137a7'
+    DROP INDEX "idx_current_intake_configuration";
+  JRC_SCHEMA_SQL_845d786137a7
+
+  execute <<~'JRC_SCHEMA_SQL_3c4c51b2b710'
+    CREATE UNIQUE INDEX idx_current_intake_configuration ON public.jrc_service_desk_intake_configurations USING btree (inbox_id) WHERE (current = true);
+  JRC_SCHEMA_SQL_3c4c51b2b710
 
 end

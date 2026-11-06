@@ -36,13 +36,13 @@ class JrcServiceDesk::Intake::Mapping
   def preflight!(access:, client:)
     query = JrcServiceDesk::Glpi::ResourceQuery.new
     group = query.raw(access: access, client: client, kind: 'groups', id: route.fetch('group_id'))
-    unless [1, '1', true].include?(group['is_assign']) && ![1, '1', true].include?(group['is_deleted'])
+    unless [1, '1', true].include?(group['is_assign']) && [1, '1', true].exclude?(group['is_deleted'])
       raise JrcServiceDesk::Glpi::Error.new('intake_group_unavailable', 422)
     end
     return if input.fetch('sla').fetch('unit') == 'none' && route['sla'].nil?
 
     JrcServiceDesk::Glpi::IntakeSla.new.validate!(access: access, client: client, entity_id: route.fetch('entity_id'),
-      mapping: route.fetch('sla'), expected: input.fetch('sla'))
+                                                  mapping: route.fetch('sla'), expected: input.fetch('sla'))
   end
 
   def attributes

@@ -25,6 +25,7 @@ class JrcDomainCommands::Request
     expected = %w[command episode_key]
     expected += %w[configuration_id configuration_revision phase input] if value['command'] == 'service_desk_intake'
     raise ArgumentError, 'domain_keys' unless value.keys.sort == expected.sort
+
     valid_episode = value['episode_key'].is_a?(String) && JrcServiceDesk::Intake::Submission::UUID.match?(value['episode_key'])
     raise ArgumentError, 'intake_episode' unless valid_episode
     return value if value['command'] == 'service_desk_status'
@@ -39,8 +40,7 @@ class JrcDomainCommands::Request
     end
     raise ArgumentError, 'intake_phase' unless %w[qualified handoff].include?(value['phase'])
     raise ArgumentError, 'intake_input' unless value['input'].is_a?(Hash) &&
-                                              (value['input'].keys - JrcServiceDesk::Intake::Input::FIELDS).empty?
-
+                                               (value['input'].keys - JrcServiceDesk::Intake::Input::FIELDS).empty?
   end
 
   def self.decode(raw)

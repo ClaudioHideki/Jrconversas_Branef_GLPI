@@ -44,7 +44,7 @@ class JrcServiceDesk::Intake::Origin
     validate_configuration!(context)
     JrcBrokerIntegration.find_by!(account_id: @demand.account_id, organization_id: values.fetch('organization_id'))
     JrcBrokerInboxBinding.find_by!(account_id: @demand.account_id, inbox_id: @demand.inbox_id,
-      integration_id: values.fetch('integration_id'))
+                                   integration_id: values.fetch('integration_id'))
     validate_connection!
   end
 
@@ -53,19 +53,18 @@ class JrcServiceDesk::Intake::Origin
     valid = configuration.enabled? && configuration.remote_writes_enabled? && context.native_operator? &&
             context.capability?(:tickets_create) && JrcBroker::Configuration.enabled? && context.account.feature_enabled?('jrc_broker')
     raise Pundit::NotAuthorizedError unless valid
-
   end
 
   def validate_connection!
     connection = JrcServiceDesk::GlpiConnection.find_by!(account_id: @demand.account_id, id: values.fetch('connection_id'))
-    unless connection.enabled? && connection.primary_source? && connection.lock_version == values.fetch('connection_version')
-      raise Pundit::NotAuthorizedError
-    end
+    return if connection.enabled? && connection.primary_source? && connection.lock_version == values.fetch('connection_version')
+
+    raise Pundit::NotAuthorizedError
   end
 
   def validate_conversation!
     target = Conversation.find_by!(id: @demand.conversation_id, account_id: @demand.account_id,
-      inbox_id: @demand.inbox_id, contact_id: @demand.contact_id)
+                                   inbox_id: @demand.inbox_id, contact_id: @demand.contact_id)
     valid = target.pending? && values['conversation_status'] == 'pending' && target.assignee_id.nil? && target.team_id.nil? &&
             target.assignee_agent_bot_id == values['assignee_agent_bot_id'] &&
             JrcFlowEffects::ControlRevision.snapshot(target).fetch('routing_source_hash') == values.fetch('routing_source_hash')

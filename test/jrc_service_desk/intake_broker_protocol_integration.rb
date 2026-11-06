@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
+# Plain Minitest has refute methods, not Rails assert_not aliases.
+# rubocop:disable Rails/RefuteMethods
+
 # Flat synthetic integration scenarios use plain Minitest assertions.
-# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
 
 require_relative 'intake_test_helper'
 
@@ -62,12 +64,12 @@ class IntakeBrokerProtocolIntegrationTest < IntakeIntegrationTest
 
   def apply(arguments, conversation: @conversation)
     input = { 'organization_id' => @organization, 'integration_id' => @integration,
-      'operation_id' => SecureRandom.uuid, 'dispatch_proof' => SecureRandom.uuid, 'inbox_id' => conversation.inbox_id.to_s,
-      'remote_contact_id' => conversation.contact_id.to_s,
-      'expected_control_revision' => conversation.reload.jrc_effect_control_revision.to_s,
-      'operation' => 'domain', 'value_json' => JSON.generate(arguments) }
+              'operation_id' => SecureRandom.uuid, 'dispatch_proof' => SecureRandom.uuid, 'inbox_id' => conversation.inbox_id.to_s,
+              'remote_contact_id' => conversation.contact_id.to_s,
+              'expected_control_revision' => conversation.reload.jrc_effect_control_revision.to_s,
+              'operation' => 'domain', 'value_json' => JSON.generate(arguments) }
     JrcFlowEffects::Apply.new(account: @account, user: @user, access_token: @access_token).call(conversation.display_id, input)
   end
 end
 
-# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+# rubocop:enable Rails/RefuteMethods

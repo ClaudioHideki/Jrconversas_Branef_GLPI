@@ -9,9 +9,10 @@ class JrcDomainCommands::Apply
 
   def call
     raise ArgumentError, 'domain_unavailable' unless JrcDomainCommands::Request.available?
+
     if JrcDomainCommands::Request::INTAKE_COMMANDS.include?(@arguments.fetch('command'))
       return JrcServiceDesk::Intake::DomainCommand.new.call(authority: @authority, conversation: @conversation,
-        arguments: @arguments, operation_id: @input.fetch('operation_id'))
+                                                            arguments: @arguments, operation_id: @input.fetch('operation_id'))
     end
 
     result = if @arguments.fetch('command') == 'create_lead'

@@ -45,7 +45,7 @@ class JrcServiceDesk::Intake::Delivery
 
   def create_ticket!
     ticket = @command.create(user_context: authorize!.context.to_h, destination: @mapping.destination,
-      attributes: @mapping.attributes, idempotency_key: stage_key('ticket'))
+                             attributes: @mapping.attributes, idempotency_key: stage_key('ticket'))
     record_stage('ticket', ticket)
     unless ticket[:state] == 'succeeded'
       finish(ticket[:state] == 'rejected' ? 'rejected' : 'indeterminate', ticket[:error_code])
@@ -82,7 +82,7 @@ class JrcServiceDesk::Intake::Delivery
     end
     authorize!
     link = JrcServiceDesk::GlpiReferenceLink.find_or_create_by!(account: @demand.account, glpi_reference: record,
-      conversation: @demand.conversation, account_user: @demand.account_user, unit_id: record.unit_id)
+                                                                conversation: @demand.conversation, account_user: @demand.account_user, unit_id: record.unit_id)
     record_stage('link', id: link.id.to_s, state: 'succeeded')
   end
 
@@ -101,7 +101,7 @@ class JrcServiceDesk::Intake::Delivery
 
   def apply_stage(stage, operation, attributes)
     result = @command.call(user_context: authorize!.context.to_h, reference: reference,
-      operation: operation, attributes: attributes, idempotency_key: stage_key(stage))
+                           operation: operation, attributes: attributes, idempotency_key: stage_key(stage))
     record_stage(stage, result)
     return true if result[:state] == 'succeeded'
 

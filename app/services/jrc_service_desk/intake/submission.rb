@@ -58,7 +58,7 @@ class JrcServiceDesk::Intake::Submission
       account_user: context.account_user, intake_configuration: configuration, episode_key: values.fetch('episode_key'),
       normalized_input: normalized, fingerprint: fingerprint,
       source_context: JrcServiceDesk::Intake::Origin.capture(authority: authority, context: context,
-        conversation: target, configuration: configuration),
+                                                             conversation: target, configuration: configuration),
       state: state_for(configuration, values.fetch('phase'))
     )
     demand.receipt(created: true)

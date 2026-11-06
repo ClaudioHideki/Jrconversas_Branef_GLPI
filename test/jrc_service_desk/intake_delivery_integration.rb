@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
+# Plain Minitest has refute methods, not Rails assert_not aliases.
+# rubocop:disable Rails/RefuteMethods
+
 # Flat synthetic integration scenarios use plain Minitest assertions.
-# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+# rubocop:disable Metrics/AbcSize, Metrics/MethodLength
 
 require_relative 'intake_test_helper'
 require_relative 'intake_source_fixture'
@@ -17,19 +20,19 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
       'User/77' => { 'id' => 77, 'name' => 'Synthetic requester', 'is_active' => 1 },
       'Group/20' => { 'id' => 20, 'name' => 'Synthetic N2/N3', 'entities_id' => 0, 'is_recursive' => 1, 'is_assign' => 1 },
       'ITILCategory/10' => { 'id' => 10, 'name' => 'Synthetic access', 'entities_id' => 0, 'is_recursive' => 1,
-        'is_request' => 1, 'is_incident' => 1, 'tickettemplates_id_demand' => 0, 'tickettemplates_id_incident' => 0 },
+                             'is_request' => 1, 'is_incident' => 1, 'tickettemplates_id_demand' => 0, 'tickettemplates_id_incident' => 0 },
       'SLA/30' => { 'id' => 30, 'name' => 'Synthetic five days', 'entities_id' => 0, 'slms_id' => 40,
-        'type' => 0, 'number_time' => 5, 'definition_time' => 'day', 'calendars_id' => 0 },
+                    'type' => 0, 'number_time' => 5, 'definition_time' => 'day', 'calendars_id' => 0 },
       'SLM/40' => { 'id' => 40, 'name' => 'Synthetic agreement', 'entities_id' => 0, 'is_recursive' => 1,
-        'calendars_id' => 0, 'use_ticket_calendar' => 0 }
+                    'calendars_id' => 0, 'use_ticket_calendar' => 0 }
     )
     @delivery_configuration = JrcServiceDesk::IntakeConfiguration.create!(
       account: @account, inbox: @inbox, created_by_account_user: @member, revision: 2, catalogue: @catalogue,
       mode: 'on_qualification', enabled: true, remote_writes_enabled: true,
       mappings: { 'routes' => [{ 'system' => 'example', 'location' => 'south', 'reason' => 'request', 'subject' => 'access',
-        'profile' => 'requester', 'severity' => nil, 'entity_id' => 0, 'category_id' => 10, 'group_id' => 20,
-        'requester_policy' => 'mapped_contact', 'sla' => { 'id' => 30, 'purpose' => 'resolve', 'calendar_id' => 0 } }],
-        'requesters' => [{ 'contact_id' => @conversation.contact_id, 'entity_id' => 0, 'user_id' => 77 }] }
+                                 'profile' => 'requester', 'severity' => nil, 'entity_id' => 0, 'category_id' => 10, 'group_id' => 20,
+                                 'requester_policy' => 'mapped_contact', 'sla' => { 'id' => 30, 'purpose' => 'resolve', 'calendar_id' => 0 } }],
+                  'requesters' => [{ 'contact_id' => @conversation.contact_id, 'entity_id' => 0, 'user_id' => 77 }] }
     )
     args = @arguments.merge('configuration_id' => @delivery_configuration.id, 'configuration_revision' => 2)
     receipt = JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation, arguments: args)
@@ -53,7 +56,7 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
 
   def test_disabled_real_writes_never_constructs_a_client
     receipt = JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation,
-      arguments: @arguments.merge('episode_key' => SecureRandom.uuid))
+                                                          arguments: @arguments.merge('episode_key' => SecureRandom.uuid))
     JrcServiceDesk::Glpi::Client.stub(:new, ->(*) { flunk 'Disabled intake cannot request GLPI' }) do
       result = JrcServiceDesk::Intake::Delivery.new.call(demand_id: receipt.fetch(:id))
       assert_equal 'test_only', result.fetch(:state)
@@ -73,7 +76,7 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
       assert_equal 1, JrcServiceDesk::GlpiReferenceLink.where(account: @account, conversation: @conversation).count
       assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
       JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
-      assert_equal 1, @remote.writes.count { |verb, type, _id, _input| verb == :post && type == 'Ticket' }
+      assert_equal(1, @remote.writes.count { |verb, type, _id, _input| verb == :post && type == 'Ticket' })
     end
   end
 
@@ -85,7 +88,7 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
       assert_equal '501', result.fetch(:remote_id)
       refute_equal 'succeeded', result.dig(:stages, 'assignment', 'state')
       JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
-      assert_equal 1, @remote.writes.count { |verb, type, _id, _input| verb == :post && type == 'Ticket' }
+      assert_equal(1, @remote.writes.count { |verb, type, _id, _input| verb == :post && type == 'Ticket' })
     end
   end
 
@@ -96,7 +99,7 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
       assert_equal 'indeterminate', result.fetch(:state)
       assert_nil result[:remote_id]
       JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
-      assert_equal 1, @remote.writes.count { |verb, type, _id, _input| verb == :post && type == 'Ticket' }
+      assert_equal(1, @remote.writes.count { |verb, type, _id, _input| verb == :post && type == 'Ticket' })
     end
   end
 
@@ -170,4 +173,6 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
   end
 end
 
-# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+# rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+# rubocop:enable Rails/RefuteMethods
