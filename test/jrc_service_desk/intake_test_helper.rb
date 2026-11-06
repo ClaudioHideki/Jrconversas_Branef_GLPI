@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 # Shared synthetic fixture for intake integration tests. No customer data or endpoints.
+raise 'Wrong validation target' unless ENV['RAILS_ENV'] == 'test' && ENV['POSTGRES_DATABASE'] == 'branef_glpi_test'
+
+require 'base64'
+require 'securerandom'
+ENV['JRC_BROKER_CREDENTIAL_KEY'] = Base64.strict_encode64(SecureRandom.random_bytes(32))
+ENV['JRC_BROKER_ALLOWED_ORIGINS'] = 'https://broker.example.test'
 require_relative 'glpi_test_helper'
 
 class IntakeIntegrationTest < GlpiIntegrationTest

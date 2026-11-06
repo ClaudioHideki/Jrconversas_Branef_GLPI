@@ -7,6 +7,16 @@ require_relative 'glpi_source_fixture'
 class IntakeGlpiSource < GlpiCommandSource
   attr_accessor :fail_assignment, :fail_after_create
 
+  def collection(path, *)
+    actors = super
+    if path.match?(%r{\ATicket/\d+/Ticket_User/\z})
+      id = path.split('/')[1].to_i
+      requester = rows.fetch("Ticket/#{id}", {})['_users_id_requester']
+      actors += [{ 'id' => 2, 'tickets_id' => id, 'users_id' => requester, 'type' => 1 }] if requester
+    end
+    actors
+  end
+
   def write!(verb, type, id, input)
     if fail_assignment && type == 'Ticket' && verb == :patch && input.key?('_groups_id_assign')
       raise JrcServiceDesk::Glpi::Error.new('ERROR_RIGHT_MISSING', 403)
@@ -51,12 +61,21 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
     args = @arguments.merge('configuration_id' => @delivery_configuration.id, 'configuration_revision' => 2)
     receipt = JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation, arguments: args)
     @demand = JrcServiceDesk::IntakeDemand.find(receipt.fetch(:id))
+    @captured_context = @demand.source_context.deep_dup
     @demand.update!(source_context: @demand.source_context.merge(
       'service_token_id' => @access_token.id, 'service_token_fingerprint' => Digest::SHA256.hexdigest(@access_token.token),
       'organization_id' => @organization, 'integration_id' => @integration,
       'routing_source_hash' => JrcFlowEffects::ControlRevision.snapshot(@conversation).fetch('routing_source_hash'),
       'assignee_id' => nil, 'assignee_agent_bot_id' => nil, 'team_id' => nil, 'conversation_status' => 'pending'
     ))
+  end
+
+  def test_submission_captures_credential_generation_without_persisting_the_token
+    assert_equal @access_token.id, @captured_context.fetch('service_token_id')
+    assert_equal Digest::SHA256.hexdigest(@access_token.token), @captured_context.fetch('service_token_fingerprint')
+    assert_equal @binding.integration_id, @captured_context.fetch('integration_id')
+    assert_equal @connection.id, @captured_context.fetch('connection_id')
+    refute_includes @captured_context.to_json, @access_token.token
   end
 
   def test_disabled_real_writes_never_constructs_a_client
@@ -157,5 +176,22 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
       result = JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
       assert_equal 'rejected', result.fetch(:state)
     end
+  end
+
+  def test_changed_glpi_connection_blocks_before_constructing_a_client
+    @connection.update!(timezone: 'America/Sao_Paulo')
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(*) { flunk 'Changed GLPI destination cannot receive an old queued intent' }) do
+      result = JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
+      assert_equal 'rejected', result.fetch(:state)
+    end
+  end
+
+  def test_sla_duration_is_not_guessed_from_a_calendar
+    @remote.rows['SLA/30']['number_time'] = 4
+    JrcServiceDesk::Glpi::Client.stub(:new, @remote) do
+      result = JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
+      assert_equal 'rejected', result.fetch(:state)
+    end
+    assert_empty @remote.writes
   end
 end

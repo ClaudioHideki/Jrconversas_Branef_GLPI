@@ -99,14 +99,15 @@ jobs:
           test "$result" = 0
           bundle exec rails db:schema:load
           bundle exec rails db:migrate
+          for suite in test/jrc_service_desk/intake_*_integration.rb; do
+            JRC_BROKER_ENABLED=true bundle exec ruby "$suite" || result=1
+          done
+          test "$result" = 0
           bundle exec rspec spec/finders/conversation_finder_spec.rb
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
           result=0
           for suite in test/jrc_service_desk/glpi_*_integration.rb; do
             bundle exec ruby "$suite" || result=1
-          done
-          for suite in test/jrc_service_desk/intake_*_integration.rb; do
-            JRC_BROKER_ENABLED=true bundle exec ruby "$suite" || result=1
           done
           exit "$result"
       - uses: actions/upload-artifact@v4
