@@ -31,6 +31,17 @@ const mountComponent = (chat, currentContact = {}) =>
   });
 
 describe('ConversationCard', () => {
+  it('shows the supplied attendance state and updates it without changing the conversation', async () => {
+    const wrapper = mountComponent({ status: 'pending' });
+    await wrapper.setProps({ statusLabel: 'Aguardando', operational: true });
+    expect(wrapper.text()).toContain('Aguardando');
+    await wrapper.trigger('click');
+    expect(wrapper.emitted('click')).toHaveLength(1);
+    expect(wrapper.props('chat').status).toBe('pending');
+    await wrapper.setProps({ statusLabel: 'Em atendimento' });
+    expect(wrapper.text()).toContain('Em atendimento');
+    expect(wrapper.text()).not.toContain('Aguardando');
+  });
   it('keeps the default card and offers a dense operational presentation without reserving name space for the clock', async () => {
     const wrapper = mountComponent({});
     expect(wrapper.get('.conversation--user').classes()).toContain('ltr:pr-16');

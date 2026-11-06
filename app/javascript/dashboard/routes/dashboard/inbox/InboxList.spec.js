@@ -6,6 +6,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import JrcContactCenterAPI from 'dashboard/api/jrcContactCenter';
 import InboxList from './InboxList.vue';
+import conversationGetters from 'dashboard/store/modules/conversations/getters';
 import { routes as webphoneRoutes } from '../webphone/routes';
 import { openEmbeddedSoftphone } from '../webphone/useEmbeddedSoftphone';
 
@@ -50,8 +51,9 @@ const mountInbox = () =>
         RouterView: ConversationPanel,
         Spinner: { template: '<div data-testid="loading" />' },
         ConversationCard: {
-          props: ['chat'],
-          template: '<div data-testid="conversation">{{ chat.id }}</div>',
+          props: ['chat', 'statusLabel'],
+          template:
+            '<section><div data-testid="conversation">{{ chat.id }}</div><span data-testid="conversation-status">{{ statusLabel }}</span></section>',
         },
         CallWorkspace: {
           props: ['accountId', 'callId', 'context'],
@@ -185,6 +187,7 @@ describe('omnichannel inbox', () => {
         'conversationPage/getHasEndReached': state => () => state.ended,
         getSelectedChat: () => ({}),
         getCurrentUser: state => state.currentUser,
+        getCurrentAccountId: () => Number(mocks.route.params.accountId),
         getCurrentRole: state =>
           state.currentUser.accounts.find(
             a => a.id === Number(mocks.route.params.accountId)
@@ -197,7 +200,13 @@ describe('omnichannel inbox', () => {
         'inboxes/getInboxById': state => id =>
           state.inboxes.find(inbox => inbox.id === id),
         'accounts/isFeatureEnabledonAccount': state => () => state.feature,
-        getAllStatusChats: state => () => state.conversations,
+        getAllStatusChats: (state, getters, rootState, rootGetters) =>
+          conversationGetters.getAllStatusChats(
+            { allConversations: state.conversations },
+            getters,
+            rootState,
+            rootGetters
+          ),
         getChatListLoadingStatus: () => false,
         getChatListErrorStatus: state => state.conversationError,
       },
@@ -213,7 +222,10 @@ describe('omnichannel inbox', () => {
         },
         fetchAllConversations: ({ state }) => {
           state.conversationError = false;
-          state.conversations = [...state.conversationPayload];
+          state.conversations = state.conversationPayload.map(conversation => ({
+            status: 'open',
+            ...conversation,
+          }));
         },
       },
     });
@@ -308,6 +320,56 @@ describe('omnichannel inbox', () => {
       1,
       expect.objectContaining({ assignee_type: 'me' })
     );
+  });
+
+  it('lists open and pending conversations together and shows their states without taking control on selection', async () => {
+    store.state.currentUser.accounts[0].role = 'administrator';
+    store.state.currentUser.accounts[0].permissions = ['administrator'];
+    mocks.route.query.assignee = 'all';
+    store.state.conversationPayload = [
+      { id: 301, inbox_id: 11, status: 'open', meta: {} },
+      { id: 302, inbox_id: 11, status: 'pending', meta: {} },
+      { id: 303, inbox_id: 11, status: 'resolved', meta: {} },
+      { id: 304, inbox_id: 11, status: 'snoozed', meta: {} },
+    ];
+    const wrapper = mountInbox();
+    await flushPromises();
+    expect(store.state.filters).toMatchObject({
+      status: 'active',
+      assigneeType: 'all',
+      page: 1,
+    });
+    expect(
+      wrapper.findAll('[data-testid="conversation"]').map(row => row.text())
+    ).toEqual(['301', '302']);
+    expect(
+      wrapper
+        .findAll('[data-testid="conversation-status"]')
+        .map(row => row.text())
+    ).toEqual([
+      'JRC_CONTACT_CENTER.INBOX_360.CONVERSATION_STATES.open',
+      'JRC_CONTACT_CENTER.INBOX_360.CONVERSATION_STATES.pending',
+    ]);
+    const dispatch = vi.spyOn(store, 'dispatch');
+    dispatch.mockClear();
+    await wrapper.findAll('[data-testid="conversation"]')[1].trigger('click');
+    expect(mocks.router.push).toHaveBeenCalledWith({
+      name: 'inbox_view_conversation',
+      params: { accountId: '1', type: 'conversation', id: 302 },
+      query: mocks.route.query,
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(store.state.conversations[1].status).toBe('pending');
+    store.state.conversations[1].status = 'open';
+    await flushPromises();
+    expect(
+      wrapper.findAll('[data-testid="conversation"]').map(row => row.text())
+    ).toEqual(['301', '302']);
+    store.state.conversations[1].status = 'resolved';
+    await flushPromises();
+    expect(
+      wrapper.findAll('[data-testid="conversation"]').map(row => row.text())
+    ).toEqual(['301']);
   });
 
   it('offers configured messaging and social channels alongside voice', async () => {

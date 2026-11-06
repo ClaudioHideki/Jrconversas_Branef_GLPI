@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { callStateLabels } from './inboxPresentation';
+import { callStateLabels, conversationStateLabels } from './inboxPresentation';
 import { getInboxChannelKey, CHANNEL_TYPES } from 'dashboard/helper/inbox';
 import ConversationCard from 'dashboard/components/widgets/conversation/ConversationCard.vue';
 
@@ -19,6 +19,7 @@ const props = defineProps({
 const emit = defineEmits(['selectCall', 'selectConversation']);
 const { t } = useI18n();
 const callLabels = computed(() => callStateLabels(t));
+const conversationLabels = computed(() => conversationStateLabels(t));
 const collapsed = ref([]);
 const callCustomer = call =>
   (props.currentCallId === call.id && props.selectedCustomerName) ||
@@ -157,8 +158,9 @@ const toggle = key => {
           <span
             v-if="callDuration(call)"
             class="mt-1 shrink-0 text-[10px] tabular-nums text-n-slate-10"
-            >{{ callDuration(call) }}</span
           >
+            {{ callDuration(call) }}
+          </span>
         </button>
       </template>
       <ConversationCard
@@ -169,6 +171,7 @@ const toggle = key => {
         :assignee="conversation.meta?.assignee || {}"
         :inbox="inboxFor(conversation)"
         :is-active-chat="currentConversationId === conversation.id"
+        :status-label="conversationLabels[conversation.status]"
         compact
         operational
         show-assignee

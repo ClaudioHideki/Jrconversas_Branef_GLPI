@@ -1,7 +1,39 @@
 import { describe, it, expect } from 'vitest';
-import { applyRoleFilter } from '../helpers';
+import { applyRoleFilter, filterByStatus, applyPageFilters } from '../helpers';
 
 describe('Conversation Helpers', () => {
+  describe('active attendance status', () => {
+    it.each([
+      ['open', true],
+      ['pending', true],
+      ['resolved', false],
+      ['snoozed', false],
+    ])('includes %s in the active list: %s', (status, expected) => {
+      expect(filterByStatus(status, 'active')).toBe(expected);
+    });
+
+    it('updates list membership as a conversation moves between active and closed states', () => {
+      const conversation = { status: 'open', inbox_id: 7 };
+      const filters = { status: 'active', inboxId: 7 };
+      expect(applyPageFilters(conversation, filters)).toBe(true);
+      conversation.status = 'pending';
+      expect(applyPageFilters(conversation, filters)).toBe(true);
+      conversation.status = 'resolved';
+      expect(applyPageFilters(conversation, filters)).toBe(false);
+    });
+
+    it('preserves the inbox filter and existing single-status queries', () => {
+      expect(
+        applyPageFilters(
+          { status: 'pending', inbox_id: 8 },
+          { status: 'active', inboxId: 7 }
+        )
+      ).toBe(false);
+      expect(filterByStatus('pending', 'open')).toBe(false);
+      expect(filterByStatus('pending', 'pending')).toBe(true);
+      expect(filterByStatus('resolved', 'all')).toBe(true);
+    });
+  });
   describe('#applyRoleFilter', () => {
     // Test data for conversations
     const conversationWithAssignee = {

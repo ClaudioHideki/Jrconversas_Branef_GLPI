@@ -25,6 +25,7 @@ const route = useRoute();
 const router = useRouter();
 const store = useStore();
 const { t } = useI18n();
+const ACTIVE_STATUS_FILTER = 'active';
 
 const page = ref(1);
 const channelFilter = ref(route.query.channel || 'all');
@@ -107,7 +108,7 @@ const resolveAssigneeFilter = value =>
 
 const conversationFilters = computed(() => ({
   assigneeType: assigneeFilter.value,
-  status: wootConstants.STATUS_TYPE.OPEN,
+  status: ACTIVE_STATUS_FILTER,
   sortBy: wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC,
   page: page.value,
 }));
@@ -166,7 +167,7 @@ const channelFilterOptions = computed(() => [
 const conversations = computed(() => {
   const items = allOpenConversations.value({
     assigneeType: assigneeFilter.value,
-    status: wootConstants.STATUS_TYPE.OPEN,
+    status: ACTIVE_STATUS_FILTER,
   });
 
   if (channelFilter.value === 'all') return items;

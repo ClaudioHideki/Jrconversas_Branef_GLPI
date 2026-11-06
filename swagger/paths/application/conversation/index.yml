@@ -21,9 +21,9 @@ get:
       in: query
       schema:
         type: string
-        enum: ['all', 'open', 'resolved', 'pending', 'snoozed']
+        enum: ['all', 'active', 'open', 'resolved', 'pending', 'snoozed']
         default: 'open'
-      description: Filter by conversation status.
+      description: Filter by conversation status. The active query includes open and pending conversations without changing their persisted status.
     - name: q
       in: query
       schema:

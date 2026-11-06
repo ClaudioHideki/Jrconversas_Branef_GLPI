@@ -99,6 +99,7 @@ jobs:
           test "$result" = 0
           bundle exec rails db:schema:load
           bundle exec rails db:migrate
+          bundle exec rspec spec/finders/conversation_finder_spec.rb
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
           result=0
           for suite in test/jrc_service_desk/glpi_*_integration.rb; do
@@ -257,6 +258,9 @@ jobs:
         run: >-
           pnpm exec vitest run
           app/javascript/dashboard/routes/dashboard/serviceDesk
+          app/javascript/dashboard/routes/dashboard/inbox
+          app/javascript/dashboard/components/widgets/conversation/specs/ConversationCard.spec.js
+          app/javascript/dashboard/store/modules/conversations
           app/javascript/dashboard/routes/dashboard/jrcOperations
           app/javascript/dashboard/routes/dashboard/crm
           app/javascript/dashboard/routes/dashboard/jrcCustomers

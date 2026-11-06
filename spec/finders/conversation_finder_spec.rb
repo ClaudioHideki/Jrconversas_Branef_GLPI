@@ -69,6 +69,58 @@ describe ConversationFinder do
       end
     end
 
+    context 'with active status' do
+      let(:params) { { status: 'active', assignee_type: 'all' } }
+      let!(:pending_conversation) do
+        create(:conversation, account: account, inbox: inbox, status: :pending, last_activity_at: 9.minutes.from_now)
+      end
+      let!(:snoozed_conversation) do
+        create(:conversation, account: account, inbox: inbox, status: :snoozed, last_activity_at: 19.minutes.from_now)
+      end
+
+      it 'includes open and pending conversations and counts only those states' do
+        result = conversation_finder.perform
+
+        expect(result[:conversations].map(&:status)).to match_array(%w[open open open open pending])
+        expect(result[:conversations].map(&:id)).to include(pending_conversation.id)
+        expect(result[:conversations].map(&:id)).not_to include(snoozed_conversation.id)
+        expect(result[:count]).to eq(mine_count: 2, assigned_count: 3, unassigned_count: 2, all_count: 5)
+        expect(conversation_finder.perform_meta_only[:count]).to eq(result[:count])
+      end
+
+      it 'filters states before pagination so closed conversations cannot hide active ones' do
+        latest_open = create(:conversation, account: account, inbox: inbox, last_activity_at: 10.minutes.from_now)
+        create(:conversation, account: account, inbox: inbox, status: :resolved, last_activity_at: 20.minutes.from_now)
+
+        with_modified_env CONVERSATION_RESULTS_PER_PAGE: '2' do
+          result = conversation_finder.perform
+          expect(result[:conversations].map(&:id)).to eq([latest_open.id, pending_conversation.id])
+          expect(result[:count][:all_count]).to eq(6)
+          second_page = described_class.new(user_1, params.merge(page: 2)).perform
+          expect(second_page[:conversations].size).to eq(2)
+          expect(second_page[:conversations].map(&:id)).not_to include(latest_open.id, pending_conversation.id)
+        end
+      end
+
+      it 'preserves inbox permissions and account isolation for pending conversations' do
+        restricted_pending = create(:conversation, account: account, inbox: restricted_inbox, status: :pending)
+        foreign_pending = create(:conversation, status: :pending)
+
+        result = conversation_finder.perform
+        expect(result[:conversations].map(&:id)).not_to include(restricted_pending.id, foreign_pending.id)
+        expect(result[:count][:all_count]).to eq(5)
+      end
+
+      it 'keeps the mine filter limited to the current assignee' do
+        assigned_pending = create(:conversation, account: account, inbox: inbox, status: :pending, assignee: user_1)
+
+        result = described_class.new(user_1, params.merge(assignee_type: 'me')).perform
+        expect(result[:conversations].map(&:id)).to include(assigned_pending.id)
+        expect(result[:conversations].map(&:id)).not_to include(pending_conversation.id)
+        expect(result[:conversations].size).to eq(3)
+      end
+    end
+
     context 'with assignee_type all' do
       let(:params) { { assignee_type: 'all' } }
 

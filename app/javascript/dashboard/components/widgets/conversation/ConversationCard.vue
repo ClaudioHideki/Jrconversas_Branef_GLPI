@@ -25,6 +25,7 @@ const props = defineProps({
   hideThumbnail: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
   operational: { type: Boolean, default: false },
+  statusLabel: { type: String, default: '' },
 });
 
 const emit = defineEmits([
@@ -198,6 +199,12 @@ watch(
       >
         {{ currentContact.name }}
       </h4>
+      <span
+        v-if="statusLabel"
+        class="mx-2 my-1 inline-block rounded-full bg-n-blue-3 px-2 py-0.5 text-[10px] font-medium text-n-blue-11"
+      >
+        {{ statusLabel }}
+      </span>
       <VoiceCallStatus
         v-if="voiceCallData.status"
         key="voice-status-row"

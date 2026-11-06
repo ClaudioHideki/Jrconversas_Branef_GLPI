@@ -4240,6 +4240,7 @@
               "type": "string",
               "enum": [
                 "all",
+                "active",
                 "open",
                 "resolved",
                 "pending",
@@ -4247,7 +4248,7 @@
               ],
               "default": "open"
             },
-            "description": "Filter by conversation status."
+            "description": "Filter by conversation status. The active query includes open and pending conversations without changing their persisted status."
           },
           {
             "name": "q",
@@ -4366,6 +4367,7 @@
               "type": "string",
               "enum": [
                 "all",
+                "active",
                 "open",
                 "resolved",
                 "pending",
@@ -4373,7 +4375,7 @@
               ],
               "default": "open"
             },
-            "description": "Filter by conversation status."
+            "description": "Filter by conversation status. The active query includes open and pending conversations without changing their persisted status."
           },
           {
             "name": "q",
