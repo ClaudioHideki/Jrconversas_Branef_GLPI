@@ -16,7 +16,7 @@ class JrcServiceDesk::Intake::Submission
       authorized = authority.authorize!(lock: true)
       context = operational_context(authorized)
       target, configuration = resolve_target(context, conversation.id, values)
-      persist(context, target, configuration, values)
+      persist(authority, context, target, configuration, values)
     end
   rescue KeyError
     raise ArgumentError, 'intake_required_field'
@@ -46,7 +46,7 @@ class JrcServiceDesk::Intake::Submission
     raise Pundit::NotAuthorizedError unless valid
   end
 
-  def persist(context, target, configuration, values)
+  def persist(authority, context, target, configuration, values)
     catalogue = JrcServiceDesk::Intake::Catalogue.new(configuration.catalogue)
     normalized = JrcServiceDesk::Intake::Input.new(catalogue).call(values.fetch('input'))
     fingerprint = JrcServiceDesk::CanonicalJson.digest(normalized.merge('configuration_id' => configuration.id))
@@ -56,7 +56,9 @@ class JrcServiceDesk::Intake::Submission
     demand = JrcServiceDesk::IntakeDemand.create!(
       account: context.account, inbox: target.inbox, contact: target.contact, conversation: target,
       account_user: context.account_user, intake_configuration: configuration, episode_key: values.fetch('episode_key'),
-      normalized_input: normalized, fingerprint: fingerprint, source_context: { 'initiator_type' => 'automation' },
+      normalized_input: normalized, fingerprint: fingerprint,
+      source_context: JrcServiceDesk::Intake::Origin.capture(authority: authority, context: context,
+        conversation: target, configuration: configuration),
       state: state_for(configuration, values.fetch('phase'))
     )
     demand.receipt(created: true)

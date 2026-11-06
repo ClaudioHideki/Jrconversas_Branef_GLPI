@@ -79,7 +79,8 @@ class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
   end
 
   def test_disabled_real_writes_never_constructs_a_client
-    receipt = JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation, arguments: @arguments)
+    receipt = JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation,
+      arguments: @arguments.merge('episode_key' => SecureRandom.uuid))
     JrcServiceDesk::Glpi::Client.stub(:new, ->(*) { flunk 'Disabled intake cannot request GLPI' }) do
       result = JrcServiceDesk::Intake::Delivery.new.call(demand_id: receipt.fetch(:id))
       assert_equal 'test_only', result.fetch(:state)

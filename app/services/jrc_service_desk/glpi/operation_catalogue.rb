@@ -19,6 +19,7 @@ class JrcServiceDesk::Glpi::OperationCatalogue
     add.call('ticket.create', 'Ticket', 'post', 'tickets_create', TICKET_FIELDS + %w[entities_id priority _users_id_requester status template_id],
              required: %w[name content type urgency impact], source_right: ['ticket', 4])
     add.call('ticket.update', 'Ticket', 'patch', 'tickets_edit', TICKET_FIELDS)
+    add.call('ticket.sla', 'Ticket', 'patch', 'tickets_edit', %w[slas_id_ttr slas_id_tto])
     add.call('ticket.assign', 'Ticket', 'patch', 'tickets_assign', %w[_users_id_assign _groups_id_assign], source_right: ['ticket', 8192])
     add.call('ticket.transfer', 'Ticket', 'patch', 'tickets_transfer', %w[entities_id _users_id_assign _groups_id_assign],
              required: %w[entities_id])

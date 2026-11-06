@@ -20,6 +20,12 @@ class JrcFlowEffects::Authority
     self
   end
 
+  # A queued intent pins credential generation without retaining its secret.
+  def credential_identity
+    authorize!
+    { 'service_token_id' => @token_id, 'service_token_fingerprint' => Digest::SHA256.hexdigest(@token) }
+  end
+
   private
 
   def active_identity?

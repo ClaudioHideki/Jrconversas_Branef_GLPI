@@ -13,6 +13,7 @@ class JrcServiceDesk::IntakeDemand < JrcServiceDesk::AccountRecord
   validates :fingerprint, format: { with: /\A[a-f0-9]{64}\z/ }
   validates :state, inclusion: { in: STATES }
   validate :conversation_identity_matches
+  after_commit :schedule_delivery, if: -> { saved_change_to_state? && state == 'queued' }
   validate do
     %i[inbox conversation contact account_user intake_configuration].each { |name| validate_account_reference(name) }
   end
@@ -30,6 +31,10 @@ class JrcServiceDesk::IntakeDemand < JrcServiceDesk::AccountRecord
   end
 
   private
+
+  def schedule_delivery
+    JrcServiceDesk::IntakeDeliveryJob.perform_later(id)
+  end
 
   def conversation_identity_matches
     expected = [inbox_id, contact_id]

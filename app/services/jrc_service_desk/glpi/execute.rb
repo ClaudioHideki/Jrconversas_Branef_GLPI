@@ -7,7 +7,8 @@ class JrcServiceDesk::Glpi::Execute
     'users_id_tech' => 'User', 'users_id_validate' => 'User', '_groups_id_assign' => 'Group', 'groups_id' => 'Group',
     'groups_id_tech' => 'Group', 'suppliers_id' => 'Supplier', 'problems_id' => 'Problem', 'changes_id' => 'Change',
     'knowbaseitems_id' => 'KnowbaseItem', 'documents_id' => 'Document', 'itilcategories_id' => 'ITILCategory',
-    'taskcategories_id' => 'TaskCategory', 'solutiontypes_id' => 'SolutionType', 'tickettemplates_id' => 'TicketTemplate' }.freeze
+    'taskcategories_id' => 'TaskCategory', 'solutiontypes_id' => 'SolutionType', 'tickettemplates_id' => 'TicketTemplate',
+    'slas_id_ttr' => 'SLA', 'slas_id_tto' => 'SLA' }.freeze
 
   def initialize(client_factory: ->(connection) { JrcServiceDesk::Glpi::Client.new(connection) }, access_authorizer: nil)
     @client_factory = client_factory
