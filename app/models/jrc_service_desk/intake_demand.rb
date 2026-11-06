@@ -3,6 +3,7 @@
 class JrcServiceDesk::IntakeDemand < JrcServiceDesk::AccountRecord
   STATES = %w[qualified queued sending confirmed partial rejected indeterminate test_only].freeze
   LIFECYCLE_STATES = %w[active awaiting_delivery awaiting_information closing closed_no_response completed_human cancelled needs_attention].freeze
+  self.filter_attributes += [:normalized_input]
   belongs_to :inbox
   belongs_to :conversation
   belongs_to :contact
@@ -16,6 +17,7 @@ class JrcServiceDesk::IntakeDemand < JrcServiceDesk::AccountRecord
   validates :state, inclusion: { in: STATES }
   validates :lifecycle_state, inclusion: { in: LIFECYCLE_STATES }
   validate :conversation_identity_matches
+  validate :pending_notice_identity_matches
   after_commit :schedule_delivery, if: -> { saved_change_to_state? && state == 'queued' }
   validate do
     %i[inbox conversation contact account_user intake_configuration].each { |name| validate_account_reference(name) }
@@ -34,6 +36,13 @@ class JrcServiceDesk::IntakeDemand < JrcServiceDesk::AccountRecord
   end
 
   private
+
+  def pending_notice_identity_matches
+    return unless pending_notice
+
+    valid = pending_notice.intake_demand_id == id && pending_notice.account_id == account_id && pending_notice.conversation_id == conversation_id
+    errors.add(:base, 'intake pending notice identity mismatch') unless valid
+  end
 
   def schedule_delivery
     JrcServiceDesk::IntakeDeliveryJob.perform_later(id)

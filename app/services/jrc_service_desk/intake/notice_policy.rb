@@ -12,13 +12,8 @@ class JrcServiceDesk::Intake::NoticePolicy
 
   def authorize!
     native = context
-    raise Pundit::NotAuthorizedError unless native.user&.confirmed? && native.user.active_for_authentication? && native.account.active?
-    raise Pundit::NotAuthorizedError unless native.native_operator? && native.capability?(:notifications_manage)
-
-    access = JrcServiceDesk::Glpi::Access.new(native.to_h).ready!
-    mapping = JrcServiceDesk::Intake::Mapping.new(@demand)
-    unit = native.unit_scope.find(access.unit_for(mapping.route.fetch('entity_id')))
-    raise Pundit::NotAuthorizedError unless native.operational_unit_allowed?(unit)
+    validate_identity!(native)
+    validate_unit!(native)
 
     JrcServiceDesk::NativeExecutionContext.with(native.to_h) do
       raise Pundit::NotAuthorizedError unless ConversationPolicy.new(native.to_h, conversation).show?
@@ -59,6 +54,18 @@ class JrcServiceDesk::Intake::NoticePolicy
   def settings = configuration.mappings.fetch('notifications', {})
 
   private
+
+  def validate_identity!(native)
+    raise Pundit::NotAuthorizedError unless native.user&.confirmed? && native.user.active_for_authentication? && native.account.active?
+    raise Pundit::NotAuthorizedError unless native.native_operator? && native.capability?(:notifications_manage)
+  end
+
+  def validate_unit!(native)
+    access = JrcServiceDesk::Glpi::Access.new(native.to_h).ready!
+    mapping = JrcServiceDesk::Intake::Mapping.new(@demand)
+    unit = native.unit_scope.find(access.unit_for(mapping.route.fetch('entity_id')))
+    raise Pundit::NotAuthorizedError unless native.operational_unit_allowed?(unit)
+  end
 
   def conversation
     Conversation.find_by!(id: @demand.conversation_id, account_id: @demand.account_id,

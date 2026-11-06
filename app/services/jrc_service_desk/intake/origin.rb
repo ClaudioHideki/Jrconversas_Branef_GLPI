@@ -65,12 +65,16 @@ class JrcServiceDesk::Intake::Origin
   def validate_conversation!(control)
     target = Conversation.find_by!(id: @demand.conversation_id, account_id: @demand.account_id,
                                    inbox_id: @demand.inbox_id, contact_id: @demand.contact_id)
-    routing = JrcFlowEffects::ControlRevision.snapshot(target).fetch('routing_source_hash')
-    raise Pundit::NotAuthorizedError unless routing == values.fetch('routing_source_hash')
+    validate_routing!(target)
     return unless control
 
     valid = target.pending? && values['conversation_status'] == 'pending' && target.assignee_id.nil? && target.team_id.nil? &&
             target.assignee_agent_bot_id == values['assignee_agent_bot_id']
     raise Pundit::NotAuthorizedError unless valid
+  end
+
+  def validate_routing!(target)
+    routing = JrcFlowEffects::ControlRevision.snapshot(target).fetch('routing_source_hash')
+    raise Pundit::NotAuthorizedError unless routing == values.fetch('routing_source_hash')
   end
 end

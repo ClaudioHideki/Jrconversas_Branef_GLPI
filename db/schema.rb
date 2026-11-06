@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_06_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -4979,6 +4979,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_180000) do
     t.string "error_code"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "lifecycle_state", default: "active", null: false
+    t.uuid "waiting_generation"
+    t.bigint "pending_notice_id"
+    t.datetime "waiting_deadline"
+    t.jsonb "waiting_control", default: {}, null: false
+    t.jsonb "lifecycle_receipts", default: {}, null: false
+    t.string "completion_cause"
+    t.datetime "completed_at"
+    t.string "lifecycle_error_code"
     t.index ["account_id", "conversation_id", "created_at"], name: "idx_intake_conversation_history"
     t.index ["account_id", "episode_key"], name: "idx_intake_episode_identity", unique: true
     t.index ["account_id"], name: "index_jrc_service_desk_intake_demands_on_account_id"
@@ -4987,7 +4996,42 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_180000) do
     t.index ["conversation_id"], name: "index_jrc_service_desk_intake_demands_on_conversation_id"
     t.index ["inbox_id"], name: "index_jrc_service_desk_intake_demands_on_inbox_id"
     t.index ["intake_configuration_id"], name: "idx_on_intake_configuration_id_07e96fdc9f"
-    t.check_constraint "state::text = ANY (ARRAY['qualified'::character varying, 'queued'::character varying, 'sending'::character varying, 'confirmed'::character varying, 'partial'::character varying, 'rejected'::character varying, 'indeterminate'::character varying, 'test_only'::character varying]::text[])", name: "intake_demand_state"
+    t.index ["pending_notice_id"], name: "index_jrc_service_desk_intake_demands_on_pending_notice_id"
+    t.check_constraint "lifecycle_state::text = ANY (ARRAY['active'::character varying, 'awaiting_delivery'::character varying, 'awaiting_information'::character varying, 'closing'::character varying, 'closed_no_response'::character varying, 'completed_human'::character varying, 'cancelled'::character varying, 'needs_attention'::character varying]::text[])", name: "intake_lifecycle_state"
+    t.check_constraint "state::text = ANY (ARRAY['qualified'::character varying::text, 'queued'::character varying::text, 'sending'::character varying::text, 'confirmed'::character varying::text, 'partial'::character varying::text, 'rejected'::character varying::text, 'indeterminate'::character varying::text, 'test_only'::character varying::text])", name: "intake_demand_state"
+  end
+
+  create_table "jrc_service_desk_intake_notifications", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "account_user_id", null: false
+    t.bigint "intake_demand_id", null: false
+    t.uuid "request_key", null: false
+    t.uuid "generation", null: false
+    t.string "kind", null: false
+    t.string "channel", null: false
+    t.string "template_code", null: false
+    t.string "state", default: "blocked", null: false
+    t.string "reason_code"
+    t.text "rendered_payload", null: false
+    t.string "recipient_digest", limit: 64, null: false
+    t.jsonb "source_snapshot", default: {}, null: false
+    t.bigint "message_id"
+    t.string "payload_digest", limit: 64
+    t.datetime "delivered_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "intake_demand_id", "kind", "request_key"], name: "idx_intake_notice_request", unique: true
+    t.index ["account_id"], name: "index_jrc_service_desk_intake_notifications_on_account_id"
+    t.index ["account_user_id"], name: "index_jrc_service_desk_intake_notifications_on_account_user_id"
+    t.index ["conversation_id"], name: "index_jrc_service_desk_intake_notifications_on_conversation_id"
+    t.index ["inbox_id"], name: "index_jrc_service_desk_intake_notifications_on_inbox_id"
+    t.index ["intake_demand_id"], name: "idx_intake_single_survey", unique: true, where: "((kind)::text = 'survey'::text)"
+    t.index ["intake_demand_id"], name: "idx_on_intake_demand_id_b3ab56301d"
+    t.index ["message_id"], name: "index_jrc_service_desk_intake_notifications_on_message_id"
+    t.check_constraint "kind::text = ANY (ARRAY['pending_information'::character varying, 'survey'::character varying]::text[])", name: "intake_notice_kind"
+    t.check_constraint "state::text = ANY (ARRAY['blocked'::character varying, 'queued'::character varying, 'sending'::character varying, 'sent'::character varying, 'delivered'::character varying, 'read'::character varying, 'failed'::character varying, 'unknown'::character varying]::text[])", name: "intake_notice_state"
   end
 
   create_table "jrc_service_desk_lifecycle_pauses", force: :cascade do |t|
@@ -6919,6 +6963,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_180000) do
   add_foreign_key "jrc_service_desk_intake_demands", "conversations"
   add_foreign_key "jrc_service_desk_intake_demands", "inboxes"
   add_foreign_key "jrc_service_desk_intake_demands", "jrc_service_desk_intake_configurations", column: "intake_configuration_id"
+  add_foreign_key "jrc_service_desk_intake_demands", "jrc_service_desk_intake_notifications", column: "pending_notice_id"
+  add_foreign_key "jrc_service_desk_intake_notifications", "account_users"
+  add_foreign_key "jrc_service_desk_intake_notifications", "accounts"
+  add_foreign_key "jrc_service_desk_intake_notifications", "conversations"
+  add_foreign_key "jrc_service_desk_intake_notifications", "inboxes"
+  add_foreign_key "jrc_service_desk_intake_notifications", "jrc_service_desk_intake_demands", column: "intake_demand_id"
+  add_foreign_key "jrc_service_desk_intake_notifications", "messages"
   add_foreign_key "jrc_service_desk_lifecycle_pauses", "accounts"
   add_foreign_key "jrc_service_desk_lifecycle_pauses", "jrc_service_desk_lifecycle_policy_versions", column: ["account_id", "unit_id", "lifecycle_policy_version_id"], primary_key: ["account_id", "unit_id", "id"], name: "jrc_sd_lc_ff94180ace6ba8957c3c_fk"
   add_foreign_key "jrc_service_desk_lifecycle_pauses", "jrc_service_desk_sla_cycles", column: ["account_id", "unit_id", "ticket_id", "sla_cycle_id"], primary_key: ["account_id", "unit_id", "ticket_id", "id"], name: "jrc_sd_lc_2eed46e90db61ccb1a49_fk"
@@ -9248,5 +9299,37 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_180000) do
   execute <<~'JRC_SCHEMA_SQL_3c4c51b2b710'
     CREATE UNIQUE INDEX idx_current_intake_configuration ON public.jrc_service_desk_intake_configurations USING btree (inbox_id) WHERE (current = true);
   JRC_SCHEMA_SQL_3c4c51b2b710
+
+  execute <<~'JRC_SCHEMA_SQL_4d09ba714496'
+    ALTER TABLE "jrc_service_desk_intake_demands" DROP CONSTRAINT "intake_lifecycle_state";
+  JRC_SCHEMA_SQL_4d09ba714496
+
+  execute <<~'JRC_SCHEMA_SQL_b86c88fc09f2'
+    ALTER TABLE "jrc_service_desk_intake_demands" ADD CONSTRAINT "intake_lifecycle_state" CHECK (((lifecycle_state)::text = ANY ((ARRAY['active'::character varying, 'awaiting_delivery'::character varying, 'awaiting_information'::character varying, 'closing'::character varying, 'closed_no_response'::character varying, 'completed_human'::character varying, 'cancelled'::character varying, 'needs_attention'::character varying])::text[])));
+  JRC_SCHEMA_SQL_b86c88fc09f2
+
+  execute <<~'JRC_SCHEMA_SQL_10321184e959'
+    ALTER TABLE "jrc_service_desk_intake_notifications" DROP CONSTRAINT "intake_notice_kind";
+  JRC_SCHEMA_SQL_10321184e959
+
+  execute <<~'JRC_SCHEMA_SQL_107d0d75c337'
+    ALTER TABLE "jrc_service_desk_intake_notifications" ADD CONSTRAINT "intake_notice_kind" CHECK (((kind)::text = ANY ((ARRAY['pending_information'::character varying, 'survey'::character varying])::text[])));
+  JRC_SCHEMA_SQL_107d0d75c337
+
+  execute <<~'JRC_SCHEMA_SQL_ebf21f2b3913'
+    ALTER TABLE "jrc_service_desk_intake_notifications" DROP CONSTRAINT "intake_notice_state";
+  JRC_SCHEMA_SQL_ebf21f2b3913
+
+  execute <<~'JRC_SCHEMA_SQL_798cc858f5b1'
+    ALTER TABLE "jrc_service_desk_intake_notifications" ADD CONSTRAINT "intake_notice_state" CHECK (((state)::text = ANY ((ARRAY['blocked'::character varying, 'queued'::character varying, 'sending'::character varying, 'sent'::character varying, 'delivered'::character varying, 'read'::character varying, 'failed'::character varying, 'unknown'::character varying])::text[])));
+  JRC_SCHEMA_SQL_798cc858f5b1
+
+  execute <<~'JRC_SCHEMA_SQL_b2725557d864'
+    DROP INDEX "idx_intake_single_survey";
+  JRC_SCHEMA_SQL_b2725557d864
+
+  execute <<~'JRC_SCHEMA_SQL_777f9ec0c262'
+    CREATE UNIQUE INDEX idx_intake_single_survey ON public.jrc_service_desk_intake_notifications USING btree (intake_demand_id) WHERE ((kind)::text = 'survey'::text);
+  JRC_SCHEMA_SQL_777f9ec0c262
 
 end

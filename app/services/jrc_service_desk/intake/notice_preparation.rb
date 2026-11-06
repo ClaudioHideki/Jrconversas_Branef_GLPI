@@ -8,21 +8,36 @@ class JrcServiceDesk::Intake::NoticePreparation
   end
 
   def call(kind:, request_key:, confirmed:)
-    raise ArgumentError unless %w[pending_information survey].include?(kind)
-    raise ArgumentError unless request_key.is_a?(String) && JrcServiceDesk::Intake::Submission::UUID.match?(request_key)
+    validate_arguments!(kind, request_key)
 
     previous = existing(kind, request_key)
     return previous if previous
 
     template = template!(kind)
-    raise ArgumentError, 'intake_confirmation_required' if template['requires_confirmation'] == true && confirmed != true
+    validate_confirmation!(template, confirmed)
 
     reason = @policy.blocker
-    reason ||= 'survey_not_eligible' if kind == 'survey' && !JrcServiceDesk::Intake::Notification.eligible?(demand: @demand, channel: 'whatsapp')
+    reason ||= survey_blocker(kind)
     persist(template, kind: kind, request_key: request_key, reason: reason)
   end
 
   private
+
+  def validate_arguments!(kind, key)
+    raise ArgumentError unless %w[pending_information survey].include?(kind)
+    raise ArgumentError unless key.is_a?(String) && JrcServiceDesk::Intake::Submission::UUID.match?(key)
+  end
+
+  def validate_confirmation!(template, confirmed)
+    raise ArgumentError, 'intake_confirmation_required' if template['requires_confirmation'] == true && confirmed != true
+  end
+
+  def survey_blocker(kind)
+    return unless kind == 'survey'
+    return if JrcServiceDesk::Intake::Notification.eligible?(demand: @demand, channel: 'whatsapp')
+
+    'survey_not_eligible'
+  end
 
   def existing(kind, key)
     scope = JrcServiceDesk::IntakeNotification.where(account: @demand.account, intake_demand: @demand, kind: kind)

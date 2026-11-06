@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Plain Minitest scenarios intentionally exercise complete, flat source/receipt transitions.
-# rubocop:disable Metrics/ClassLength, Rails/RefuteMethods
+# rubocop:disable Metrics/ClassLength, Metrics/AbcSize, Rails/RefuteMethods
 require_relative 'intake_delivery_test_helper'
 
 class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
@@ -39,11 +39,6 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
   def test_only_a_native_matching_delivery_receipt_starts_48_elapsed_hours_once
     notice = delivered_notice
     deadline = @demand.reload.waiting_deadline
-    pool = ActiveRecord::Base.connection_pool
-    warmed = Array.new(2) { pool.checkout }
-    warmed.each { |connection| connection.select_value('SELECT 1') }
-    warmed.each { |connection| pool.checkin(connection) }
-    connection_ids = Queue.new
     assert_equal notice.delivered_at + 48.hours, deadline
     generation = @demand.waiting_generation
     JrcServiceDesk::Intake::PendingInformation.new.start(demand_id: @demand.id, notice_id: notice.id)
@@ -123,6 +118,11 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
   def test_two_workers_confirm_only_one_remote_close
     notice = delivered_notice
     deadline = @demand.reload.waiting_deadline
+    pool = ActiveRecord::Base.connection_pool
+    warmed = Array.new(2) { pool.checkout }
+    warmed.each { |connection| connection.select_value('SELECT 1') }
+    warmed.each { |connection| pool.checkin(connection) }
+    connection_ids = Queue.new
     Time.stub(:current, deadline + 1.second) do
       JrcServiceDesk::Glpi::Client.stub(:new, @remote) do
         workers = 2.times.map do
@@ -274,4 +274,4 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     end
   end
 end
-# rubocop:enable Metrics/ClassLength, Rails/RefuteMethods
+# rubocop:enable Metrics/ClassLength, Metrics/AbcSize, Rails/RefuteMethods

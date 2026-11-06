@@ -114,6 +114,11 @@ Rails.application.routes.draw do
             get 'intake/configuration', to: 'intake#show'
             post 'intake/configuration', to: 'intake#publish'
             post 'intake/preview', to: 'intake#preview'
+            get 'intake/inboxes', to: 'intake#inboxes'
+            post 'intake/readiness', to: 'intake#readiness'
+            get 'intake/conversations/:conversation_id', to: 'intake#conversation'
+            post 'intake/demands/:demand_id/notice', to: 'intake#notice'
+            post 'intake/demands/:demand_id/complete', to: 'intake#complete'
             scope :glpi do
               get 'context', to: 'glpi#context'
               get 'connection', to: 'glpi#configuration'

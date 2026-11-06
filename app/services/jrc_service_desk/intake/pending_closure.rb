@@ -68,11 +68,15 @@ class JrcServiceDesk::Intake::PendingClosure
   end
 
   def complete!
-    # An inbound committed during remote I/O is not labelled an unattended success.
-    return fail_state('needs_attention', 'intake_response_during_closure') if @control.cancelled?
+    # A committed reply wins before local resolution; native routing triggers serialize this check.
+    @demand.conversation.with_lock do
+      return fail_state('needs_attention', 'intake_response_during_closure') if @control.cancelled?
 
-    @demand.update!(lifecycle_state: 'closed_no_response', completed_at: Time.current,
-                    waiting_generation: nil, waiting_deadline: nil, lifecycle_error_code: nil)
+      identity = @control.access!.context.to_h
+      @demand.update!(lifecycle_state: 'closed_no_response', completed_at: Time.current,
+                      waiting_generation: nil, waiting_deadline: nil, lifecycle_error_code: nil)
+      JrcServiceDesk::NativeExecutionContext.with(identity) { @demand.conversation.resolved! }
+    end
   end
 
   def fail_state(state, code)

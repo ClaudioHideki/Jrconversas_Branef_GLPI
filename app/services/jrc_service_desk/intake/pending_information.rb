@@ -14,10 +14,7 @@ class JrcServiceDesk::Intake::PendingInformation
       return demand if demand.waiting_deadline
 
       control.access!
-      demand.update!(lifecycle_state: 'awaiting_information', waiting_deadline: notice.delivered_at + 48.hours,
-                     waiting_control: control.snapshot)
-      JrcServiceDesk::IntakePendingInformationJob.set(wait_until: demand.waiting_deadline).perform_later(demand.id, notice.generation)
-      demand
+      arm(demand, notice, control)
     end
   rescue JrcServiceDesk::Intake::PendingControl::Cancelled, Pundit::NotAuthorizedError
     cancel(demand) if demand
@@ -51,6 +48,12 @@ class JrcServiceDesk::Intake::PendingInformation
   end
 
   private
+
+  def arm(demand, notice, control)
+    demand.update!(lifecycle_state: 'awaiting_information', waiting_deadline: notice.delivered_at + 48.hours, waiting_control: control.snapshot)
+    JrcServiceDesk::IntakePendingInformationJob.set(wait_until: demand.waiting_deadline).perform_later(demand.id, notice.generation)
+    demand
+  end
 
   def delivered?(notice)
     %w[delivered read].include?(notice.state) && notice.delivered_at &&
