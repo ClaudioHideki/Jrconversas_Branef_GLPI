@@ -166,6 +166,72 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     assert_nil @demand.reload.waiting_deadline
   end
 
+  def test_notice_cannot_follow_a_changed_broker_binding
+    notice = JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',
+      operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
+    @binding.update!(instance_id: SecureRandom.uuid)
+    JrcServiceDesk::IntakeNotificationJob.perform_now(notice.id)
+    assert_equal 'blocked', notice.reload.state
+    assert_nil notice.message_id
+  end
+
+  def test_notice_cannot_follow_a_changed_routing_identity
+    notice = prepare_notice
+    @conversation.contact_inbox.update!(source_id: SecureRandom.uuid)
+    sent = false
+    JrcServiceDesk::Intake::NoticeExecution.new(notice.message).perform { sent = true }
+    refute sent
+    assert_equal 'blocked', notice.reload.state
+  end
+
+  def test_unconfirmed_operator_cannot_prepare_a_notice
+    @user.update!(confirmed_at: nil)
+    assert_raises(Pundit::NotAuthorizedError) do
+      JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',
+        operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
+    end
+  end
+
+  def test_additional_attributes_cannot_be_substituted_after_approval
+    notice = prepare_notice
+    notice.message.update!(additional_attributes: { 'synthetic_unapproved' => true })
+    sent = false
+    JrcServiceDesk::Intake::NoticeExecution.new(notice.message).perform { sent = true }
+    refute sent
+    assert_equal 'blocked', notice.reload.state
+  end
+
+  def test_unknown_transport_result_is_not_sent_twice_and_starts_no_clock
+    notice = prepare_notice
+    count = 0
+    2.times do
+      JrcServiceDesk::Intake::NoticeExecution.new(notice.message).perform { count += 1 }
+    end
+    assert_equal 1, count
+    assert_equal 'unknown', notice.reload.state
+    assert_nil @demand.reload.waiting_deadline
+  end
+
+  def test_new_response_before_notice_dispatch_prevents_the_old_notice
+    notice = prepare_notice
+    incoming
+    sent = false
+    JrcServiceDesk::Intake::NoticeExecution.new(notice.message).perform { sent = true }
+    refute sent
+    assert_equal 'blocked', notice.reload.state
+  end
+
+  def test_owned_intake_closure_cannot_trigger_a_second_native_survey
+    @demand.update!(lifecycle_state: 'closed_no_response', completion_cause: 'no_response')
+    @conversation.update!(status: :resolved)
+    event = Struct.new(:data).new({ conversation: @conversation })
+    JrcRelationship::SurveyClosureJob.stub(:perform_later, ->(*) { flunk 'No relationship survey for owned intake closure' }) do
+      CsatSurveyService.stub(:new, ->(*) { flunk 'No duplicate native CSAT for owned intake closure' }) do
+        CsatSurveyListener.instance.conversation_status_changed(event)
+      end
+    end
+  end
+
   private
 
   def prepare_notice
