@@ -1,0 +1,116 @@
+{
+  "schema": "jrc-service-desk-intake/1",
+  "revision": 1,
+  "systems": [
+    {
+      "code": "example",
+      "label": "Example",
+      "locations": [
+        {
+          "code": "north",
+          "label": "North"
+        },
+        {
+          "code": "south",
+          "label": "South"
+        }
+      ],
+      "profiles": [
+        {
+          "code": "requester",
+          "label": "Requester"
+        },
+        {
+          "code": "authority",
+          "label": "Authority"
+        }
+      ],
+      "reasons": [
+        {
+          "code": "question",
+          "label": "Question",
+          "queue": "n1",
+          "subjects": [
+            {
+              "code": "access",
+              "label": "Access"
+            }
+          ],
+          "sla": {
+            "duration": 24,
+            "unit": "hours"
+          }
+        },
+        {
+          "code": "request",
+          "label": "Request",
+          "queue": "n2_n3",
+          "subjects": [
+            {
+              "code": "access",
+              "label": "Access"
+            }
+          ],
+          "sla": {
+            "duration": 168,
+            "unit": "hours"
+          },
+          "sla_overrides": [
+            {
+              "location": "south",
+              "sla": {
+                "duration": 5,
+                "unit": "days"
+              }
+            }
+          ]
+        },
+        {
+          "code": "bug",
+          "label": "Bug",
+          "queue": "n2_n3",
+          "subjects": [
+            {
+              "code": "function",
+              "label": "Function"
+            }
+          ],
+          "sla": {
+            "by_severity": {
+              "low": {
+                "duration": 24,
+                "unit": "hours"
+              },
+              "medium": {
+                "duration": 12,
+                "unit": "hours"
+              },
+              "high": {
+                "duration": 6,
+                "unit": "hours"
+              },
+              "critical": {
+                "duration": 6,
+                "unit": "hours"
+              }
+            }
+          }
+        },
+        {
+          "code": "improvement",
+          "label": "Improvement",
+          "queue": "n2_n3",
+          "subjects": [
+            {
+              "code": "other",
+              "label": "Other"
+            }
+          ],
+          "sla": {
+            "unit": "none"
+          }
+        }
+      ]
+    }
+  ]
+}
