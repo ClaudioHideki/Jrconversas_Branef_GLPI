@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 # Plain Minitest has refute methods, not Rails assert_not aliases.
-# rubocop:disable Rails/RefuteMethods
 
 # End-to-end requests intentionally carry several assertions; this is plain Minitest.
 # rubocop:disable Metrics/AbcSize
@@ -167,5 +166,3 @@ class IntakeSubmissionIntegrationTest < IntakeIntegrationTest
   end
 end
 # rubocop:enable Metrics/AbcSize
-
-# rubocop:enable Rails/RefuteMethods

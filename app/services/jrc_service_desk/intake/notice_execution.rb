@@ -8,12 +8,16 @@ class JrcServiceDesk::Intake::NoticeExecution
 
   def perform
     @notice = JrcServiceDesk::IntakeNotification.find_by(id: @message.content_attributes['service_desk_intake_notice_id'],
-      account_id: @message.account_id, conversation_id: @message.conversation_id, message_id: @message.id)
+                                                         account_id: @message.account_id, conversation_id: @message.conversation_id, message_id: @message.id)
     return unless @notice && claim
 
     yield
     @message.reload
-    state = @message.failed? ? 'failed' : @message.source_id.present? ? 'sent' : 'unknown'
+    state = if @message.failed?
+              'failed'
+            else
+              @message.source_id.present? ? 'sent' : 'unknown'
+            end
     @notice.update!(state: state)
     JrcServiceDesk::Intake::Notification.new.observe_message(message_id: @message.id)
   rescue StandardError
@@ -30,17 +34,18 @@ class JrcServiceDesk::Intake::NoticeExecution
       end
       next false unless @notice.state == 'queued'
 
-      policy = JrcServiceDesk::Intake::NoticePolicy.new(@notice.intake_demand, @notice.account_user)
-      reason = policy.blocker
-      reason ||= 'recipient_changed' unless policy.recipient_digest == @notice.recipient_digest
+      reason = JrcServiceDesk::Intake::NoticeGuard.new(@notice).blocker
       reason ||= 'message_payload_changed' unless JrcServiceDesk::Intake::NoticePayload.match?(@message.reload, @notice)
-      if reason
-        @notice.update!(state: 'blocked', reason_code: reason)
-        @message.update!(status: :failed)
-        next false
-      end
+      next block(reason) if reason
+
       @notice.update!(state: 'sending')
       true
     end
+  end
+
+  def block(reason)
+    @notice.update!(state: 'blocked', reason_code: reason)
+    @message.update!(status: :failed)
+    false
   end
 end

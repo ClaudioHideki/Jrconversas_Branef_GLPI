@@ -12,6 +12,7 @@ class JrcServiceDesk::Intake::NoticePolicy
 
   def authorize!
     native = context
+    raise Pundit::NotAuthorizedError unless native.user&.confirmed? && native.user.active_for_authentication? && native.account.active?
     raise Pundit::NotAuthorizedError unless native.native_operator? && native.capability?(:notifications_manage)
 
     access = JrcServiceDesk::Glpi::Access.new(native.to_h).ready!
@@ -20,29 +21,38 @@ class JrcServiceDesk::Intake::NoticePolicy
     raise Pundit::NotAuthorizedError unless native.operational_unit_allowed?(unit)
 
     JrcServiceDesk::NativeExecutionContext.with(native.to_h) do
-      raise Pundit::NotAuthorizedError unless ConversationPolicy.new(native.to_h, @demand.conversation).show?
+      raise Pundit::NotAuthorizedError unless ConversationPolicy.new(native.to_h, conversation).show?
     end
     native
   end
 
   def blocker
     authorize!
+    configuration_blocker || channel_blocker
+  rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound, JrcServiceDesk::Glpi::Error, ArgumentError, KeyError
+    'notification_not_authorized'
+  end
+
+  def configuration_blocker
     return 'notifications_disabled' unless configuration.enabled? && configuration.remote_writes_enabled? && settings['enabled'] == true
     return 'notification_owner_unconfigured' unless settings['owner'] == 'jrc'
     return 'intake_not_delivered' unless %w[confirmed partial].include?(@demand.state) && @demand.remote_id
+
+    nil
+  end
+
+  def channel_blocker
     return 'channel_unavailable' unless settings['channel'] == 'whatsapp' && channel_ready?
     return 'recipient_blocked' if conversation.contact.blocked?
     return 'recipient_preference' unless JrcServiceDesk::ContactNotificationPreferences.channels(conversation.contact).include?('whatsapp')
     return 'recipient_missing' if conversation.contact.phone_number.blank?
 
     nil
-  rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound, JrcServiceDesk::Glpi::Error, ArgumentError, KeyError
-    'notification_not_authorized'
   end
 
   def recipient_digest
     JrcServiceDesk::CanonicalJson.digest(account_id: @demand.account_id, inbox_id: @demand.inbox_id,
-      contact_id: @demand.contact_id, recipient: conversation.contact.phone_number)
+                                         contact_id: @demand.contact_id, recipient: conversation.contact.phone_number)
   end
 
   def configuration = @demand.intake_configuration.reload
@@ -50,7 +60,10 @@ class JrcServiceDesk::Intake::NoticePolicy
 
   private
 
-  def conversation = @demand.conversation.reload
+  def conversation
+    Conversation.find_by!(id: @demand.conversation_id, account_id: @demand.account_id,
+                          inbox_id: @demand.inbox_id, contact_id: @demand.contact_id)
+  end
 
   def channel_ready?
     JrcServiceDesk::NotificationEngine.channel(conversation.inbox) == 'whatsapp' && conversation.can_reply?

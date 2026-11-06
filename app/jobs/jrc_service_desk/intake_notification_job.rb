@@ -11,8 +11,7 @@ class JrcServiceDesk::IntakeNotificationJob < ApplicationJob
         next unless notice.state == 'queued' && notice.message_id.nil?
 
         policy = JrcServiceDesk::Intake::NoticePolicy.new(notice.intake_demand, notice.account_user)
-        reason = policy.blocker
-        reason ||= 'recipient_changed' unless policy.recipient_digest == notice.recipient_digest
+        reason = JrcServiceDesk::Intake::NoticeGuard.new(notice).blocker
         if reason
           notice.update!(state: 'blocked', reason_code: reason)
           next

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 # Plain Minitest has refute methods, not Rails assert_not aliases.
-# rubocop:disable Rails/RefuteMethods
 
 # Flat synthetic integration scenarios use plain Minitest assertions.
 
@@ -71,5 +70,3 @@ class IntakeBrokerProtocolIntegrationTest < IntakeIntegrationTest
     JrcFlowEffects::Apply.new(account: @account, user: @user, access_token: @access_token).call(conversation.display_id, input)
   end
 end
-
-# rubocop:enable Rails/RefuteMethods

@@ -36,9 +36,9 @@ class JrcServiceDesk::Intake::HumanCompletion
   def persist(demand, context, version)
     receipt = { 'state' => 'succeeded', 'source_version' => version, 'operator_id' => context.account_user.id }
     demand.update!(lifecycle_state: 'completed_human', completion_cause: 'human', completed_at: demand.completed_at || Time.current,
-      waiting_generation: nil, waiting_deadline: nil, lifecycle_error_code: nil,
-      lifecycle_receipts: demand.lifecycle_receipts.merge('human_completion' => receipt))
+                   waiting_generation: nil, waiting_deadline: nil, lifecycle_error_code: nil,
+                   lifecycle_receipts: demand.lifecycle_receipts.merge('human_completion' => receipt))
     JrcServiceDesk::Intake::Notification.new.call(demand_id: demand.id, kind: 'survey', operator_context: context.to_h,
-      request_key: demand.episode_key, human_confirmation: true)
+                                                  request_key: demand.episode_key, human_confirmation: true)
   end
 end

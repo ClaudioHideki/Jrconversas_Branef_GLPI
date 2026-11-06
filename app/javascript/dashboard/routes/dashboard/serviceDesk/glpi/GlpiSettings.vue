@@ -3,11 +3,13 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Panel from '../components/ServiceDeskPanel.vue';
+import IntakeConfiguration from '../components/IntakeConfiguration.vue';
 import { useGlpi } from './useGlpi';
 
 const { t } = useI18n();
 const glpi = useGlpi();
 const { state, session, read, run, API } = glpi;
+const intakeExpanded = ref(false);
 const form = reactive({
   base_url: '',
   timezone: 'America/Sao_Paulo',
@@ -467,5 +469,9 @@ const reconcileCommand = async () => {
         }}
       </p>
     </Panel>
+    <details v-if="configuration" class="rounded-lg border border-n-weak p-4" @toggle="intakeExpanded = $event.target.open">
+      <summary class="cursor-pointer font-medium">{{ t('JRC_SERVICE_DESK.INTAKE.title') }}</summary>
+      <IntakeConfiguration v-if="intakeExpanded" :account-id="session.accountId.value" :user-id="session.userId.value" class="mt-4" />
+    </details>
   </section>
 </template>

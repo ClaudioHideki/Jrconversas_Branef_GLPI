@@ -5,7 +5,7 @@ class JrcServiceDesk::Intake::PendingInformation
     JrcServiceDesk::Intake::LifecycleLock.call(demand_id) do
       demand = JrcServiceDesk::IntakeDemand.find(demand_id)
       notice = JrcServiceDesk::IntakeNotification.find_by!(id: notice_id, intake_demand_id: demand.id,
-        account_id: demand.account_id, kind: 'pending_information')
+                                                           account_id: demand.account_id, kind: 'pending_information')
       return demand unless demand.pending_notice_id == notice.id
 
       control = JrcServiceDesk::Intake::PendingControl.new(demand, notice)
@@ -15,12 +15,12 @@ class JrcServiceDesk::Intake::PendingInformation
 
       control.access!
       demand.update!(lifecycle_state: 'awaiting_information', waiting_deadline: notice.delivered_at + 48.hours,
-        waiting_control: control.snapshot)
+                     waiting_control: control.snapshot)
       JrcServiceDesk::IntakePendingInformationJob.set(wait_until: demand.waiting_deadline).perform_later(demand.id, notice.generation)
       demand
     end
   rescue JrcServiceDesk::Intake::PendingControl::Cancelled, Pundit::NotAuthorizedError
-    cancel(demand)
+    cancel(demand) if demand
   end
 
   def expire(demand_id:, generation:)
@@ -38,7 +38,9 @@ class JrcServiceDesk::Intake::PendingInformation
   end
 
   def cancel_conversation(conversation_id:)
-    JrcServiceDesk::IntakeDemand.where(conversation_id: conversation_id, lifecycle_state: %w[awaiting_delivery awaiting_information]).find_each do |demand|
+    JrcServiceDesk::IntakeDemand.where(conversation_id: conversation_id,
+                                       lifecycle_state: %w[awaiting_delivery
+                                                           awaiting_information]).find_each do |demand|
       JrcServiceDesk::Intake::LifecycleLock.call(demand.id) do
         fresh = demand.reload
         next unless fresh.pending_notice

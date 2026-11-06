@@ -3,6 +3,7 @@ class CsatSurveyListener < BaseListener
     conversation = extract_conversation_and_account(event)[0]
 
     return unless conversation.resolved?
+    return if JrcServiceDesk::Intake::Notification.owns_conversation?(conversation)
 
     cycle = "conversation:#{conversation.id}:#{conversation.updated_at.utc.iso8601(6)}"
     JrcRelationship::SurveyClosureJob.perform_later('Conversation', conversation.id, cycle)

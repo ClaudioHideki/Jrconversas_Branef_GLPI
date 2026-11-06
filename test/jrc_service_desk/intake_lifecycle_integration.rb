@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Plain Minitest scenarios intentionally exercise complete, flat source/receipt transitions.
-# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+# rubocop:disable Metrics/ClassLength, Rails/RefuteMethods
 require_relative 'intake_delivery_test_helper'
 
 class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
@@ -9,7 +9,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     super
     @conversation.contact.update!(phone_number: '+12025550123')
     @inbox.channel.update!(webhook_url: "https://broker.example.test/v1/integrations/chatwoot/#{@binding.integration_id}/events",
-                          secret: SecureRandom.hex(32))
+                           secret: SecureRandom.hex(32))
     JrcServiceDesk::Glpi::Client.stub(:new, @remote) do
       result = JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
       raise 'Synthetic delivery setup failed' unless result.fetch(:state) == 'confirmed'
@@ -39,6 +39,11 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
   def test_only_a_native_matching_delivery_receipt_starts_48_elapsed_hours_once
     notice = delivered_notice
     deadline = @demand.reload.waiting_deadline
+    pool = ActiveRecord::Base.connection_pool
+    warmed = Array.new(2) { pool.checkout }
+    warmed.each { |connection| connection.select_value('SELECT 1') }
+    warmed.each { |connection| pool.checkin(connection) }
+    connection_ids = Queue.new
     assert_equal notice.delivered_at + 48.hours, deadline
     generation = @demand.waiting_generation
     JrcServiceDesk::Intake::PendingInformation.new.start(demand_id: @demand.id, notice_id: notice.id)
@@ -83,7 +88,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     @remote.on_profile = -> { incoming }
     expire(notice)
     assert_equal 'cancelled', @demand.reload.lifecycle_state
-    refute @remote.writes.any? { |_verb, _type, _id, input| input['status'] == 6 }
+    refute(@remote.writes.any? { |_verb, _type, _id, input| input['status'] == 6 })
   end
 
   def test_missing_remote_rights_never_closes_only_the_local_projection
@@ -101,6 +106,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     assert_equal 'closed_no_response', @demand.reload.lifecycle_state
     assert_equal 'no_response', @demand.completion_cause
     assert_equal 6, @remote.rows.fetch('Ticket/501').fetch('status')
+    assert @conversation.reload.resolved?, 'Local resolution requires confirmed remote closure'
     refute JrcServiceDesk::Intake::Notification.eligible?(demand: @demand, channel: 'whatsapp')
     assert_empty JrcServiceDesk::IntakeNotification.where(intake_demand: @demand, kind: 'survey')
   end
@@ -121,12 +127,14 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
       JrcServiceDesk::Glpi::Client.stub(:new, @remote) do
         workers = 2.times.map do
           Thread.new do
-            ActiveRecord::Base.connection_pool.with_connection do
+            pool.with_connection do |connection|
+              connection_ids << connection.object_id
               JrcServiceDesk::Intake::PendingInformation.new.expire(demand_id: @demand.id, generation: notice.generation)
             end
           end
         end
         workers.each(&:value)
+        assert_equal 2, Array.new(2) { connection_ids.pop }.uniq.size
       end
     end
     assert_equal 'closed_no_response', @demand.reload.lifecycle_state
@@ -159,7 +167,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
   def test_unavailable_channel_keeps_notice_blocked_without_claiming_delivery
     @inbox.channel.update!(webhook_url: nil)
     notice = JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',
-      operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
+                                                           operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
     assert_equal 'blocked', notice.state
     assert_nil notice.message_id
     assert_nil notice.delivered_at
@@ -168,7 +176,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
 
   def test_notice_cannot_follow_a_changed_broker_binding
     notice = JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',
-      operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
+                                                           operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
     @binding.update!(instance_id: SecureRandom.uuid)
     JrcServiceDesk::IntakeNotificationJob.perform_now(notice.id)
     assert_equal 'blocked', notice.reload.state
@@ -188,7 +196,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     @user.update!(confirmed_at: nil)
     assert_raises(Pundit::NotAuthorizedError) do
       JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',
-        operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
+                                                    operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
     end
   end
 
@@ -236,7 +244,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
 
   def prepare_notice
     notice = JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',
-      operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
+                                                           operator_context: @identity, request_key: SecureRandom.uuid, human_confirmation: true)
     JrcServiceDesk::IntakeNotificationJob.perform_now(notice.id)
     notice.reload
   end
@@ -266,4 +274,4 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     end
   end
 end
-# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+# rubocop:enable Metrics/ClassLength, Rails/RefuteMethods

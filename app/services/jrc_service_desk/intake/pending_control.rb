@@ -18,8 +18,7 @@ class JrcServiceDesk::Intake::PendingControl
   def cancelled?
     @demand.reload
     return true unless @demand.intake_configuration.reload.enabled?
-    return true unless @demand.pending_notice_id == @notice.id && @demand.waiting_generation == @notice.generation
-    return true unless %w[awaiting_delivery awaiting_information closing].include?(@demand.lifecycle_state)
+    return true unless current_request?
     return true if inbound_after_request?
     return true unless @notice.source_snapshot['input_digest'] == JrcServiceDesk::CanonicalJson.digest(@demand.normalized_input)
     return true if @demand.waiting_control.present? && @demand.waiting_control != snapshot
@@ -36,6 +35,11 @@ class JrcServiceDesk::Intake::PendingControl
   end
 
   private
+
+  def current_request?
+    @demand.pending_notice_id == @notice.id && @demand.waiting_generation == @notice.generation &&
+      %w[awaiting_delivery awaiting_information closing].include?(@demand.lifecycle_state)
+  end
 
   def inbound_after_request?
     boundary = @notice.source_snapshot.fetch('last_inbound_id', nil) || 0

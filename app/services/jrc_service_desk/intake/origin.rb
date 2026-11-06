@@ -32,7 +32,7 @@ class JrcServiceDesk::Intake::Origin
     authority = JrcFlowEffects::Authority.new(account: @demand.account, user: member.user, access_token: token).authorize!
     context = JrcServiceDesk::OperationalContext.new(account: authority.account, user: authority.user, account_user: member)
     validate_binding!(context)
-    validate_conversation! if conversation_control
+    validate_conversation!(conversation_control)
     context.to_h
   end
 
@@ -62,12 +62,15 @@ class JrcServiceDesk::Intake::Origin
     raise Pundit::NotAuthorizedError
   end
 
-  def validate_conversation!
+  def validate_conversation!(control)
     target = Conversation.find_by!(id: @demand.conversation_id, account_id: @demand.account_id,
                                    inbox_id: @demand.inbox_id, contact_id: @demand.contact_id)
+    routing = JrcFlowEffects::ControlRevision.snapshot(target).fetch('routing_source_hash')
+    raise Pundit::NotAuthorizedError unless routing == values.fetch('routing_source_hash')
+    return unless control
+
     valid = target.pending? && values['conversation_status'] == 'pending' && target.assignee_id.nil? && target.team_id.nil? &&
-            target.assignee_agent_bot_id == values['assignee_agent_bot_id'] &&
-            JrcFlowEffects::ControlRevision.snapshot(target).fetch('routing_source_hash') == values.fetch('routing_source_hash')
+            target.assignee_agent_bot_id == values['assignee_agent_bot_id']
     raise Pundit::NotAuthorizedError unless valid
   end
 end

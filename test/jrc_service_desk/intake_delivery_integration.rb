@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 # Plain Minitest has refute methods, not Rails assert_not aliases.
-# rubocop:disable Rails/RefuteMethods
 
 # Flat synthetic integration scenarios use plain Minitest assertions.
 # rubocop:disable Metrics/AbcSize
@@ -138,5 +137,3 @@ class IntakeDeliveryIntegrationTest < IntakeDeliveryTest
 end
 
 # rubocop:enable Metrics/AbcSize
-
-# rubocop:enable Rails/RefuteMethods

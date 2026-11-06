@@ -43,8 +43,8 @@ class JrcServiceDesk::Intake::PendingClosure
 
   def solution!(ticket)
     apply('pending_solution', 'ticket.solve',
-      { 'content' => 'Encerramento por ausência de retorno após 48 horas corridas do aviso entregue. Não representa solução técnica.' },
-      ticket.fetch('date_mod'))
+          { 'content' => 'Encerramento por ausência de retorno após 48 horas corridas do aviso entregue. Não representa solução técnica.' },
+          ticket.fetch('date_mod'))
   end
 
   def close!
@@ -56,8 +56,8 @@ class JrcServiceDesk::Intake::PendingClosure
 
   def apply(stage, operation, attributes, version)
     result = @command.call(user_context: @control.access!.context.to_h, reference: @reference,
-      operation: operation, attributes: attributes, expected_version: version,
-      idempotency_key: "intake/#{@demand.episode_key}/#{@demand.waiting_generation}/#{stage}")
+                           operation: operation, attributes: attributes, expected_version: version,
+                           idempotency_key: "intake/#{@demand.episode_key}/#{@demand.waiting_generation}/#{stage}")
     projection = result.stringify_keys.slice('id', 'state', 'error_code')
     @demand.update!(lifecycle_receipts: @demand.lifecycle_receipts.merge(stage => projection))
     return true if result[:state] == 'succeeded'
@@ -72,7 +72,7 @@ class JrcServiceDesk::Intake::PendingClosure
     return fail_state('needs_attention', 'intake_response_during_closure') if @control.cancelled?
 
     @demand.update!(lifecycle_state: 'closed_no_response', completed_at: Time.current,
-      waiting_generation: nil, waiting_deadline: nil, lifecycle_error_code: nil)
+                    waiting_generation: nil, waiting_deadline: nil, lifecycle_error_code: nil)
   end
 
   def fail_state(state, code)
