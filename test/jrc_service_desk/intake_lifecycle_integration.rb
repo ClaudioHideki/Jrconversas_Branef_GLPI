@@ -83,6 +83,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     @remote.on_profile = -> { incoming }
     expire(notice)
     assert_equal 'cancelled', @demand.reload.lifecycle_state
+    assert_nil @demand.completion_cause, 'A cancelled closure is not a no-response completion'
     refute(@remote.writes.any? { |_verb, _type, _id, input| input['status'] == 6 })
   end
 
