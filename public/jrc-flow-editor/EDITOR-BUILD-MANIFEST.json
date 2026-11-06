@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "component": "jrc-native-flow-editor",
   "sourceRepository": "ClaudioHideki/BrokerJRCIA",
-  "sourceSha": "2e418b450f9485f4c3c5e3f9fcdc27253d6c70c7",
+  "sourceSha": "56f9e772c9331710bed65d1d46a4f925f3d3d86d",
   "sourceCommitted": true,
   "lockfileSha256": "dafcbad0115860b04c4b17525222e9d405964759458a0bda05bf7d53d8fc5829",
   "inputs": [
@@ -993,7 +993,7 @@
     },
     {
       "path": "packages/contracts/src/integrations/control.ts",
-      "sha256": "ac42ce8d9e2c3c9688328b029e5712eae580edcae29da09b391fe7fe527a624c",
+      "sha256": "60ac91840fae2cb8b75863febd47263c1f6950ede15f3ec39361943b51cade3b",
       "dependency": false
     },
     {
@@ -1105,8 +1105,8 @@
     },
     {
       "path": "editor.js",
-      "bytes": 971365,
-      "sha256": "c512f9474f0e5cce4ca502cd5d9dee5863e64e56cd7b5c60983a0154d04cd644"
+      "bytes": 971888,
+      "sha256": "5f4d1881a8fd79c68b6bb9906ef1204d228ce2c1b183e0ba25b3077fd52d5130"
     },
     {
       "path": "editor.js.LEGAL.txt",
