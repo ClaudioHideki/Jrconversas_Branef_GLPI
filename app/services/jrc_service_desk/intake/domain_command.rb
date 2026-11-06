@@ -33,8 +33,11 @@ class JrcServiceDesk::Intake::DomainCommand
     context = JrcServiceDesk::OperationalContext.new(account: account, user: user, account_user: member)
     raise Pundit::NotAuthorizedError unless context.native_operator? && context.capability?(:tickets_create)
 
-    demand = JrcServiceDesk::IntakeDemand.where(account_id: account.id, inbox_id: conversation.inbox_id,
-                                                conversation_id: conversation.id, contact_id: conversation.contact_id, account_user_id: member.id).find_by!(episode_key: episode_key)
+    scope = JrcServiceDesk::IntakeDemand.where(
+      account_id: account.id, inbox_id: conversation.inbox_id, conversation_id: conversation.id,
+      contact_id: conversation.contact_id, account_user_id: member.id
+    )
+    demand = scope.find_by!(episode_key: episode_key)
     raise Pundit::NotAuthorizedError unless demand.intake_configuration.reload.enabled?
 
     demand

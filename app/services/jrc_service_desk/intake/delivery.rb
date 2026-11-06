@@ -81,8 +81,10 @@ class JrcServiceDesk::Intake::Delivery
       JrcServiceDesk::Glpi::Reference.new(reference).record!(access: access, client: client, operational: true)
     end
     authorize!
-    link = JrcServiceDesk::GlpiReferenceLink.find_or_create_by!(account: @demand.account, glpi_reference: record,
-                                                                conversation: @demand.conversation, account_user: @demand.account_user, unit_id: record.unit_id)
+    link = JrcServiceDesk::GlpiReferenceLink.find_or_create_by!(
+      account: @demand.account, glpi_reference: record, conversation: @demand.conversation,
+      account_user: @demand.account_user, unit_id: record.unit_id
+    )
     record_stage('link', id: link.id.to_s, state: 'succeeded')
   end
 

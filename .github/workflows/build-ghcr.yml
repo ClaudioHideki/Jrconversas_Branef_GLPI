@@ -108,7 +108,8 @@ jobs:
             JRC_BROKER_ENABLED=true bundle exec ruby "$suite" || result=1
           done
           test "$result" = 0
-          bundle exec rspec spec/finders/conversation_finder_spec.rb
+          JRC_BROKER_CREDENTIAL_KEY="$(ruby -rsecurerandom -rbase64 -e 'puts Base64.strict_encode64(SecureRandom.random_bytes(32))')" \
+            bundle exec rspec spec/finders/conversation_finder_spec.rb spec/requests/jrc_domain_commands_spec.rb
           bundle exec ruby test/jrc_service_desk/glpi_integration.rb
           result=0
           for suite in test/jrc_service_desk/glpi_*_integration.rb; do
