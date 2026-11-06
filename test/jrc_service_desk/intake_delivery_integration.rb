@@ -31,12 +31,6 @@ end
 class IntakeDeliveryIntegrationTest < IntakeIntegrationTest
   def setup
     super
-    @account.enable_features!('jrc_broker')
-    @organization = SecureRandom.uuid
-    @integration = SecureRandom.uuid
-    JrcBrokerIntegration.create!(account: @account, organization_id: @organization, broker_origin: 'https://broker.example.test',
-      destination_revision: 1, encrypted_control_key: 'synthetic-unused')
-    @binding = JrcBrokerInboxBinding.create!(account: @account, inbox: @inbox, integration_id: @integration, instance_id: SecureRandom.uuid)
     @connection.update!(primary_source: true)
     JrcServiceDesk::UnitMembership.create!(account: @account, unit: @unit, account_user: @member, active: true)
     @remote = IntakeGlpiSource.new
