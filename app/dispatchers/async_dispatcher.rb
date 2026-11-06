@@ -18,6 +18,7 @@ class AsyncDispatcher < BaseDispatcher
       NotificationListener.instance,
       JrcNicoListener.instance,
       JrcFlowsListener.instance,
+      JrcServiceDeskIntakeListener.instance,
       ParticipationListener.instance,
       Conversations::UnreadCounts::Listener.instance,
       ReportingEventListener.instance,

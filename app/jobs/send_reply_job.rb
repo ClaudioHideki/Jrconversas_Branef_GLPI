@@ -17,7 +17,11 @@ class SendReplyJob < ApplicationJob
 
   def perform(message_id)
     message = Message.find(message_id)
-    if message.content_attributes.to_h['service_desk_delivery_id']
+    if message.content_attributes.to_h['service_desk_intake_notice_id']
+      return if message.inbox.channel_type == 'Channel::Api'
+
+      JrcServiceDesk::Intake::NoticeExecution.new(message).perform { deliver(message) }
+    elsif message.content_attributes.to_h['service_desk_delivery_id']
       return if message.inbox.channel_type == 'Channel::Api'
 
       JrcServiceDesk::NotificationExecution.new(message).perform { deliver(message) }

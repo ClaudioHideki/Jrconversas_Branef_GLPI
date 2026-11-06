@@ -22,7 +22,7 @@ class JrcServiceDesk::Intake::Origin
     @demand = demand
   end
 
-  def authorize!
+  def authorize!(conversation_control: true)
     @demand.reload
     member = AccountUser.find_by!(id: @demand.account_user_id, account_id: @demand.account_id)
     token = AccessToken.find_by!(id: values.fetch('service_token_id'), owner_type: 'User', owner_id: member.user_id)
@@ -32,7 +32,7 @@ class JrcServiceDesk::Intake::Origin
     authority = JrcFlowEffects::Authority.new(account: @demand.account, user: member.user, access_token: token).authorize!
     context = JrcServiceDesk::OperationalContext.new(account: authority.account, user: authority.user, account_user: member)
     validate_binding!(context)
-    validate_conversation!
+    validate_conversation! if conversation_control
     context.to_h
   end
 

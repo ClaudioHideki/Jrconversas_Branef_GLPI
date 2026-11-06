@@ -26,6 +26,9 @@ class Webhooks::Trigger
 
   def execute
     if @webhook_type == :api_inbox_webhook && @payload[:event] == 'message_created' &&
+       message && message.content_attributes['service_desk_intake_notice_id']
+      JrcServiceDesk::Intake::NoticeExecution.new(message).perform { execute_delivery }
+    elsif @webhook_type == :api_inbox_webhook && @payload[:event] == 'message_created' &&
        message && JrcRelationship::SurveyMessageExecution.applies?(message)
       JrcRelationship::SurveyMessageExecution.new(message).perform { execute_delivery }
     elsif @webhook_type == :api_inbox_webhook && @payload[:event] == 'message_created' &&
