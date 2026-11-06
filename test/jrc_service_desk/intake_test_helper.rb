@@ -1,0 +1,29 @@
+# frozen_string_literal: true
+
+# Shared synthetic fixture for intake integration tests. No customer data or endpoints.
+require_relative 'glpi_test_helper'
+
+class IntakeIntegrationTest < GlpiIntegrationTest
+  def setup
+    super
+    channel = Channel::Api.create!(account: @account)
+    @inbox = Inbox.create!(account: @account, channel: channel, name: 'Synthetic intake')
+    contact = Contact.create!(account: @account, name: 'Synthetic requester')
+    contact_inbox = ContactInbox.create!(contact: contact, inbox: @inbox, source_id: SecureRandom.uuid)
+    @conversation = Conversation.create!(account: @account, inbox: @inbox, contact: contact, contact_inbox: contact_inbox, status: :pending)
+    @catalogue = JSON.parse(File.read(File.join(__dir__, 'fixtures/intake_catalogue.json')))
+    @configuration = JrcServiceDesk::IntakeConfiguration.create!(
+      account: @account, inbox: @inbox, created_by_account_user: @member, revision: 1, catalogue: @catalogue, mode: 'on_handoff',
+      enabled: true, remote_writes_enabled: false, current: true
+    )
+    @access_token = AccessToken.find_or_create_by!(owner: @user)
+    @authority = JrcFlowEffects::Authority.new(account: @account, user: @user, access_token: @access_token)
+    @arguments = { 'configuration_id' => @configuration.id, 'configuration_revision' => 1,
+                   'episode_key' => SecureRandom.uuid, 'phase' => 'qualified', 'input' => {
+                     'system' => 'example', 'location' => 'south', 'reason' => 'request', 'subject' => 'access',
+                     'profile' => 'requester', 'identifier' => '12345678901', 'email' => 'synthetic@example.invalid',
+                     'description' => 'Synthetic support request'
+                   } }
+  end
+
+end

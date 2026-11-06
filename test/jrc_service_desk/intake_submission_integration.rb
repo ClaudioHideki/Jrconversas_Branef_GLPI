@@ -3,31 +3,9 @@
 # End-to-end requests intentionally carry several assertions; this is plain Minitest.
 # rubocop:disable Metrics/AbcSize, Rails/RefuteMethods
 
-require_relative 'glpi_test_helper'
+require_relative 'intake_test_helper'
 
-class IntakeSubmissionIntegrationTest < GlpiIntegrationTest
-  def setup
-    super
-    channel = Channel::Api.create!(account: @account)
-    @inbox = Inbox.create!(account: @account, channel: channel, name: 'Synthetic intake')
-    contact = Contact.create!(account: @account, name: 'Synthetic requester')
-    contact_inbox = ContactInbox.create!(contact: contact, inbox: @inbox, source_id: SecureRandom.uuid)
-    @conversation = Conversation.create!(account: @account, inbox: @inbox, contact: contact, contact_inbox: contact_inbox, status: :pending)
-    @catalogue = JSON.parse(File.read(File.join(__dir__, 'fixtures/intake_catalogue.json')))
-    @configuration = JrcServiceDesk::IntakeConfiguration.create!(
-      account: @account, inbox: @inbox, created_by_account_user: @member, revision: 1, catalogue: @catalogue, mode: 'on_handoff',
-      enabled: true, remote_writes_enabled: false, current: true
-    )
-    token = AccessToken.find_or_create_by!(owner: @user)
-    @authority = JrcFlowEffects::Authority.new(account: @account, user: @user, access_token: token)
-    @arguments = { 'configuration_id' => @configuration.id, 'configuration_revision' => 1,
-                   'episode_key' => SecureRandom.uuid, 'phase' => 'qualified', 'input' => {
-                     'system' => 'example', 'location' => 'south', 'reason' => 'request', 'subject' => 'access',
-                     'profile' => 'requester', 'identifier' => '12345678901', 'email' => 'synthetic@example.invalid',
-                     'description' => 'Synthetic support request'
-                   } }
-  end
-
+class IntakeSubmissionIntegrationTest < IntakeIntegrationTest
   def test_same_episode_reuses_row_without_changing_conversation
     original = @conversation.reload.attributes
     service = JrcServiceDesk::Intake::Submission.new
