@@ -70,7 +70,7 @@ class JrcServiceDesk::Intake::PendingClosure
   def complete!
     # A committed reply wins before local resolution; native routing triggers serialize this check.
     @demand.conversation.with_lock do
-      return fail_state('needs_attention', 'intake_response_during_closure') if @control.cancelled?
+      next fail_state('needs_attention', 'intake_response_during_closure') if @control.cancelled?
 
       identity = @control.access!.context.to_h
       @demand.update!(lifecycle_state: 'closed_no_response', completed_at: Time.current,

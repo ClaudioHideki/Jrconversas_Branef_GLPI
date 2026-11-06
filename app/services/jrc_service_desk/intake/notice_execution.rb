@@ -7,8 +7,8 @@ class JrcServiceDesk::Intake::NoticeExecution
   end
 
   def perform
-    @notice = JrcServiceDesk::IntakeNotification.find_by(id: @message.content_attributes['service_desk_intake_notice_id'],
-                                                         account_id: @message.account_id, conversation_id: @message.conversation_id, message_id: @message.id)
+    scope = JrcServiceDesk::IntakeNotification.where(account_id: @message.account_id, conversation_id: @message.conversation_id, message_id: @message.id)
+    @notice = scope.find_by(id: @message.content_attributes['service_desk_intake_notice_id'])
     return unless @notice && claim
 
     yield

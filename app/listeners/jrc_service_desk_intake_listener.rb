@@ -17,7 +17,7 @@ class JrcServiceDeskIntakeListener < BaseListener
   private
 
   def observe(conversation_id, message_id = nil)
-    return unless JrcServiceDesk::IntakeDemand.where(conversation_id: conversation_id).exists?
+    return unless JrcServiceDesk::IntakeDemand.exists?(conversation_id: conversation_id)
 
     JrcServiceDesk::IntakeObservationJob.perform_later(conversation_id, message_id)
   end

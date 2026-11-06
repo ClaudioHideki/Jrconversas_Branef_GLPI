@@ -43,6 +43,6 @@ class JrcServiceDesk::Intake::PendingControl
 
   def inbound_after_request?
     boundary = @notice.source_snapshot.fetch('last_inbound_id', nil) || 0
-    @demand.conversation.messages.where(account_id: @demand.account_id).incoming.where('id > ?', boundary).exists?
+    @demand.conversation.messages.where(account_id: @demand.account_id).incoming.exists?(['id > ?', boundary])
   end
 end

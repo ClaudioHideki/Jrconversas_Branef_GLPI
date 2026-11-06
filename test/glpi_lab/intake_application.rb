@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Plain Minitest uses refute assertions, not Rails assert_not aliases.
+# rubocop:disable Rails/RefuteMethods
+
 # Plain Minitest has refute methods, not Rails assert_not aliases.
 
 # Flat synthetic integration scenarios use plain Minitest assertions.
@@ -59,3 +62,4 @@ class GlpiIntakeLaboratoryTest < IntakeIntegrationTest
 end
 
 # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+# rubocop:enable Rails/RefuteMethods

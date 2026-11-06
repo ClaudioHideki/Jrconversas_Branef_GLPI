@@ -25,7 +25,8 @@ class AddServiceDeskIntakeLifecycle < ActiveRecord::Migration[7.1]
     end
     add_index :jrc_service_desk_intake_notifications, [:account_id, :intake_demand_id, :kind, :request_key],
               unique: true, name: 'idx_intake_notice_request'
-    add_index :jrc_service_desk_intake_notifications, :intake_demand_id, unique: true,
+    add_index :jrc_service_desk_intake_notifications, :intake_demand_id,
+              unique: true,
               where: "kind = 'survey'", name: 'idx_intake_single_survey'
     add_check_constraint :jrc_service_desk_intake_notifications, "kind IN ('pending_information','survey')", name: 'intake_notice_kind'
     add_check_constraint :jrc_service_desk_intake_notifications,

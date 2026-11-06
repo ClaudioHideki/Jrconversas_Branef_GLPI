@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Plain Minitest scenarios intentionally exercise complete, flat source/receipt transitions.
-# rubocop:disable Metrics/ClassLength, Metrics/AbcSize, Rails/RefuteMethods
+# rubocop:disable Metrics/ClassLength, Rails/RefuteMethods
 require_relative 'intake_delivery_test_helper'
 
 class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
@@ -124,7 +124,7 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
       end
     end
     assert_equal 'closed_no_response', @demand.reload.lifecycle_state
-    assert_equal 1, @remote.writes.count { |_verb, _type, _id, input| input['status'] == 6 }
+    assert_equal 1, (@remote.writes.count { |_verb, _type, _id, input| input['status'] == 6 })
   end
 
   def test_revoked_configuration_cancels_before_requesting_the_source
@@ -229,7 +229,8 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
 
   def run_pending_workers(notice)
     pool = warm_database_pool
-    ids, gate = Queue.new, Queue.new
+    ids = Queue.new
+    gate = Queue.new
     workers = Array.new(2) { pending_worker(pool, ids, gate, notice) }
     Timeout.timeout(20) do
       assert_equal 2, Array.new(2) { ids.pop }.uniq.size
@@ -293,4 +294,4 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
     end
   end
 end
-# rubocop:enable Metrics/ClassLength, Metrics/AbcSize, Rails/RefuteMethods
+# rubocop:enable Metrics/ClassLength, Rails/RefuteMethods
