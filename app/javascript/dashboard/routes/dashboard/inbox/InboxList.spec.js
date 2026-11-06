@@ -7,6 +7,8 @@ import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import JrcContactCenterAPI from 'dashboard/api/jrcContactCenter';
 import InboxList from './InboxList.vue';
 import conversationGetters from 'dashboard/store/modules/conversations/getters';
+import { mutations as conversationMutations } from 'dashboard/store/modules/conversations';
+import mutationTypes from 'dashboard/store/mutation-types';
 import { routes as webphoneRoutes } from '../webphone/routes';
 import { openEmbeddedSoftphone } from '../webphone/useEmbeddedSoftphone';
 
@@ -372,11 +374,78 @@ describe('omnichannel inbox', () => {
     ).toEqual(['301']);
   });
 
+  it.each([
+    ['me', ['403'], [], ['401']],
+    ['unassigned', ['401', '404'], ['401', '404'], ['404']],
+    [
+      'all',
+      ['401', '402', '403', '404'],
+      ['401', '402', '403', '404'],
+      ['401', '402', '403', '404'],
+    ],
+  ])(
+    'keeps %s scoped when websocket updates insert and reassign pending conversations',
+    async (assignee, initial, afterPeerAssignment, afterMyAssignment) => {
+      store.state.currentUser.accounts[0].role = 'administrator';
+      store.state.currentUser.accounts[0].permissions = ['administrator'];
+      mocks.route.query.assignee = assignee;
+      const wrapper = mountInbox();
+      await flushPromises();
+      const websocketState = { allConversations: store.state.conversations };
+      [
+        { id: 401, inbox_id: 11, status: 'pending', meta: { assignee: null } },
+        {
+          id: 402,
+          inbox_id: 11,
+          status: 'pending',
+          meta: { assignee: { id: 2 } },
+        },
+        {
+          id: 403,
+          inbox_id: 11,
+          status: 'pending',
+          meta: { assignee: { id: 5 } },
+        },
+        {
+          id: 404,
+          inbox_id: 11,
+          status: 'pending',
+          meta: { assignee: { id: 5 }, assignee_type: 'AgentBot' },
+        },
+      ].forEach(conversation => {
+        conversationMutations[mutationTypes.UPDATE_CONVERSATION](
+          websocketState,
+          conversation
+        );
+      });
+      await flushPromises();
+      expect(
+        wrapper.findAll('[data-testid="conversation"]').map(row => row.text())
+      ).toEqual(initial);
+      conversationMutations[mutationTypes.UPDATE_CONVERSATION](websocketState, {
+        id: 403,
+        meta: { assignee: { id: 2 } },
+      });
+      await flushPromises();
+      expect(
+        wrapper.findAll('[data-testid="conversation"]').map(row => row.text())
+      ).toEqual(afterPeerAssignment);
+      conversationMutations[mutationTypes.UPDATE_CONVERSATION](websocketState, {
+        id: 401,
+        meta: { assignee: { id: 5 } },
+      });
+      await flushPromises();
+      expect(
+        wrapper.findAll('[data-testid="conversation"]').map(row => row.text())
+      ).toEqual(afterMyAssignment);
+    }
+  );
+
   it('offers configured messaging and social channels alongside voice', async () => {
     store.state.conversationPayload = [
-      { id: 101, inbox_id: 11, meta: {} },
-      { id: 102, inbox_id: 12, meta: {} },
-      { id: 103, inbox_id: 13, meta: {} },
+      { id: 101, inbox_id: 11, meta: { assignee: { id: 5 } } },
+      { id: 102, inbox_id: 12, meta: { assignee: { id: 5 } } },
+      { id: 103, inbox_id: 13, meta: { assignee: { id: 5 } } },
     ];
     const wrapper = mountInbox();
     await flushPromises();
@@ -600,7 +669,9 @@ describe('omnichannel inbox', () => {
   });
 
   it('opens a messaging conversation without dropping the authorized account or filter', async () => {
-    store.state.conversationPayload = [{ id: 101, inbox_id: 11, meta: {} }];
+    store.state.conversationPayload = [
+      { id: 101, inbox_id: 11, meta: { assignee: { id: 5 } } },
+    ];
     const wrapper = mountInbox();
     await flushPromises();
     await wrapper.get('[data-testid="conversation"]').trigger('click');

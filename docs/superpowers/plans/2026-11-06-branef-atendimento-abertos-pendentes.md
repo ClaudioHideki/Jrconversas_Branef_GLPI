@@ -25,7 +25,7 @@
 - Minhas não inclui pendentes sem atribuição; Todas continua restrito às permissões existentes.
 - Transições open/pending permanecem visíveis, e resolved deixa a lista sem duplicação.
 - Troca de conta e filtros não reapresenta resultados de outra conta.
-- Selecionar cartão navega para o histórico sem requisição de escrita.
+- Selecionar cartão navega para o histórico sem alterar status, atribuição ou controle do bot. A marcação existente de última leitura é permitida.
 
 ### Task 1: Consulta paginada e filtragem de ativos
 

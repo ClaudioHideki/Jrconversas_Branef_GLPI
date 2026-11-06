@@ -165,9 +165,22 @@ const channelFilterOptions = computed(() => [
 ]);
 
 const conversations = computed(() => {
-  const items = allOpenConversations.value({
+  const authorizedItems = allOpenConversations.value({
     assigneeType: assigneeFilter.value,
     status: ACTIVE_STATUS_FILTER,
+  });
+  const items = authorizedItems.filter(conversation => {
+    const assignee =
+      conversation.meta?.assignee_type === 'AgentBot'
+        ? null
+        : conversation.meta?.assignee;
+    if (assigneeFilter.value === ASSIGNEE_FILTERS.ME) {
+      return assignee?.id === currentUser.value?.id;
+    }
+    if (assigneeFilter.value === ASSIGNEE_FILTERS.UNASSIGNED) {
+      return !assignee;
+    }
+    return true;
   });
 
   if (channelFilter.value === 'all') return items;
