@@ -31,7 +31,9 @@ class JrcServiceDesk::Intake::Visibility
 
   def present(demand)
     demand.receipt.merge(
-      selection: demand.normalized_input.except('identifier', 'identifier_type', 'email', 'description'),
+      selection: demand.normalized_input.slice('system', 'location', 'reason', 'subject', 'profile', 'severity', 'queue', 'sla',
+                                               'revision', 'subject_label', 'classification_required', 'classification_state',
+                                               'classification_revision', 'impact_value', 'urgency_value'),
       lifecycle_state: demand.lifecycle_state, completion_cause: demand.completion_cause,
       waiting_deadline: demand.waiting_deadline&.iso8601, lifecycle_error_code: demand.lifecycle_error_code,
       notifications: JrcServiceDesk::IntakeNotification.where(intake_demand: demand).order(:id).last(10).map(&:receipt),

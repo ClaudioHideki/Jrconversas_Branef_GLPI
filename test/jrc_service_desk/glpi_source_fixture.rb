@@ -13,7 +13,7 @@ class GlpiCommandSource
       'Entity/0' => { 'id' => 0, 'entities_id' => nil, 'tickettype' => 1, 'tickettemplates_strategy' => 0, 'tickettemplates_id' => 0 } }
   end
 
-  def session
+  def session(**)
     yield self
   end
 

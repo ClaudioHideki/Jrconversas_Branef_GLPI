@@ -54,7 +54,9 @@ class IntakeReviewIntegrationTest < IntakeDeliveryTest
 
   def test_bot_change_before_delivery_receipt_cancels_the_clock
     assert_control_before_receipt do
-      bot = AgentBot.create!(account: @account, name: 'Synthetic bot', outgoing_url: 'https://example.invalid/events')
+      row = AgentBot.insert!({ account_id: @account.id, name: 'Synthetic bot', outgoing_url: 'https://example.invalid/events',
+                               created_at: Time.current, updated_at: Time.current })
+      bot = AgentBot.find(row.rows.first.first)
       @conversation.update!(assignee_agent_bot: bot)
     end
   end

@@ -31,7 +31,9 @@ class JrcServiceDesk::IntakeConfiguration < JrcServiceDesk::AccountRecord
   end
 
   def validate_mappings!
-    raise ArgumentError unless mappings.is_a?(Hash) && (mappings.keys - %w[routes requesters notifications]).empty?
+    raise ArgumentError unless mappings.is_a?(Hash) && (mappings.keys - %w[routes requesters notifications classification]).empty?
+
+    JrcServiceDesk::Intake::Classification.new(mappings['classification'])
 
     %w[routes requesters].each do |key|
       rows = mappings.fetch(key, [])

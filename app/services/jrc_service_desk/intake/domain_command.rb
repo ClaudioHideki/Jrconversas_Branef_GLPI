@@ -39,6 +39,7 @@ class JrcServiceDesk::Intake::DomainCommand
     )
     demand = scope.find_by!(episode_key: episode_key)
     raise Pundit::NotAuthorizedError unless demand.intake_configuration.reload.enabled?
+    raise Pundit::NotAuthorizedError unless JrcServiceDesk::Intake::Visibility.new(context.to_h).visible?(demand)
 
     demand
   end

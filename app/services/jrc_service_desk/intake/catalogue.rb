@@ -26,8 +26,12 @@ class JrcServiceDesk::Intake::Catalogue
     @document.fetch('systems').sum { |system| system.fetch('reasons').sum { |reason| reason.fetch('subjects').size } }
   end
 
+  def classification_required?(system, reason)
+    find!(find!(@document.fetch('systems'), system).fetch('reasons'), reason).fetch('sla').key?('by_severity')
+  end
+
   def classify(system:, location:, reason:, subject:, **options)
-    raise ArgumentError, 'intake_selection' unless (options.keys - %i[profile severity]).empty?
+    raise ArgumentError, 'intake_selection' unless (options.keys - %i[profile severity classification_pending]).empty?
 
     system_row = find!(@document.fetch('systems'), system)
     find!(system_row.fetch('locations'), location)
@@ -36,7 +40,8 @@ class JrcServiceDesk::Intake::Catalogue
     subject_row = find!(reason_row.fetch('subjects'), subject)
     copy('system' => system, 'location' => location, 'reason' => reason, 'subject' => subject,
          'profile' => blank_to_nil(options[:profile]), 'severity' => blank_to_nil(options[:severity]),
-         'queue' => reason_row.fetch('queue'), 'sla' => sla_for(reason_row, location, options[:severity]),
+         'queue' => reason_row.fetch('queue'),
+         'sla' => options[:classification_pending] ? { 'unit' => 'none' } : sla_for(reason_row, location, options[:severity]),
          'revision' => revision, 'subject_label' => subject_row.fetch('label'))
   end
 

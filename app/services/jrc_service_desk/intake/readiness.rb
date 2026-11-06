@@ -13,6 +13,9 @@ class JrcServiceDesk::Intake::Readiness
 
     @selections = JrcServiceDesk::Intake::SelectionSet.new(configuration.catalogue).rows
     @blockers = []
+    if @selections.any? { |row| row['severity'] } && !JrcServiceDesk::Intake::Classification.new(configuration.mappings['classification']).ready?
+      @blockers << 'intake_classification_matrix_unapproved'
+    end
     @candidates = @selections.filter_map { |selection| candidate(selection) }
     verify_source if @blockers.empty?
     { ready: @blockers.empty?, blockers: @blockers.uniq, selection_count: @selections.size,

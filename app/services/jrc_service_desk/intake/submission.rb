@@ -48,7 +48,7 @@ class JrcServiceDesk::Intake::Submission
 
   def persist(authority, context, target, configuration, values)
     catalogue = JrcServiceDesk::Intake::Catalogue.new(configuration.catalogue)
-    normalized = JrcServiceDesk::Intake::Input.new(catalogue).call(values.fetch('input'))
+    normalized = JrcServiceDesk::Intake::Input.new(catalogue, classification: configuration.mappings['classification']).call(values.fetch('input'))
     fingerprint = JrcServiceDesk::CanonicalJson.digest(normalized.merge('configuration_id' => configuration.id))
     existing = JrcServiceDesk::IntakeDemand.lock.find_by(account_id: context.account.id, episode_key: values.fetch('episode_key'))
     return replay(existing, context, target, fingerprint, values.fetch('phase')) if existing
@@ -66,6 +66,7 @@ class JrcServiceDesk::Intake::Submission
 
   def replay(existing, context, target, fingerprint, phase)
     raise Pundit::NotAuthorizedError unless existing.conversation_id == target.id && existing.account_user_id == context.account_user.id
+    raise Pundit::NotAuthorizedError unless JrcServiceDesk::Intake::Visibility.new(context.to_h).visible?(existing)
     raise JrcServiceDesk::IdempotencyConflict unless existing.fingerprint == fingerprint
 
     existing.update!(state: state_for(existing.intake_configuration, phase)) if existing.state == 'qualified' && phase == 'handoff'

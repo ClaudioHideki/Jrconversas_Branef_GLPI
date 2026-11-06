@@ -35,6 +35,11 @@ class JrcServiceDesk::Intake::Delivery
   end
 
   def prepare!
+    input = @demand.normalized_input
+    if input['classification_required'] && input['classification_state'] != 'classified'
+      raise JrcServiceDesk::Glpi::Error.new('intake_classification_required', 422)
+    end
+
     @origin = JrcServiceDesk::Intake::Origin.new(@demand)
     @mapping = JrcServiceDesk::Intake::Mapping.new(@demand)
     access = authorize!

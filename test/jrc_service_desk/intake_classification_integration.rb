@@ -65,6 +65,29 @@ class IntakeClassificationIntegrationTest < IntakeDeliveryTest
     assert_equal 1, JrcServiceDesk::UnitMembership.where(account: @account).count
   end
 
+  def test_unclassified_bug_never_opens_a_source_session_or_creates_a_command
+    normalized = JrcServiceDesk::Intake::Input.new(JrcServiceDesk::Intake::Catalogue.new(@catalogue)).call(bug_input)
+    @demand.update!(normalized_input: normalized)
+    JrcServiceDesk::Glpi::Client.stub(:new, ->(*) { flunk 'Human classification must precede source access' }) do
+      JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
+    end
+    assert_equal 'rejected', @demand.reload.state
+    assert_equal 'intake_classification_required', @demand.error_code
+    assert_empty @remote.writes
+  end
+
+  def test_mapping_keeps_the_two_native_axis_values_distinct
+    normalized = JrcServiceDesk::Intake::Input.new(JrcServiceDesk::Intake::Catalogue.new(@catalogue), classification: matrix).call(
+      bug_input.merge('impact' => 'one', 'urgency' => 'blocked'))
+    @demand.update!(normalized_input: normalized)
+    mappings = @delivery_configuration.mappings.deep_dup
+    mappings['routes'][0].merge!(normalized.slice('reason', 'subject', 'severity'))
+    @delivery_configuration.update_columns(mappings: mappings)
+    attributes = JrcServiceDesk::Intake::Mapping.new(@demand).attributes
+    assert_equal 2, attributes.fetch('impact')
+    assert_equal 5, attributes.fetch('urgency')
+  end
+
   private
 
   def bug_input

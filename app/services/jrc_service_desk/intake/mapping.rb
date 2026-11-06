@@ -46,11 +46,10 @@ class JrcServiceDesk::Intake::Mapping
   end
 
   def attributes
-    urgency = { 'low' => 2, 'medium' => 3, 'high' => 4, 'critical' => 5 }.fetch(input['severity'], 3)
     { 'name' => "#{input.fetch('system')} / #{input.fetch('subject_label')}".first(255),
       'content' => "#{input.fetch('description')}\n\n#{input.fetch('identifier_type')}: #{input.fetch('identifier')}\n" \
                    "Email: #{input.fetch('email')}\n#{SELECTORS.map { |key| "#{key}: #{input[key]}" }.join("\n")}",
-      'type' => input['reason'] == 'bug' ? 1 : 2, 'urgency' => urgency, 'impact' => urgency,
+      'type' => input['reason'] == 'bug' ? 1 : 2, 'urgency' => input.fetch('urgency_value', 3), 'impact' => input.fetch('impact_value', 3),
       'itilcategories_id' => route.fetch('category_id'), '_users_id_requester' => requester_id }
   end
 

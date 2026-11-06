@@ -19,6 +19,8 @@ class JrcServiceDesk::Intake::PendingControl
     @demand.reload
     return true unless @demand.intake_configuration.reload.enabled?
     return true unless current_request?
+    prepared = @notice.source_snapshot.slice('routing', 'binding', 'control_state')
+    return true unless JrcServiceDesk::Intake::NoticeGuard.snapshot(@demand) == prepared
     return true if inbound_after_request?
     return true unless @notice.source_snapshot['input_digest'] == JrcServiceDesk::CanonicalJson.digest(@demand.normalized_input)
     return true if @demand.waiting_control.present? && @demand.waiting_control != snapshot

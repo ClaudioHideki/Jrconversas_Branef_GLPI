@@ -1,20 +1,23 @@
 # frozen_string_literal: true
 
 class JrcServiceDesk::Intake::Input
-  FIELDS = %w[system location reason subject profile severity identifier email description].freeze
+  FIELDS = %w[system location reason subject profile severity impact urgency identifier email description].freeze
 
-  def initialize(catalogue)
+  def initialize(catalogue, classification: nil)
     @catalogue = catalogue
+    @classification = JrcServiceDesk::Intake::Classification.new(classification)
   end
 
   def call(attributes)
     raise ArgumentError, 'intake_input' unless attributes.is_a?(Hash) && (attributes.keys - FIELDS).empty?
 
+    classification = classify(attributes)
     selection = @catalogue.classify(
       system: attributes.fetch('system'), location: attributes.fetch('location'),
       reason: attributes.fetch('reason'), subject: attributes.fetch('subject'),
-      profile: attributes['profile'], severity: attributes['severity']
-    )
+      profile: attributes['profile'], severity: classification['severity'],
+      classification_pending: classification['classification_state'] == 'awaiting_human'
+    ).merge(classification)
     identifier = normalize_identifier(attributes.fetch('identifier'))
     selection.merge('identifier' => identifier, 'identifier_type' => identifier.length == 11 ? 'cpf' : 'cnpj',
                     'email' => normalize_email(attributes.fetch('email')), 'description' => normalize_description(attributes.fetch('description')))
@@ -23,6 +26,17 @@ class JrcServiceDesk::Intake::Input
   end
 
   private
+
+  def classify(attributes)
+    unless @catalogue.classification_required?(attributes.fetch('system'), attributes.fetch('reason'))
+      unexpected = attributes.values_at('severity', 'impact', 'urgency').any? { |value| !value.nil? && value != '' }
+      raise ArgumentError, 'intake_unexpected_severity' if unexpected
+
+      return { 'classification_required' => false, 'classification_state' => 'not_required', 'severity' => nil }
+    end
+
+    @classification.call(impact: attributes['impact'], urgency: attributes['urgency'], declared_severity: attributes['severity'])
+  end
 
   def normalize_identifier(value)
     raise ArgumentError, 'intake_identifier' unless value.is_a?(String) && value.length <= 30

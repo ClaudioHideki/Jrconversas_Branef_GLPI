@@ -8,7 +8,7 @@ end
 
 module JrcServiceDesk::Intake; end
 
-%w[catalogue input].each do |name|
+%w[catalogue classification input].each do |name|
   path = File.expand_path("../../app/services/jrc_service_desk/intake/#{name}.rb", __dir__)
   require path if File.exist?(path)
 end

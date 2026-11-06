@@ -19,10 +19,10 @@ class JrcServiceDesk::Glpi::Client
     @last_response = {}.freeze
   end
 
-  def session
+  def session(read_only: false)
     data = request(:get, 'initSession/', auth: true)
     @session_token = data.fetch('session_token')
-    if connection.respond_to?(:primary_source?) && connection.primary_source?
+    if !read_only && connection.respond_to?(:primary_source?) && connection.primary_source?
       # Omitting entities_id is GLPI 10's supported "all permitted" selection;
       # the literal string "all" is cast to root 0 by that version's REST API.
       # This changes only this short-lived session, never the user's profile.
