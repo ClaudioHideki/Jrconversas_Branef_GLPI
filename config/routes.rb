@@ -111,6 +111,9 @@ Rails.application.routes.draw do
         scope module: :accounts do
           # JRC Service Desk CP4: all endpoints inherit the native Account authentication.
           namespace :jrc_service_desk do
+            get 'intake/configuration', to: 'intake#show'
+            post 'intake/configuration', to: 'intake#publish'
+            post 'intake/preview', to: 'intake#preview'
             scope :glpi do
               get 'context', to: 'glpi#context'
               get 'connection', to: 'glpi#configuration'

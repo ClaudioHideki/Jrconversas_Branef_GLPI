@@ -18,3 +18,4 @@ Rails.application.config.filter_parameters += [:encrypted_control_key, :control_
 Rails.application.config.filter_parameters += [:pabx_username, :api_username]
 
 Rails.application.config.filter_parameters += [:csv]
+Rails.application.config.filter_parameters += [:value_json, :input, :normalized_input, :identifier]

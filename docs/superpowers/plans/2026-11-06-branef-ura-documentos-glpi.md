@@ -44,11 +44,11 @@ Configuração e conteúdo Branef: artefatos locais `output/BRANEF-ATENDIMENTO-C
 
 **Interfaces:** `Catalogue.new(document)` valida revisão e estrutura; `classify(system:, location:, reason:, subject:, profile:)` retorna códigos, fila lógica e prazo original; `Input.new(catalogue).call(attributes)` retorna triagem normalizada sem IDs remotos. Catálogo usa códigos imutáveis e labels, localização independente, lista exata de submotivos por sistema/motivo, fila e regra de SLA por motivo/local. Respostas têm condições, fonte, texto e hyperlinks, além de flag de confirmação humana quando afirmam fatos externos.
 
-- [ ] Escrever `test_classifies_municipality_exception_without_cross_row_inference`, `test_rejects_unknown_combination_and_placeholder`, `test_preserves_days_and_no_deadline`, `test_declared_profile_does_not_authorize_lookup`; verificar resultado de regra específica sobre geral e erros de catálogo, não apenas contagem.
-- [ ] Rodar `bundle exec ruby test/jrc_service_desk/intake_catalogue_test.rb`: RED por classe ausente.
-- [ ] Implementar catálogo puro e input estrito: um motivo/classificação, campos limitados, CPF/CNPJ sem exposição em logs/títulos e e-mail validado. Não atribuir identidade autenticada a formato válido.
-- [ ] Gerar artefatos privados a partir dos arquivos lidos; conferir quatro sistemas, 65 submotivos, 8 hyperlinks Notion, todas as condições Maringá e modelos de 48h/satisfação/JIRA. Repetições no DOCX não geram respostas duplicadas; placeholders exigem parâmetros.
-- [ ] Rodar teste e auditoria privada fontes→artefatos; GREEN, nenhum original alterado. Commit `feat(service-desk): validate versioned intake catalogues` somente código e fixtures sintéticas.
+- [x] Escrever `test_classifies_municipality_exception_without_cross_row_inference`, `test_rejects_unknown_combination_and_placeholder`, `test_preserves_days_and_no_deadline`, `test_declared_profile_does_not_authorize_lookup`; verificar resultado de regra específica sobre geral e erros de catálogo, não apenas contagem.
+- [x] Rodar `bundle exec ruby test/jrc_service_desk/intake_catalogue_test.rb`: RED por classe ausente.
+- [x] Implementar catálogo puro e input estrito: um motivo/classificação, campos limitados, CPF/CNPJ sem exposição em logs/títulos e e-mail validado. Não atribuir identidade autenticada a formato válido.
+- [x] Gerar artefatos privados a partir dos arquivos lidos; conferir quatro sistemas, 65 submotivos, 8 hyperlinks Notion, todas as condições Maringá e modelos de 48h/satisfação/JIRA. Repetições no DOCX não geram respostas duplicadas; placeholders exigem parâmetros.
+- [x] Rodar teste e auditoria privada fontes→artefatos; GREEN, nenhum original alterado. Commit `feat(service-desk): validate versioned intake catalogues` somente código e fixtures sintéticas.
 
 ### Task 2: Configuração publicada e demanda durável
 
@@ -56,11 +56,11 @@ Configuração e conteúdo Branef: artefatos locais `output/BRANEF-ATENDIMENTO-C
 
 **Interfaces:** IntakeConfiguration: account, inbox, revision, catalogue, mappings, mode, enabled, remote_writes_enabled; revisões publicadas imutáveis, uma ativa por caixa. IntakeDemand: account/conversation/contact/inbox, UUID de episódio, revisão fixada, ator de serviço, entrada cifrada, fingerprint, estado/recibos e referência remota; dados pessoais não expostos na resposta pública. `Submission.call(authority:, conversation:, arguments:)` cria/reutiliza demanda e devolve `{id, state, created}` sem rede. UUID estável da operação de início fica persistido e é reutilizado pelo status; nova demanda exige início explícito.
 
-- [ ] RED: `test_same_episode_reuses_row`, `test_incompatible_retry_is_conflict`, `test_new_explicit_episode_can_create_another_demand`, `test_cross_account_or_inbox_is_denied`, `test_published_revision_is_immutable`, `test_no_glpi_request_inside_submission`.
-- [ ] Rodar `bundle exec ruby test/jrc_service_desk/intake_submission_integration.rb`, confirmar ausência de recurso e não erro de setup.
-- [ ] Criar tabelas e constraints compostas; cifrar input; validar associação ativa conta/caixa/conversa/contato e identidade operacional; publicar só catálogo válido. Conservar mapeamentos pendentes claramente, bloqueando escrita real até ficar pronto.
-- [ ] Expor GET/configuração e publicação administrativa, POST prévia/triagem e GET estado por conversa, com whitelist e projeção sem PII. Conta/caixa vêm do contexto autenticado.
-- [ ] GREEN com migração em banco sintético, regressão do módulo; commit `feat(service-desk): persist scoped intake demands`.
+- [x] RED: `test_same_episode_reuses_row`, `test_incompatible_retry_is_conflict`, `test_new_explicit_episode_can_create_another_demand`, `test_cross_account_or_inbox_is_denied`, `test_published_revision_is_immutable`, `test_no_glpi_request_inside_submission`.
+- [x] Rodar `bundle exec ruby test/jrc_service_desk/intake_submission_integration.rb`, confirmar ausência de recurso e não erro de setup.
+- [x] Criar tabelas e constraints compostas; cifrar input; validar associação ativa conta/caixa/conversa/contato e identidade operacional; publicar só catálogo válido. Conservar mapeamentos pendentes claramente, bloqueando escrita real até ficar pronto.
+- [x] Expor GET/configuração e publicação administrativa, POST prévia/triagem com whitelist e projeção sem PII; a leitura por conversa acompanha a UI da Task 6. Conta/caixa vêm do contexto autenticado.
+- [x] GREEN com migração em banco sintético, regressão do módulo; commit `feat(service-desk): persist scoped intake demands`.
 
 ### Task 3: Entrega GLPI, fila, SLA e recibos parciais
 
