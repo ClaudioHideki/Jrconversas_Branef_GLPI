@@ -15,29 +15,45 @@ class JrcServiceDesk::Intake::Delivery
   private
 
   def deliver
+    perform_delivery
+  rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound
+    finish(@demand.remote_id ? 'partial' : 'rejected', 'intake_not_authorized')
+  rescue JrcServiceDesk::Glpi::Error => e
+    finish(@demand.remote_id ? 'partial' : 'rejected', e.code)
+  rescue ArgumentError, KeyError, TypeError
+    finish(@demand.remote_id ? 'partial' : 'rejected', 'intake_mapping_invalid')
+  end
+
+  def perform_delivery
+    prepare!
+    return @demand.receipt unless create_ticket!
+
+    record_link!
+    return @demand.receipt unless assignment! && sla!
+
+    finish('confirmed')
+  end
+
+  def prepare!
     @origin = JrcServiceDesk::Intake::Origin.new(@demand)
     @mapping = JrcServiceDesk::Intake::Mapping.new(@demand)
     access = authorize!
     preflight!(access)
     @demand.update!(state: 'sending')
     @command = JrcServiceDesk::Glpi::AutomationCommand.new(authorizer: -> { authorize! })
+  end
+
+  def create_ticket!
     ticket = @command.create(user_context: authorize!.context.to_h, destination: @mapping.destination,
       attributes: @mapping.attributes, idempotency_key: stage_key('ticket'))
     record_stage('ticket', ticket)
-    return finish(ticket[:state] == 'rejected' ? 'rejected' : 'indeterminate', ticket[:error_code]) unless ticket[:state] == 'succeeded'
+    unless ticket[:state] == 'succeeded'
+      finish(ticket[:state] == 'rejected' ? 'rejected' : 'indeterminate', ticket[:error_code])
+      return false
+    end
 
     @demand.update!(remote_id: JrcServiceDesk::Input.id(ticket.fetch(:remote_id)))
-    record_link!
-    return @demand.receipt unless assignment!
-    return @demand.receipt unless sla!
-
-    finish('confirmed')
-  rescue Pundit::NotAuthorizedError, ActiveRecord::RecordNotFound
-    finish(@demand.remote_id ? 'partial' : 'rejected', 'intake_not_authorized')
-  rescue JrcServiceDesk::Glpi::Error => error
-    finish(@demand.remote_id ? 'partial' : 'rejected', error.code)
-  rescue ArgumentError, KeyError, TypeError
-    finish(@demand.remote_id ? 'partial' : 'rejected', 'intake_mapping_invalid')
+    true
   end
 
   def authorize!

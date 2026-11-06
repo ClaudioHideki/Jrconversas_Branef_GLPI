@@ -116,6 +116,7 @@ jobs:
           done
           exit "$result"
       - name: Lint do intake e protocolo tipado
+        id: intake_lint
         if: always() && steps.ruby.outcome == 'success'
         run: >-
           bundle exec rubocop
@@ -131,7 +132,24 @@ jobs:
           app/controllers/api/v1/accounts/jrc_domain_commands_controller.rb
           test/jrc_service_desk/intake_*rb
           test/glpi_lab/intake_application.rb
+      - name: Propor somente formatacao do codigo revisado
+        if: failure() && steps.intake_lint.outcome == 'failure'
+        run: |
+          bundle exec rubocop -a --except Rails/RefuteMethods \
+            app/services/jrc_service_desk/intake app/services/jrc_service_desk/glpi/intake_sla.rb \
+            app/models/jrc_service_desk/intake_configuration.rb app/models/jrc_service_desk/intake_demand.rb \
+            app/jobs/jrc_service_desk/intake_delivery_job.rb app/services/jrc_domain_commands \
+            app/services/jrc_flow_effects/authority.rb app/services/jrc_flow_effects/apply.rb \
+            app/models/jrc_flow_effect_receipt.rb app/controllers/api/v1/accounts/jrc_domain_commands_controller.rb \
+            test/jrc_service_desk/intake_*rb test/glpi_lab/intake_application.rb || true
+          git diff --binary -- app test > "$RUNNER_TEMP/intake-format.patch"
       - uses: actions/upload-artifact@v4
+        if: failure() && steps.intake_lint.outcome == 'failure'
+        with:
+          name: intake-format-${{ github.sha }}
+          path: ${{ runner.temp }}/intake-format.patch
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: glpi-schema-${{ github.sha }}
           path: db/schema.rb

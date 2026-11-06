@@ -22,12 +22,18 @@ class JrcDomainCommands::Request
   end
 
   def self.validate_intake(value)
-    expected = value['command'] == 'service_desk_status' ? %w[command episode_key] :
-      %w[command configuration_id configuration_revision episode_key phase input]
+    expected = %w[command episode_key]
+    expected += %w[configuration_id configuration_revision phase input] if value['command'] == 'service_desk_intake'
     raise ArgumentError, 'domain_keys' unless value.keys.sort == expected.sort
-    raise ArgumentError, 'intake_episode' unless value['episode_key'].is_a?(String) && JrcServiceDesk::Intake::Submission::UUID.match?(value['episode_key'])
+    valid_episode = value['episode_key'].is_a?(String) && JrcServiceDesk::Intake::Submission::UUID.match?(value['episode_key'])
+    raise ArgumentError, 'intake_episode' unless valid_episode
     return value if value['command'] == 'service_desk_status'
 
+    validate_intake_fields(value)
+    value
+  end
+
+  def self.validate_intake_fields(value)
     %w[configuration_id configuration_revision].each do |key|
       raise ArgumentError, 'intake_configuration' unless valid_owner?(value[key])
     end
@@ -35,7 +41,6 @@ class JrcDomainCommands::Request
     raise ArgumentError, 'intake_input' unless value['input'].is_a?(Hash) &&
                                               (value['input'].keys - JrcServiceDesk::Intake::Input::FIELDS).empty?
 
-    value
   end
 
   def self.decode(raw)

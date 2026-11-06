@@ -38,14 +38,14 @@ class JrcDomainCommands::Scope
 
     member = @account.account_users.lock('FOR SHARE').find_by!(user_id: @authority.user.id)
     CustomRole.lock('FOR SHARE').find(member.custom_role_id) if member.custom_role_id
-    permitted = if JrcDomainCommands::Request::INTAKE_COMMANDS.include?(command)
-                  service_desk?
-                elsif command
-                  JrcDomainCommands::Request::COMMANDS.include?(command) && crm?
-                else
-                  crm? || service_desk?
-                end
-    raise Pundit::NotAuthorizedError unless permitted
+    raise Pundit::NotAuthorizedError unless allowed_command?(command)
+  end
+
+  def allowed_command?(command)
+    return crm? || service_desk? if command.nil?
+    return service_desk? if JrcDomainCommands::Request::INTAKE_COMMANDS.include?(command)
+
+    JrcDomainCommands::Request::COMMANDS.include?(command) && crm?
   end
 
   def crm?

@@ -7,21 +7,30 @@ class JrcServiceDesk::Intake::Mapping
   def initialize(demand)
     @input = demand.normalized_input
     mappings = demand.intake_configuration.mappings
+    @route = resolve_route(mappings)
+    @requester_id = resolve_requester(mappings, demand.contact_id)
+    @destination = demand.source_context.slice('connection_id', 'connection_version').merge('entity_id' => route['entity_id'])
+  end
+
+  def resolve_route(mappings)
     routes = mappings.fetch('routes').select { |row| SELECTORS.all? { |key| row[key] == input[key] } }
     raise ArgumentError, 'intake_route_unmapped' unless routes.one?
 
-    @route = JrcServiceDesk::Input.attributes(routes.first, SELECTORS + %w[entity_id category_id group_id requester_policy sla])
-    @route['entity_id'] = JrcServiceDesk::Glpi::Identifiers.remote(route.fetch('entity_id'))
-    %w[category_id group_id].each { |key| @route[key] = JrcServiceDesk::Input.id(route.fetch(key)) }
+    value = JrcServiceDesk::Input.attributes(routes.first, SELECTORS + %w[entity_id category_id group_id requester_policy sla])
+    value['entity_id'] = JrcServiceDesk::Glpi::Identifiers.remote(value.fetch('entity_id'))
+    %w[category_id group_id].each { |key| value[key] = JrcServiceDesk::Input.id(value.fetch(key)) }
+    value
+  end
+
+  def resolve_requester(mappings, contact_id)
     raise ArgumentError, 'intake_requester_unmapped' unless route['requester_policy'] == 'mapped_contact'
 
     requesters = mappings.fetch('requesters').select do |row|
-      row['contact_id'].to_s == demand.contact_id.to_s && row['entity_id'].to_s == route['entity_id'].to_s
+      row['contact_id'].to_s == contact_id.to_s && row['entity_id'].to_s == route['entity_id'].to_s
     end
     raise ArgumentError, 'intake_requester_unmapped' unless requesters.one?
 
-    @requester_id = JrcServiceDesk::Input.id(requesters.first.fetch('user_id'))
-    @destination = demand.source_context.slice('connection_id', 'connection_version').merge('entity_id' => route['entity_id'])
+    JrcServiceDesk::Input.id(requesters.first.fetch('user_id'))
   end
 
   def preflight!(access:, client:)

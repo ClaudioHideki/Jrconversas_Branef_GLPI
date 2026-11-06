@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Flat synthetic integration scenarios use plain Minitest assertions.
+# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+
 # Real GLPI 10 API, synthetic requester and independent readbacks; no customer network.
 class GlpiIntakeLaboratoryTest < IntakeIntegrationTest
   def setup
@@ -32,7 +35,7 @@ class GlpiIntakeLaboratoryTest < IntakeIntegrationTest
       assert_equal @intake.fetch('category_id'), ticket.fetch('itilcategories_id').to_i
       assert_equal @intake.fetch('sla_id'), ticket.fetch('slas_id_ttr').to_i
       assert ticket.fetch('time_to_resolve').present?
-      assert_in_delta 5.days.to_i, Time.parse(ticket.fetch('time_to_resolve')) - Time.parse(ticket.fetch('date')), 1
+      assert_in_delta 5.days.to_i, Time.zone.parse(ticket.fetch('time_to_resolve')) - Time.zone.parse(ticket.fetch('date')), 1
       requesters = client.collection("Ticket/#{id}/Ticket_User/").select { |actor| actor['type'].to_i == 1 }
       assert requesters.any? { |actor| actor['users_id'].to_i == @intake.fetch('requester_id') }
       refute requesters.any? { |actor| actor['users_id'].to_i == @fixtures.fetch('technical_user_id') }
@@ -49,6 +52,8 @@ class GlpiIntakeLaboratoryTest < IntakeIntegrationTest
     assert_equal 0, JrcServiceDesk::Ticket.where(account: @account).count
     command = JrcServiceDesk::GlpiCommand.find(result.dig(:stages, 'sla', 'id'))
     GlpiLabEvidence::RESULTS['ticket.sla'] = command.receipt.slice(:state, :error_code, :technical_user_id, :itemtype)
-    GlpiLabEvidence::CHECKS << 'actual intake one ticket, mapped requester distinct from technical identity, queue, five native days, replay without write'
+    GlpiLabEvidence::CHECKS << 'actual intake: one ticket, separate requester, group, five native days, replay without write'
   end
 end
+
+# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods

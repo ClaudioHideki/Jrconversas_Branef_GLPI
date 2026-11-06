@@ -41,14 +41,22 @@ class JrcServiceDesk::Intake::Origin
   def values = @demand.source_context
 
   def validate_binding!(context)
+    validate_configuration!(context)
+    JrcBrokerIntegration.find_by!(account_id: @demand.account_id, organization_id: values.fetch('organization_id'))
+    JrcBrokerInboxBinding.find_by!(account_id: @demand.account_id, inbox_id: @demand.inbox_id,
+      integration_id: values.fetch('integration_id'))
+    validate_connection!
+  end
+
+  def validate_configuration!(context)
     configuration = @demand.intake_configuration.reload
     valid = configuration.enabled? && configuration.remote_writes_enabled? && context.native_operator? &&
             context.capability?(:tickets_create) && JrcBroker::Configuration.enabled? && context.account.feature_enabled?('jrc_broker')
     raise Pundit::NotAuthorizedError unless valid
 
-    JrcBrokerIntegration.find_by!(account_id: @demand.account_id, organization_id: values.fetch('organization_id'))
-    JrcBrokerInboxBinding.find_by!(account_id: @demand.account_id, inbox_id: @demand.inbox_id,
-      integration_id: values.fetch('integration_id'))
+  end
+
+  def validate_connection!
     connection = JrcServiceDesk::GlpiConnection.find_by!(account_id: @demand.account_id, id: values.fetch('connection_id'))
     unless connection.enabled? && connection.primary_source? && connection.lock_version == values.fetch('connection_version')
       raise Pundit::NotAuthorizedError

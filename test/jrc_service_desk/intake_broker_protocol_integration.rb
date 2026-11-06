@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Flat synthetic integration scenarios use plain Minitest assertions.
+# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+
 require_relative 'intake_test_helper'
 
 class IntakeBrokerProtocolIntegrationTest < IntakeIntegrationTest
@@ -66,3 +69,5 @@ class IntakeBrokerProtocolIntegrationTest < IntakeIntegrationTest
     JrcFlowEffects::Apply.new(account: @account, user: @user, access_token: @access_token).call(conversation.display_id, input)
   end
 end
+
+# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods

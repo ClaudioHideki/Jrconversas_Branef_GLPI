@@ -24,12 +24,7 @@ class IntakeIntegrationTest < GlpiIntegrationTest
     )
     @access_token = AccessToken.find_or_create_by!(owner: @user)
     @authority = JrcFlowEffects::Authority.new(account: @account, user: @user, access_token: @access_token)
-    @account.enable_features!('jrc_broker')
-    @organization = SecureRandom.uuid
-    @integration = SecureRandom.uuid
-    JrcBrokerIntegration.create!(account: @account, organization_id: @organization, broker_origin: 'https://broker.example.test',
-      destination_revision: 1, encrypted_control_key: 'synthetic-unused')
-    @binding = JrcBrokerInboxBinding.create!(account: @account, inbox: @inbox, integration_id: @integration, instance_id: SecureRandom.uuid)
+    configure_broker
     @arguments = { 'configuration_id' => @configuration.id, 'configuration_revision' => 1,
                    'episode_key' => SecureRandom.uuid, 'phase' => 'qualified', 'input' => {
                      'system' => 'example', 'location' => 'south', 'reason' => 'request', 'subject' => 'access',
@@ -38,4 +33,14 @@ class IntakeIntegrationTest < GlpiIntegrationTest
                    } }
   end
 
+  private
+
+  def configure_broker
+    @account.enable_features!('jrc_broker')
+    @organization = SecureRandom.uuid
+    @integration = SecureRandom.uuid
+    JrcBrokerIntegration.create!(account: @account, organization_id: @organization, broker_origin: 'https://broker.example.test',
+      destination_revision: 1, encrypted_control_key: 'synthetic-unused')
+    @binding = JrcBrokerInboxBinding.create!(account: @account, inbox: @inbox, integration_id: @integration, instance_id: SecureRandom.uuid)
+  end
 end
