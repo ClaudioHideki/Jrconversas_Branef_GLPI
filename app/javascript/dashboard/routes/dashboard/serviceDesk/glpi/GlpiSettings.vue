@@ -469,9 +469,20 @@ const reconcileCommand = async () => {
         }}
       </p>
     </Panel>
-    <details v-if="configuration" class="rounded-lg border border-n-weak p-4" @toggle="intakeExpanded = $event.target.open">
-      <summary class="cursor-pointer font-medium">{{ t('JRC_SERVICE_DESK.INTAKE.title') }}</summary>
-      <IntakeConfiguration v-if="intakeExpanded" :account-id="session.accountId.value" :user-id="session.userId.value" class="mt-4" />
+    <details
+      v-if="configuration"
+      class="rounded-lg border border-n-weak p-4"
+      @toggle="intakeExpanded = $event.target.open"
+    >
+      <summary class="cursor-pointer font-medium">
+        {{ t('JRC_SERVICE_DESK.INTAKE.title') }}
+      </summary>
+      <IntakeConfiguration
+        v-if="intakeExpanded"
+        :account-id="session.accountId.value"
+        :user-id="session.userId.value"
+        class="mt-4"
+      />
     </details>
   </section>
 </template>

@@ -34,7 +34,11 @@ class JrcServiceDesk::IntakeNotification < JrcServiceDesk::AccountRecord
     validate_account_reference(:message) if message
     expected = [inbox_id, conversation_id]
     valid = intake_demand && expected == [intake_demand.inbox_id, intake_demand.conversation_id]
-    valid &&= message.conversation_id == conversation_id && message.inbox_id == inbox_id if message
+    valid &&= message_matches?
     errors.add(:base, 'intake notice identity mismatch') unless valid
+  end
+
+  def message_matches?
+    message.nil? || (message.conversation_id == conversation_id && message.inbox_id == inbox_id)
   end
 end

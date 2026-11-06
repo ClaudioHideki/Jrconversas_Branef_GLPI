@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # End-to-end authorization and readiness scenarios use synthetic data only.
-# rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+# rubocop:disable Metrics/AbcSize, Rails/RefuteMethods
 require_relative 'intake_delivery_test_helper'
 
 class IntakeVisibilityIntegrationTest < IntakeDeliveryTest
@@ -18,7 +18,7 @@ class IntakeVisibilityIntegrationTest < IntakeDeliveryTest
     result = JSON.parse(@http.response.body)
     assert_equal @account.id.to_s, result.fetch('account_id')
     assert_equal @user.id.to_s, result.fetch('user_id')
-    assert_equal [@inbox.id.to_s], result.fetch('inboxes').map { |row| row.fetch('id') }
+    assert_equal([@inbox.id.to_s], result.fetch('inboxes').map { |row| row.fetch('id') })
   end
 
   def test_incomplete_mapping_preview_never_claims_ready_or_requests_glpi
@@ -40,7 +40,7 @@ class IntakeVisibilityIntegrationTest < IntakeDeliveryTest
     assert_equal 200, @http.response.status
     refute JSON.parse(@http.response.body).fetch('ready')
     @http.post("#{@path}/configuration", params: values.merge(expected_revision: 2, remote_writes_enabled: true),
-      headers: @headers, as: :json)
+                                         headers: @headers, as: :json)
     assert_equal 409, @http.response.status
     assert_equal 2, JrcServiceDesk::IntakeConfiguration.where(account: @account).count
   end
@@ -50,7 +50,7 @@ class IntakeVisibilityIntegrationTest < IntakeDeliveryTest
     @http.get("#{@path}/conversations/#{@conversation.display_id}", headers: @headers)
     assert_equal 200, @http.response.status
     rows = JSON.parse(@http.response.body).fetch('demands')
-    assert_equal [@demand.id.to_s], rows.map { |row| row.fetch('id') }
+    assert_equal([@demand.id.to_s], rows.map { |row| row.fetch('id') })
     assert_equal 'example', rows.first.fetch('selection').fetch('system')
     refute_includes @http.response.body, '12345678901'
     refute_includes @http.response.body, 'synthetic@example.invalid'
@@ -77,4 +77,4 @@ class IntakeVisibilityIntegrationTest < IntakeDeliveryTest
       mappings: @delivery_configuration.mappings.deep_dup, remote_writes_enabled: false }
   end
 end
-# rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Rails/RefuteMethods
+# rubocop:enable Metrics/AbcSize, Rails/RefuteMethods

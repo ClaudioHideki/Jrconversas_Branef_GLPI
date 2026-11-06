@@ -55,7 +55,8 @@ class Api::V1::Accounts::JrcServiceDesk::IntakeController < Api::V1::Accounts::J
   def complete
     demand = authorized_demand
     values = ::JrcServiceDesk::Input.attributes(request.request_parameters, %w[source_version])
-    ::JrcServiceDesk::Intake::HumanCompletion.new.call(demand_id: demand.id, operator_context: pundit_user, source_version: values.fetch('source_version'))
+    ::JrcServiceDesk::Intake::HumanCompletion.new.call(demand_id: demand.id, operator_context: pundit_user,
+                                                       source_version: values.fetch('source_version'))
     render json: envelope(completed: true)
   end
 

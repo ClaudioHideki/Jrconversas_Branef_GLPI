@@ -216,7 +216,7 @@ describe('Service Desk presentation preserves operational authority', () => {
     ).toBe('edit');
   });
 
-  it('has Portuguese translations for every Service Desk key, preserving interpolation tokens', () => {
+  it('preserves Portuguese translations and uses English fallback for new intake source strings awaiting Crowdin', () => {
     const leaves = (node, prefix = '') =>
       Object.entries(node).flatMap(([key, value]) =>
         typeof value === 'object' && !Array.isArray(value)
@@ -224,12 +224,28 @@ describe('Service Desk presentation preserves operational authority', () => {
           : [[`${prefix}${key}`, value]]
       );
     const portuguese = Object.fromEntries(leaves(messages));
+    const fallback = createI18n({
+      legacy: false,
+      locale: 'pt_BR',
+      fallbackLocale: 'en',
+      missingWarn: false,
+      fallbackWarn: false,
+      messages: { pt_BR: messages, en: source },
+    });
     leaves(source).forEach(([key, value]) => {
+      // AGENTS.md requires product source additions in en only; existing Portuguese coverage stays strict.
+      if (key.startsWith('JRC_SERVICE_DESK.INTAKE.')) {
+        expect(fallback.global.te(key, 'en'), key).toBe(true);
+        return;
+      }
       expect(portuguese[key], key).toBeDefined();
       if (typeof value === 'string') {
         const tokens = text => (text.match(/\{[a-z_]+\}/g) || []).sort();
         expect(tokens(portuguese[key]), key).toEqual(tokens(value));
       }
     });
+    expect(fallback.global.t('JRC_SERVICE_DESK.INTAKE.title')).toBe(
+      source.JRC_SERVICE_DESK.INTAKE.title
+    );
   });
 });

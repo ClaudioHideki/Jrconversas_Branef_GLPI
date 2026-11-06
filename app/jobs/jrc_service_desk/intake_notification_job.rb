@@ -26,8 +26,8 @@ class JrcServiceDesk::IntakeNotificationJob < ApplicationJob
   def build_message(notice, context)
     message = JrcServiceDesk::NativeExecutionContext.with(context.to_h) do
       Messages::MessageBuilder.new(nil, notice.conversation,
-        content: notice.rendered_payload, message_type: 'outgoing', private: false,
-        content_attributes: { service_desk_intake_notice_id: notice.id }).perform
+                                   content: notice.rendered_payload, message_type: 'outgoing', private: false,
+                                   content_attributes: { service_desk_intake_notice_id: notice.id }).perform
     end
     notice.update!(message: message, payload_digest: JrcServiceDesk::Intake::NoticePayload.digest(message, notice))
   end

@@ -4,6 +4,7 @@ import ConversationHeader from './ConversationHeader.vue';
 import DashboardAppFrame from '../DashboardApp/Frame.vue';
 import EmptyState from './EmptyState/EmptyState.vue';
 import MessagesView from './MessagesView.vue';
+import ConversationIntake from 'dashboard/routes/dashboard/serviceDesk/components/ConversationIntake.vue';
 
 export default {
   components: {
@@ -11,6 +12,7 @@ export default {
     DashboardAppFrame,
     EmptyState,
     MessagesView,
+    ConversationIntake,
   },
   props: {
     hideHeader: {
@@ -42,6 +44,7 @@ export default {
     ...mapGetters({
       currentChat: 'getSelectedChat',
       dashboardApps: 'dashboardApps/getRecords',
+      currentUserId: 'getCurrentUserID',
     }),
     dashboardAppTabs() {
       return [
@@ -59,6 +62,11 @@ export default {
     },
     showContactPanel() {
       return this.isContactPanelOpen && this.currentChat.id;
+    },
+    showIntake() {
+      const enabled = this.$store.getters['accounts/isFeatureEnabledonAccount'];
+      return !!this.currentChat.id && !!this.currentChat.account_id && !!this.currentUserId &&
+        typeof enabled === 'function' && enabled(this.currentChat.account_id, 'jrc_service_desk') === true;
     },
   },
   watch: {
@@ -126,6 +134,12 @@ export default {
         is-compact
       />
     </woot-tabs>
+    <ConversationIntake
+      v-if="showIntake && !activeIndex"
+      :account-id="String(currentChat.account_id)"
+      :user-id="String(currentUserId)"
+      :conversation-id="String(currentChat.id)"
+    />
     <div v-show="!activeIndex" class="flex h-full min-h-0 m-0">
       <MessagesView
         v-if="currentChat.id"

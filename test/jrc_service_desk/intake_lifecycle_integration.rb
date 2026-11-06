@@ -118,28 +118,13 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
   def test_two_workers_confirm_only_one_remote_close
     notice = delivered_notice
     deadline = @demand.reload.waiting_deadline
-    pool = ActiveRecord::Base.connection_pool
-    warmed = Array.new(2) { pool.checkout }
-    warmed.each { |connection| connection.select_value('SELECT 1') }
-    warmed.each { |connection| pool.checkin(connection) }
-    connection_ids = Queue.new
     Time.stub(:current, deadline + 1.second) do
       JrcServiceDesk::Glpi::Client.stub(:new, @remote) do
-        workers = 2.times.map do
-          Thread.new do
-            pool.with_connection do |connection|
-              connection_ids << connection.object_id
-              JrcServiceDesk::Intake::PendingInformation.new.expire(demand_id: @demand.id, generation: notice.generation)
-            end
-          end
-        end
-        workers.each(&:value)
-        assert_equal 2, Array.new(2) { connection_ids.pop }.uniq.size
+        run_pending_workers(notice)
       end
     end
     assert_equal 'closed_no_response', @demand.reload.lifecycle_state
-    closes = @remote.writes.count { |_verb, _type, _id, input| input['status'] == 6 }
-    assert_equal 1, closes
+    assert_equal 1, @remote.writes.count { |_verb, _type, _id, input| input['status'] == 6 }
   end
 
   def test_revoked_configuration_cancels_before_requesting_the_source
@@ -241,6 +226,40 @@ class IntakeLifecycleIntegrationTest < IntakeDeliveryTest
   end
 
   private
+
+  def run_pending_workers(notice)
+    pool = warm_database_pool
+    ids, gate = Queue.new, Queue.new
+    workers = Array.new(2) { pending_worker(pool, ids, gate, notice) }
+    Timeout.timeout(20) do
+      assert_equal 2, Array.new(2) { ids.pop }.uniq.size
+      2.times { gate << true }
+      workers.each(&:value)
+    end
+  ensure
+    workers&.each { |worker| worker.kill if worker.alive? }
+    workers&.each(&:join)
+  end
+
+  def pending_worker(pool, ids, gate, notice)
+    Thread.new do
+      pool.with_connection do |connection|
+        ids << connection.object_id
+        gate.pop
+        JrcServiceDesk::Intake::PendingInformation.new.expire(demand_id: @demand.id, generation: notice.generation)
+      end
+    end
+  end
+
+  def warm_database_pool
+    pool = ActiveRecord::Base.connection_pool
+    warmed = Array.new(2) { pool.checkout }
+    warmed.each do |connection|
+      connection.select_value('SELECT 1')
+      pool.checkin(connection)
+    end
+    pool
+  end
 
   def prepare_notice
     notice = JrcServiceDesk::Intake::Notification.new.call(demand_id: @demand.id, kind: 'pending_information',

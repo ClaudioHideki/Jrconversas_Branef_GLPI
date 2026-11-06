@@ -41,7 +41,6 @@ class JrcServiceDesk::Intake::Notification
       settings['enabled'] == true && settings['owner'] == 'jrc' && settings['channel'] == channel
   end
 
-
   def self.owns_conversation?(conversation)
     latest = JrcServiceDesk::IntakeDemand.where(account_id: conversation.account_id, conversation_id: conversation.id).order(id: :desc).first
     return false unless latest

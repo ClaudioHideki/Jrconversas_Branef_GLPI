@@ -9,7 +9,7 @@ class JrcServiceDesk::Intake::Visibility
     raise Pundit::NotAuthorizedError unless @context.native_operator? && @context.capability?(:tickets_view)
 
     JrcServiceDesk::IntakeDemand.where(account_id: @context.account.id, conversation_id: conversation.id,
-                                      inbox_id: conversation.inbox_id, contact_id: conversation.contact_id).order(id: :desc).limit(30).filter_map do |demand|
+                                       inbox_id: conversation.inbox_id, contact_id: conversation.contact_id).order(id: :desc).limit(30).filter_map do |demand|
       present(demand) if visible?(demand)
     end
   end

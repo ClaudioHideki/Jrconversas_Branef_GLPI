@@ -12,7 +12,7 @@ class JrcServiceDesk::Intake::SelectionSet
       system.fetch('reasons').each do |reason|
         combinations(system, reason).each do |location, profile, subject, severity|
           values << @catalogue.classify(system: system['code'], location: location['code'], profile: profile&.fetch('code'),
-                                       reason: reason['code'], subject: subject['code'], severity: severity)
+                                        reason: reason['code'], subject: subject['code'], severity: severity)
           raise ArgumentError, 'intake_selection_limit' if values.size > 1000
         end
       end
