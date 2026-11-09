@@ -22,8 +22,8 @@
     {
       "path": ".github/workflows/backoffice-flow.yml",
       "baseSha256": null,
-      "sha256": "20d102880cda0a9e26b02ee3b09ae3ebac7b13e2a64161561eec1207b99031a0",
-      "bytes": 15198
+      "sha256": "c2a46225307176931407272ecf23fc1356ae183a56da305c4cc3add3e907164c",
+      "bytes": 15258
     },
     {
       "path": ".github/workflows/build-ghcr.yml",
@@ -190,7 +190,7 @@
     {
       "path": "app/javascript/dashboard/routes/dashboard/jrcFlows/nativeEditorBuild.js",
       "baseSha256": null,
-      "sha256": "10357e9caf6fac4471c7096b746d3b5205d2be71c68a2a6184be4af7bac2e6a6",
+      "sha256": "e1fb6d8d50d9f119323791e013cbf444273db82e5b79b5279c9ac1694d363cbf",
       "bytes": 161
     },
     {
@@ -964,20 +964,20 @@
     {
       "path": "public/jrc-flow-editor/EDITOR-BUILD-MANIFEST.json",
       "baseSha256": null,
-      "sha256": "161d85e5b9b9d8a610c38a7b48e84194e879369e761c4ad051ee9bc06c527ee0",
-      "bytes": 39997
+      "sha256": "4abb24f0787191afdacea828b8dff96c6633743e64baaf5c46c328bc0d070ccd",
+      "bytes": 42025
     },
     {
       "path": "public/jrc-flow-editor/editor.css",
       "baseSha256": null,
-      "sha256": "71fa57194fdee277348c5a6b7abaf2024fb2a072a8083e2a5cc80f3e94ad85f6",
-      "bytes": 29555
+      "sha256": "42548825c675edc419225c00df7c6c1a7d60c23b1d008395b2ea06d0462319db",
+      "bytes": 30597
     },
     {
       "path": "public/jrc-flow-editor/editor.js",
       "baseSha256": null,
-      "sha256": "5f4d1881a8fd79c68b6bb9906ef1204d228ce2c1b183e0ba25b3077fd52d5130",
-      "bytes": 971888
+      "sha256": "329b15d30680b9b9902fbbf5b4319a48777203e95b1a16ae8d9f7fb2041900d9",
+      "bytes": 989542
     },
     {
       "path": "public/jrc-flow-editor/editor.js.LEGAL.txt",
