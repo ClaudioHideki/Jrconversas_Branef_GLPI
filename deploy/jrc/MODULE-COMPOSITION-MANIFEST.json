@@ -7,7 +7,7 @@
   "compositionCount": 204,
   "editorStatus": {
     "sourceRepository": "ClaudioHideki/BrokerJRCIA",
-    "sourceSha": "2d30a5a544aa0eae12c208867e4912c369626787",
+    "sourceSha": "5f98f767bea9645aa8f3d6029568ce028e053fd2",
     "sourceCommitted": true,
     "buildManifest": "public/jrc-flow-editor/EDITOR-BUILD-MANIFEST.json"
   },
@@ -916,7 +916,7 @@
     {
       "path": "deploy/jrc/module-composition-input.json",
       "baseSha256": null,
-      "sha256": "00e4aa197ed4740daad320e5ed1fed7944f2f738ce62fa3025f8c608d182f9ea",
+      "sha256": "b066c2cf9d1903c7eb239c671442c2e328c3c223aa541b0f485664d2cb9894ab",
       "bytes": 18462
     },
     {
