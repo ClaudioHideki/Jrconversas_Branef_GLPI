@@ -10,5 +10,6 @@
     "GLPI",
     "Branef intake and source-specific permissions"
   ],
-  "mustRemainExclusive": true
+  "mustRemainExclusive": true,
+  "sourceCoreSha": "9da0134d37e047091e3aab27cb4392b86fcf6bcf"
 }
