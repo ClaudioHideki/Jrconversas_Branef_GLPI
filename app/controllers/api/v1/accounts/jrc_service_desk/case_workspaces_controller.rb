@@ -30,6 +30,12 @@ class Api::V1::Accounts::JrcServiceDesk::CaseWorkspacesController < Api::V1::Acc
       authorize row, :show?
       [row.id, case_presenter.call(row)]
     end
+    # Reuse an existing caller snapshot: Rails cannot change its isolation level.
+    case_id, record = if ActiveRecord::Base.connection.transaction_open?
+                        read_native_record.call
+                      else
+                        ActiveRecord::Base.transaction(isolation: :repeatable_read, &read_native_record)
+                      end
     # Source authorization/reads must not retain the native consistent snapshot.
     references = ::JrcServiceDesk::Glpi::LinkedReferences.new.call(user_context: pundit_user, incident_id: case_id)
     render json: base_payload.merge(record: record.merge(glpi_references: references))
