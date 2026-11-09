@@ -2,8 +2,8 @@ name: Branef - GLPI 10 synthetic laboratory
 on:
   workflow_dispatch:
   push:
-    branches: ['codex/branef-glpi-*-20261104']
-    paths: ['test/glpi_lab/**', '.github/workflows/glpi-laboratory.yml']
+    branches: ['codex/branef-glpi-*-20261104', 'codex/consolidacao-*']
+    paths: ['app/**', 'config/**', 'db/**', 'lib/**', 'Gemfile*', 'test/glpi_lab/**', '.github/workflows/glpi-laboratory.yml']
 permissions:
   contents: read
 jobs:
