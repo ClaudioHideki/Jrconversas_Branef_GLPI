@@ -158,6 +158,7 @@ Rails.application.routes.draw do
               get 'reports', to: 'glpi#report'
               get 'reports/export', to: 'glpi#export'
             end
+            get 'establishments', to: 'establishments#index'
             get 'knowledge', to: 'knowledge#index'
             # Incidents/problems: contextual workspace over the existing native records.
             get 'case_workspaces', to: 'case_workspaces#index'
@@ -1164,6 +1165,7 @@ Rails.application.routes.draw do
 
       namespace :widget do
         get 'service_desk/services', to: 'service_desk#services'
+        get 'service_desk/services/:service_id/establishments', to: 'service_desk#establishments'
         get 'service_desk/knowledge', to: 'service_desk#knowledge'
         get 'service_desk/tickets', to: 'service_desk#index'
         post 'service_desk/tickets', to: 'service_desk#create'
