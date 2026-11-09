@@ -11,6 +11,6 @@
     "Branef intake and source-specific permissions"
   ],
   "mustRemainExclusive": true,
-  "sourceCoreSha": "bf9763339dc22ddd56ea0a10fb8c083b65b17a5f",
+  "sourceCoreSha": "36d85d7c8c43dbf1b85c49032da376acc620b172",
   "brokerSourceSha": "5f98f767bea9645aa8f3d6029568ce028e053fd2"
 }
