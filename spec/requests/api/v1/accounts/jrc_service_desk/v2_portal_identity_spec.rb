@@ -119,6 +119,6 @@ RSpec.describe 'Service Desk current customer identity proof', type: :request do
     expect(filter.filter('HTTP_X_SERVICE_DESK_IDENTITY_TOKEN' => proof)).to eq('HTTP_X_SERVICE_DESK_IDENTITY_TOKEN' => '[FILTERED]')
     expect(filter.filter('identifier_hash' => proof)).to eq('identifier_hash' => '[FILTERED]')
     expect(filter.filter('contact' => { 'identifier' => sd_contact.identifier, 'identifier_hash' => proof }))
-      .to eq('contact' => { 'identifier' => sd_contact.identifier, 'identifier_hash' => '[FILTERED]' })
+      .to eq('contact' => { 'identifier' => '[FILTERED]', 'identifier_hash' => '[FILTERED]' })
   end
 end

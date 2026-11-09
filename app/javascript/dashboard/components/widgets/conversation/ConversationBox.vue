@@ -65,8 +65,13 @@ export default {
     },
     showIntake() {
       const enabled = this.$store.getters['accounts/isFeatureEnabledonAccount'];
-      return !!this.currentChat.id && !!this.currentChat.account_id && !!this.currentUserId &&
-        typeof enabled === 'function' && enabled(this.currentChat.account_id, 'jrc_service_desk') === true;
+      return (
+        !!this.currentChat.id &&
+        !!this.currentChat.account_id &&
+        !!this.currentUserId &&
+        typeof enabled === 'function' &&
+        enabled(this.currentChat.account_id, 'jrc_service_desk') === true
+      );
     },
   },
   watch: {

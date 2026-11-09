@@ -25,7 +25,7 @@ class Api::V1::Accounts::JrcServiceDesk::CaseWorkspacesController < Api::V1::Acc
   def show
     raise ArgumentError unless query_values.empty?
 
-    case_id, record = ActiveRecord::Base.transaction(isolation: :repeatable_read) do
+    read_native_record = lambda do
       row = scoped_case
       authorize row, :show?
       [row.id, case_presenter.call(row)]
