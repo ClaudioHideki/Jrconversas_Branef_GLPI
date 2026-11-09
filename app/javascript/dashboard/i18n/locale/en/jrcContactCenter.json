@@ -1368,10 +1368,24 @@
       "SEARCH": "Buscar conversas ou contatos...",
       "ASSIGNEE_FILTER_LABEL": "Filtrar atendimentos por responsável",
       "CHANNEL_FILTER_LABEL": "Filtrar atendimentos por canal",
+      "STATUS_FILTER_LABEL": "Status das conversas",
+      "STATUSES": {
+        "OPEN": "Em andamento",
+        "PENDING": "Pendentes",
+        "ALL": "Todas e histórico"
+      },
+      "STATUS_TITLES": {
+        "OPEN": "Conversas em andamento carregadas",
+        "PENDING": "Conversas pendentes carregadas",
+        "ALL": "Conversas e histórico carregados"
+      },
+      "CALLS_LOADED": "Chamadas carregadas",
+      "VOICE_LOADED_COUNT": "Chamadas carregadas: {count}",
       "EMPTY": "Nenhum atendimento aberto neste canal.",
       "LOAD_MORE": "Carregar mais atendimentos",
       "CALL_WORKSPACE": "Atendimento de voz",
       "ASSIGNEE": {
+        "MINE_OR_SHARED": "Minhas e compartilhadas",
         "ME": "Minhas",
         "UNASSIGNED": "Não atribuídas",
         "ALL": "Todas"
@@ -1498,6 +1512,15 @@
       "WHATSAPP": "Abrir conversa no WhatsApp",
       "CALLBACK": "Agendar retorno",
       "LABEL_COUNT": "{label} ({count})",
+      "SOURCE_INBOX_ID": "Caixa #{id}",
+      "INBOX_LOADED_COUNT": "{label} · {count} conversas carregadas",
+      "UNREAD_COUNT": "{count} não lidas",
+      "NUMBER_UNCONFIRMED": "Número a confirmar",
+      "ATTENDING_AGENT": "Atendendo: {name}",
+      "ATTENDING_LABEL": "Atendendo",
+      "SOURCE_RECEIVED": "Recebido em: {inbox}",
+      "SOURCE_REPLY": "Responder por: {inbox}",
+      "MESSAGE_YESTERDAY": "Ontem",
       "AGENT_LEG": "Atendimento do agente",
       "CASE_PRIORITIES": {
         "low": "Baixa",
@@ -1538,7 +1561,43 @@
       "RESULT_COMPLETED": "Concluído",
       "RESULT_PENDING": "Pendente",
       "RESULT_CALLBACK": "Agendado retorno",
-      "RESULT_FORWARDED": "Encaminhado"
+      "RESULT_FORWARDED": "Encaminhado",
+      "OVERVIEW": "Visão geral 360°",
+      "MODULE_OVERVIEW": {
+        "HELP": "Visão integrada dos módulos vinculados a este contato. Os totais respeitam suas permissões de acesso.",
+        "OPEN_CRM": "Abrir Cliente 360° no CRM",
+        "UNAVAILABLE": "Não disponível para este acesso.",
+        "LINKED": "Relacionamento vinculado ao cliente.",
+        "CONVERSATIONS": "Atendimento",
+        "CRM": "CRM comercial",
+        "SERVICE_DESK": "Service Desk",
+        "PROJECTS": "Projetos",
+        "CONTRACTS": "Contratos",
+        "ACTIVITIES": "Atividades",
+        "CAMPAIGNS": "Campanhas",
+        "VOICE": "Telefonia",
+        "RELATIONSHIP": "Relacionamento",
+        "conversations_open": "Conversas abertas",
+        "opportunities": "Negócios em aberto",
+        "leads": "Leads",
+        "proposals": "Propostas",
+        "tickets_open": "Chamados em aberto",
+        "sla_breached": "Chamados com SLA vencido",
+        "projects_active": "Projetos ativos",
+        "contracts_active": "Contratos ativos",
+        "pending_activities": "Atividades pendentes",
+        "campaigns_sent": "Envios de campanhas",
+        "calls": "Chamadas registradas"
+      },
+      "ASSIGNMENT": {
+        "TITLE": "Atribuir",
+        "QUICK": "Ações rápidas",
+        "REMOVE_AGENT": "Remover responsável",
+        "REMOVE_TEAM": "Remover equipe",
+        "LOAD_ERROR": "Não foi possível carregar as opções de atribuição.",
+        "SEARCH": "Pesquisar atendente, agente de IA ou equipe"
+      },
+      "ACTION_ERROR": "Não foi possível concluir a ação. Tente novamente."
     },
     "ACW_OPERATION": {
       "HISTORY_OVERDUE": "Limite excedido",

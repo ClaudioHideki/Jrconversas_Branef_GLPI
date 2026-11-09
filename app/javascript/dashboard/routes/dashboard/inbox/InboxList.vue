@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useStore, useMapGetter } from 'dashboard/composables/store';
@@ -12,10 +12,12 @@ import {
   INBOX_CHANNEL_PRESENTATION,
 } from 'dashboard/helper/inbox';
 import JrcContactCenterAPI from 'dashboard/api/jrcContactCenter';
+import ConversationAPI from 'dashboard/api/conversations';
 
 import HoyaInboxWorkspace from './HoyaInboxWorkspace.vue';
 import {
   ASSIGNEE_FILTERS,
+  matchesAssigneeFilter,
   canManageAssigneeFilters,
   assigneeFilterOptions as buildAssigneeFilterOptions,
   resolveAssigneeFilter as resolveAssigneeFilterValue,
@@ -25,11 +27,17 @@ const route = useRoute();
 const router = useRouter();
 const store = useStore();
 const { t } = useI18n();
-const ACTIVE_STATUS_FILTER = 'active';
 
 const page = ref(1);
+const resolveStatus = value =>
+  ['open', 'pending', 'all'].includes(value)
+    ? value
+    : wootConstants.STATUS_TYPE.OPEN;
+const statusFilter = ref(resolveStatus(route.query.status));
 const channelFilter = ref(route.query.channel || 'all');
 const assigneeFilter = ref(ASSIGNEE_FILTERS.ME);
+const sharedScope = ref({ enabled: false, inbox_ids: [] });
+const supervisedInboxIds = ref([]);
 const voiceCalls = ref([]);
 const voiceLoading = ref(false);
 const contactCenterContext = ref(null);
@@ -37,12 +45,18 @@ const voiceError = ref(false);
 const isInitializing = ref(true);
 let accountGeneration = 0;
 let voiceGeneration = 0;
+let sharingGeneration = 0;
+let listGeneration = 0;
+let listRequests = 0;
+let sharingRequest = false;
+let sharingDirty = false;
+let sharingTimer;
 
 const accountId = computed(() => Number(route.params.accountId));
 const currentUser = useMapGetter('getCurrentUser');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
 const inboxById = useMapGetter('inboxes/getInboxById');
-const allOpenConversations = useMapGetter('getAllStatusChats');
+const allStatusConversations = useMapGetter('getAllStatusChats');
 const isLoading = useMapGetter('getChatListLoadingStatus');
 const conversationError = useMapGetter('getChatListErrorStatus');
 const hasEndReached = useMapGetter('conversationPage/getHasEndReached');
@@ -73,12 +87,14 @@ const hasSoftphoneAccess = computed(
     )
 );
 
-const canManageAssignments = computed(() =>
-  canManageAssigneeFilters({
-    role: store.getters.getCurrentRole,
-    customRoleId: store.getters.getCurrentCustomRoleId,
-    permissions: accountPermissions.value,
-  })
+const canManageAssignments = computed(
+  () =>
+    supervisedInboxIds.value.length > 0 ||
+    canManageAssigneeFilters({
+      role: store.getters.getCurrentRole,
+      customRoleId: store.getters.getCurrentCustomRoleId,
+      permissions: accountPermissions.value,
+    })
 );
 
 const hasContactCenter = computed(
@@ -93,10 +109,14 @@ const hasContactCenter = computed(
 );
 
 const assigneeFilterOptions = computed(() =>
-  buildAssigneeFilterOptions(canManageAssignments.value).map(option => ({
+  buildAssigneeFilterOptions(
+    canManageAssignments.value,
+    sharedScope.value.enabled
+  ).map(option => ({
     ...option,
     label: {
       me: t('JRC_CONTACT_CENTER.INBOX.ASSIGNEE.ME'),
+      mine_or_shared: t('JRC_CONTACT_CENTER.INBOX.ASSIGNEE.MINE_OR_SHARED'),
       unassigned: t('JRC_CONTACT_CENTER.INBOX.ASSIGNEE.UNASSIGNED'),
       all: t('JRC_CONTACT_CENTER.INBOX.ASSIGNEE.ALL'),
     }[option.key],
@@ -104,14 +124,42 @@ const assigneeFilterOptions = computed(() =>
 );
 
 const resolveAssigneeFilter = value =>
-  resolveAssigneeFilterValue(value, canManageAssignments.value);
+  resolveAssigneeFilterValue(
+    value,
+    canManageAssignments.value,
+    sharedScope.value.enabled
+  );
+
+const statusFilterOptions = computed(() => [
+  { key: 'open', label: t('JRC_CONTACT_CENTER.INBOX.STATUSES.OPEN') },
+  { key: 'pending', label: t('JRC_CONTACT_CENTER.INBOX.STATUSES.PENDING') },
+  { key: 'all', label: t('JRC_CONTACT_CENTER.INBOX.STATUSES.ALL') },
+]);
 
 const conversationFilters = computed(() => ({
   assigneeType: assigneeFilter.value,
-  status: ACTIVE_STATUS_FILTER,
+  includeParticipating: true,
+  status: statusFilter.value,
   sortBy: wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC,
   page: page.value,
 }));
+
+const acceptSharedScope = scope => {
+  supervisedInboxIds.value = Array.isArray(scope?.supervised_inbox_ids)
+    ? scope.supervised_inbox_ids.filter(
+        id => Number.isSafeInteger(id) && id > 0
+      )
+    : [];
+  const valid =
+    scope?.enabled === true &&
+    Array.isArray(scope.inbox_ids) &&
+    scope.inbox_ids.every(id => Number.isInteger(id) && id > 0);
+  sharedScope.value = valid ? scope : { enabled: false, inbox_ids: [] };
+  if (!valid && assigneeFilter.value === ASSIGNEE_FILTERS.MINE_OR_SHARED) {
+    assigneeFilter.value = ASSIGNEE_FILTERS.ME;
+    store.dispatch('updateChatListFilters', conversationFilters.value);
+  }
+};
 
 const socialChannelKeys = [
   CHANNEL_TYPES.FACEBOOK,
@@ -165,23 +213,24 @@ const channelFilterOptions = computed(() => [
 ]);
 
 const conversations = computed(() => {
-  const authorizedItems = allOpenConversations.value({
-    assigneeType: assigneeFilter.value,
-    status: ACTIVE_STATUS_FILTER,
-  });
-  const items = authorizedItems.filter(conversation => {
-    const assignee =
-      conversation.meta?.assignee_type === 'AgentBot'
-        ? null
-        : conversation.meta?.assignee;
-    if (assigneeFilter.value === ASSIGNEE_FILTERS.ME) {
-      return assignee?.id === currentUser.value?.id;
-    }
-    if (assigneeFilter.value === ASSIGNEE_FILTERS.UNASSIGNED) {
-      return !assignee;
-    }
-    return true;
-  });
+  const items = allStatusConversations
+    .value({
+      assigneeType: assigneeFilter.value,
+      status: statusFilter.value,
+    })
+    .filter(conversation =>
+      inboxes.value.some(
+        inbox => Number(inbox.id) === Number(conversation.inbox_id)
+      )
+    )
+    .filter(conversation =>
+      matchesAssigneeFilter(
+        conversation,
+        assigneeFilter.value,
+        currentUser.value?.id,
+        sharedScope.value.inbox_ids
+      )
+    );
 
   if (channelFilter.value === 'all') return items;
   if (channelFilter.value === 'voice') return [];
@@ -216,14 +265,63 @@ const canLoadMore = computed(
     !hasEndReached.value(assigneeFilter.value)
 );
 
+// Drop absence proof before re-reading. Coalesce event bursts behind one batch request.
+const refreshSharedScope = async () => {
+  if (
+    isInitializing.value ||
+    assigneeFilter.value !== ASSIGNEE_FILTERS.MINE_OR_SHARED
+  )
+    return;
+  sharingGeneration += 1;
+  const request = sharingGeneration;
+  const generation = accountGeneration;
+  sharedScope.value = { ...sharedScope.value, inbox_ids: [] };
+  if (document.visibilityState === 'hidden') return;
+  if (sharingRequest || listRequests) {
+    sharingDirty = true;
+    return;
+  }
+  sharingRequest = true;
+  sharingDirty = false;
+  try {
+    const response = await ConversationAPI.sharedContext(accountId.value);
+    if (request === sharingGeneration && generation === accountGeneration)
+      acceptSharedScope(response.data?.meta?.shared_scope);
+  } catch {
+    if (request === sharingGeneration && generation === accountGeneration)
+      acceptSharedScope(null);
+  } finally {
+    sharingRequest = false;
+    if (sharingDirty) refreshSharedScope();
+  }
+};
+
 const fetchConversations = async ({ reset = false } = {}) => {
+  listGeneration += 1;
+  const request = listGeneration;
+  sharingGeneration += 1;
   if (reset) {
     page.value = 1;
     store.dispatch('conversationPage/reset');
     store.dispatch('emptyAllConversations');
   }
   store.dispatch('updateChatListFilters', conversationFilters.value);
-  await store.dispatch('fetchAllConversations');
+  const generation = accountGeneration;
+  listRequests += 1;
+  try {
+    const data = await store.dispatch('fetchAllConversations');
+    if (
+      generation === accountGeneration &&
+      request === listGeneration &&
+      (data?.meta?.shared_scope ||
+        assigneeFilter.value === ASSIGNEE_FILTERS.MINE_OR_SHARED)
+    ) {
+      acceptSharedScope(data?.meta?.shared_scope);
+    }
+  } finally {
+    listRequests -= 1;
+    if (!listRequests && sharingDirty) refreshSharedScope();
+  }
 };
 
 const fetchVoiceCalls = async () => {
@@ -242,7 +340,10 @@ const fetchVoiceCalls = async () => {
     const [callsResponse, contextResponse] = await Promise.all([
       JrcContactCenterAPI.calls(accountId.value, {
         limit: 50,
-        assignee_type: assigneeFilter.value,
+        assignee_type:
+          assigneeFilter.value === ASSIGNEE_FILTERS.MINE_OR_SHARED
+            ? ASSIGNEE_FILTERS.ME
+            : assigneeFilter.value,
       }),
       JrcContactCenterAPI.context(accountId.value),
     ]);
@@ -285,6 +386,16 @@ const setAssigneeFilter = async key => {
     ...route.query,
     assignee: resolved,
     channel: channelFilter.value === 'all' ? undefined : channelFilter.value,
+  });
+};
+
+const setStatusFilter = async key => {
+  const resolved = resolveStatus(key);
+  if (resolved === statusFilter.value) return;
+  statusFilter.value = resolved;
+  await replaceInboxRoute({
+    ...route.query,
+    status: resolved === wootConstants.STATUS_TYPE.OPEN ? undefined : resolved,
   });
 };
 
@@ -334,24 +445,71 @@ watch(
 
 watch(
   [
+    () => JSON.stringify(inboxes.value),
+    () =>
+      allStatusConversations
+        .value({ status: statusFilter.value })
+        .map(conversation =>
+          [
+            conversation.id,
+            conversation.inbox_id,
+            conversation.updated_at,
+            conversation.status,
+            conversation.meta?.assignee?.id,
+            conversation.meta?.assignee_type,
+            conversation.meta?.team?.id,
+          ].join(':')
+        )
+        .join('|'),
+  ],
+  refreshSharedScope
+);
+
+onMounted(() => {
+  // Broker automation changes need not emit a local inbox event. Bound freshness while visible.
+  sharingTimer = setInterval(refreshSharedScope, 15000);
+  document.addEventListener('visibilitychange', refreshSharedScope);
+});
+
+watch(
+  [
     accountId,
     () => route.query.assignee,
+    () => route.query.status,
     canManageAssignments,
+    () => store.getters.getCurrentCustomRoleId,
+    () => accountPermissions.value.join(','),
     hasContactCenter,
   ],
   async () => {
     accountGeneration += 1;
+    sharingGeneration += 1;
+    sharingDirty = false;
     const version = accountGeneration;
     isInitializing.value = true;
     voiceGeneration += 1;
     page.value = 1;
+    statusFilter.value = resolveStatus(route.query.status);
+    // Invalidate the previous request key and end marker before awaiting routing metadata.
+    store.dispatch('updateChatListFilters', conversationFilters.value);
+    store.dispatch('conversationPage/reset');
     voiceCalls.value = [];
     contactCenterContext.value = null;
     voiceError.value = false;
+    sharedScope.value = { enabled: false, inbox_ids: [] };
     store.dispatch('clearSelectedState');
     store.dispatch('emptyAllConversations');
 
     if (!inboxes.value?.length) await store.dispatch('inboxes/get');
+    if (version !== accountGeneration) return;
+
+    try {
+      const response = await ConversationAPI.sharedContext(accountId.value);
+      if (version !== accountGeneration) return;
+      acceptSharedScope(response.data?.meta?.shared_scope);
+    } catch {
+      // Keep the individual scope when a fresh routing snapshot is unavailable.
+    }
     if (version !== accountGeneration) return;
 
     assigneeFilter.value = resolveAssigneeFilter(route.query.assignee);
@@ -374,6 +532,11 @@ watch(
 onBeforeUnmount(() => {
   accountGeneration += 1;
   voiceGeneration += 1;
+  sharingGeneration += 1;
+  listGeneration += 1;
+  sharingDirty = false;
+  clearInterval(sharingTimer);
+  document.removeEventListener('visibilitychange', refreshSharedScope);
 });
 </script>
 
@@ -386,6 +549,8 @@ onBeforeUnmount(() => {
     :channels="channelFilterOptions"
     :assignees="assigneeFilterOptions"
     :assignee-filter="assigneeFilter"
+    :statuses="statusFilterOptions"
+    :status-filter="statusFilter"
     :channel-filter="channelFilter"
     :current-call-id="currentCallId"
     :current-conversation-id="currentConversationId"
@@ -401,6 +566,7 @@ onBeforeUnmount(() => {
     @select-conversation="openConversation"
     @channel-change="setChannelFilter"
     @assignee-change="setAssigneeFilter"
+    @status-change="setStatusFilter"
     @load-more="loadMore"
     @refresh="fetchVoiceCalls"
     @retry-conversations="fetchConversations({ reset: true })"

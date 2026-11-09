@@ -84,7 +84,11 @@ describe('InboxList channel pagination', () => {
         'updateChatListFilters',
         expect.objectContaining({ page: 2 })
       );
-      store.state.rows.push({ id: 26, inbox_id: 1, meta: { assignee: { id: 1 } } });
+      store.state.rows.push({
+        id: 26,
+        inbox_id: 1,
+        meta: { assignee: { id: 1 } },
+      });
       await flushPromises();
       expect(wrapper.findAll('[data-test="conversation"]')).toHaveLength(
         matches + 1

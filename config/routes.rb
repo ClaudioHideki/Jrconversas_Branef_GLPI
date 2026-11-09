@@ -83,6 +83,8 @@ Rails.application.routes.draw do
           post ':id/channels/:target_id/action-resources', action: :editor, defaults: { editor_operation: 'save_action_resource' }
           get ':id/channels/:target_id/media', action: :editor, defaults: { editor_operation: 'media_catalog' }
           post ':id/channels/:target_id/media/:resource_id/revoke', action: :editor, defaults: { editor_operation: 'revoke_media' }
+          get ':id/executions', action: :editor, defaults: { editor_operation: 'executions' }
+          get ':id/executions/:target_id', action: :editor, defaults: { editor_operation: 'execution' }
           get ':id', action: :editor, defaults: { editor_operation: 'get' }
           put ':id', action: :editor, defaults: { editor_operation: 'save' }
           get ':id/scope', action: :editor, defaults: { editor_operation: 'scope' }
@@ -401,10 +403,16 @@ Rails.application.routes.draw do
             get 'onboarding/:operation_id', action: :onboarding
             post 'onboarding/:operation_id/recover', action: :recover_onboarding
             get 'inboxes/:inbox_id/status', action: :status
+            get 'inboxes/:inbox_id/summary', action: :connection_summary
             post 'inboxes/:inbox_id/pair', action: :pair
             get 'inboxes/:inbox_id/pair-operations/:operation_id', action: :pair_operation
             post 'inboxes/:inbox_id/disconnect', action: :disconnect
             post 'inboxes/:inbox_id/confirm_identity', action: :confirm_identity
+            get 'inboxes/:inbox_id/distribution', action: :connection_distribution
+            put 'inboxes/:inbox_id/distribution', action: :update_connection_distribution
+            get 'inboxes/:inbox_id/distribution-history', action: :connection_distribution_history
+            get 'inboxes/:inbox_id/history', action: :connection_history
+            patch 'inboxes/:inbox_id/configuration', action: :update_connection_configuration
             get 'inboxes/:inbox_id/grants', action: :grants
             put 'inboxes/:inbox_id/grants', action: :update_grants
             put 'inboxes/:inbox_id/agents', action: :assign_agents
@@ -475,6 +483,7 @@ Rails.application.routes.draw do
             end
             resources :contacts, only: [:index, :show, :create, :update] do
               member do
+                get :overview
                 get :duplicates
                 get :timeline
                 post :merge
@@ -790,6 +799,11 @@ Rails.application.routes.draw do
             end
             resources :backoffice_requests, only: [:index, :show, :create, :update] do
               get :summary, on: :collection
+              get :workspace, on: :collection
+              get 'document_versions', to: 'backoffice_documents#index'
+              post 'document_versions', to: 'backoffice_documents#create'
+              get 'document_versions/:version_id', to: 'backoffice_documents#download'
+              post 'document_versions/:version_id/decision', to: 'backoffice_documents#decide'
               member do
                 post :decide_order
                 post :advance
@@ -890,6 +904,18 @@ Rails.application.routes.draw do
             get :usage, to: 'usage#index'
           end
 
+          resources :jrc_migration_batches, only: [:index, :show, :create] do
+            member do
+              post :preview
+              post :execute
+              get :reconciliation
+              post :accept
+              get :errors
+              get :events
+              post 'items/:item_id/scan', action: :scan
+              post 'items/:item_id/recover_media', action: :recover_media
+            end
+          end
           resources :data_imports, only: [:index, :show, :create] do
             collection do
               post :validate_source
@@ -900,6 +926,7 @@ Rails.application.routes.draw do
               post :abandon
               get :error_logs
               get :skip_logs
+              get :reconciliation
             end
           end
           resources :csat_survey_responses, only: [:index] do

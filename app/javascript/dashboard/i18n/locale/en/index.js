@@ -1,3 +1,4 @@
+import jrcMigrations from './jrcMigrations.json';
 import jrcOperator from './jrcOperator.json';
 import jrcApprovals from './jrcApprovals.json';
 import jrcContactCenter from './jrcContactCenter.json';
@@ -14,6 +15,7 @@ import auditLogs from './auditLogs.json';
 import automation from './automation.json';
 import bulkActions from './bulkActions.json';
 import calls from './calls.json';
+import voiceV4 from './voiceV4.json';
 import campaign from './campaign.json';
 import cannedMgmt from './cannedMgmt.json';
 import chatlist from './chatlist.json';
@@ -61,6 +63,7 @@ import jrcNicoHelpdesk from './jrcNicoHelpdesk.json';
 import jrcCustomerRelations from './jrcCustomerRelations.json';
 
 export default {
+  ...jrcMigrations,
   ...jrcOperator,
   ...relationship,
   ...jrcHome,
@@ -77,6 +80,7 @@ export default {
   ...automation,
   ...bulkActions,
   ...calls,
+  ...voiceV4,
   ...campaign,
   ...cannedMgmt,
   ...chatlist,

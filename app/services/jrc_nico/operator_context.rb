@@ -17,12 +17,15 @@ class JrcNico::OperatorContext
   end
 
   def self.access_digest(access)
+    pending_migrations = ActiveRecord::Base.uncached do
+      JrcMigrations::Mapping.where(account: access.account, accepted_at: nil).order(:domain, :target_id).distinct.pluck(:domain, :target_id)
+    end
     fields = ['resource_provenance_v2', access.membership.attributes.slice('role', 'crm_enabled', 'custom_role_id'),
               access.membership.try(:custom_role)&.attributes, access.crm?, access.campaigns?,
               access.user.inboxes.pluck(:id).sort, access.user.teams.pluck(:id).sort,
               JrcServiceDesk::GlpiConnection.where(account_id: access.account.id).pluck(:id, :lock_version, :primary_source, :enabled),
               JrcServiceDesk::UnitMembership.where(account_id: access.account.id, account_user_id: access.membership.id)
-                .order(:unit_id).pluck(:unit_id, :active)]
+                .order(:unit_id).pluck(:unit_id, :active), pending_migrations]
     Digest::SHA256.hexdigest(fields.to_json)
   end
 
@@ -50,6 +53,7 @@ class JrcNico::OperatorContext
   end
 
   def selected_conversation
+    @selected = @access.conversation(@selected.display_id) if @selected
     @selected && { conversation_id: @selected.display_id, contact_id: @selected.contact_id, name: @selected.contact.name,
                    email: @selected.contact.email, phone_number: @selected.contact.phone_number }
   end

@@ -22,6 +22,7 @@ class JrcNico::DomainActions
     end
 
     @args = arguments
+    JrcNico::MigrationVisibility.arguments!(@args, account: @access.account)
     case name
     when 'read_conversation_radar' then JrcNico::ConversationRadar.new(access: @access, arguments: @args).call
     when 'list_relationship_portfolio' then relationship_portfolio
@@ -75,14 +76,16 @@ class JrcNico::DomainActions
   end
 
   def presenter
-    @presenter ||= JrcServiceDesk::Presenter.new(user_context: context)
+    @presenter ||= JrcNico::ServiceDeskPresenter.new(user_context: context)
   end
 
   def relationship_customer
     ctx = JrcRelationship::Context.new(@access.membership)
-    assignment = ctx.assignment(@args.fetch('assignment_id'))
+    assignment = JrcNico::MigrationVisibility.authorize!(ctx.assignment(@args.fetch('assignment_id')), account: @access.account)
     relation = JrcRelationship::HealthSnapshot.where(assignment: assignment, viewer: ctx.user, access_signature: ctx.access_signature)
     snapshot = JrcRelationship::SnapshotAccess.scope(ctx, relation).order(:id).last
+    snapshot = JrcNico::MigrationVisibility.authorize!(snapshot, account: @access.account) if snapshot
+    JrcNico::MigrationEvidence.customer!(ctx, assignment)
     signals = snapshot&.signals&.deep_symbolize_keys || { health: { score: nil, band: 'unavailable', factors: [] } }
     risks = ctx.records(JrcRelationship::RiskCase).where(assignment: assignment).where.not(status: %w[retained churn no_action]).limit(10)
     actions = ctx.records(JrcRelationship::Action).where(assignment: assignment, status: JrcRelationship::Action::ACTIVE_STATUSES).order(priority: :desc).limit(10)
@@ -109,7 +112,7 @@ class JrcNico::DomainActions
 
   def relationship_portfolio
     ctx = JrcRelationship::Context.new(@access.membership)
-    scope = ctx.assignments
+    scope = JrcNico::MigrationVisibility.scope(ctx.assignments, account: @access.account)
     if @args['query'].present?
       query = "%#{ActiveRecord::Base.sanitize_sql_like(@args['query'])}%"
       scope = scope.left_joins(:company, :contact).where('companies.name ILIKE :q OR contacts.name ILIKE :q', q: query)
@@ -118,6 +121,7 @@ class JrcNico::DomainActions
     rows = scope.includes(:company, :contact, :owner).order(:id).offset((page - 1) * 20).limit(20)
     actions = ctx.records(JrcRelationship::Action).where(assignment_id: rows.map(&:id), status: JrcRelationship::Action::ACTIVE_STATUSES)
       .order(priority: :desc, due_at: :asc, id: :asc).limit(20)
+    actions = actions.select { |action| JrcNico::MigrationVisibility.visible?(action, account: @access.account) }
     { customers: rows.map { |row| { assignment_id: row.id, name: row.label, owner: row.owner&.name, status: row.status } },
       priority_actions: actions.as_json(only: [:id, :assignment_id, :kind, :reason, :priority, :due_at, :factors]), page: page,
       resources: rows.map { |row| [row.class.name, row.id] } + actions.map { |row| [row.class.name, row.id] } }
@@ -143,9 +147,10 @@ class JrcNico::DomainActions
   end
 
   def ticket_result(ticket, message: nil)
+    ticket = JrcNico::MigrationVisibility.authorize!(ticket, account: @access.account)
     data = presenter.ticket(ticket)
     resources = [[ticket.class.name, ticket.id]]
-    resources << ['JrcNico::ServiceTicketSla', ticket.id] if data[:sla]
+    resources += presenter.sla_resources(ticket) if data[:sla]
     resources += [['Contact', ticket.requester_id], ['JrcNico::ServiceTicketCustomer', ticket.id]] if data[:requester]
     resources << ['Team', ticket.team_id] if data[:team]
     resources << ['JrcNico::ServiceDeskAssignee', ticket.assignee_membership_id] if data[:assignee]
@@ -154,12 +159,14 @@ class JrcNico::DomainActions
 
   def list_service_tickets
     result = JrcServiceDesk::TicketQuery.new(user_context: context, parameters: @args).collection
-    collection(result[:items].map { |ticket| ticket_result(ticket) }).merge(meta: result[:meta].except(:total))
+    visible = result[:items].select { |ticket| JrcNico::MigrationVisibility.visible?(ticket, account: @access.account) }
+    collection(visible.map { |ticket| ticket_result(ticket) }).merge(meta: result[:meta].except(:total))
   end
 
   def service_desk_lookup
     query = JrcServiceDesk::CatalogQuery.new(user_context: context, resource: @args.fetch('resource'), parameters: @args.except('resource'))
     result = query.collection
+    result[:items] = result[:items].select { |record| JrcNico::MigrationVisibility.visible?(record, account: @access.account) }
     resources = [['JrcNico::ServiceDeskLookup', @access.account.id]]
     resources << ['JrcServiceDesk::Unit', query.unit_id] if query.unit_id
     resources << ['JrcNico::ServiceDeskRequesters', @access.account.id] if query.resource == 'requesters'
@@ -239,7 +246,7 @@ class JrcNico::DomainActions
   end
 
   def list_projects
-    scope = JrcOperations::Access.projects(@access.membership)
+    scope = JrcNico::MigrationVisibility.scope(JrcOperations::Access.projects(@access.membership), account: @access.account)
     scope = scope.where(status: @args['status']) if @args['status']
     scope = scope.where('name ILIKE ?', "%#{JrcProjects::Project.sanitize_sql_like(@args['query'])}%") if @args['query']
     collection(page(scope.order(updated_at: :desc, id: :desc)).map { |project| project_result(project) })
@@ -248,7 +255,11 @@ class JrcNico::DomainActions
   def project_result(project, details: false, message: nil)
     # Detail panels also contain budget and audit data with independent permissions.
     # This connector advertises project basics and board columns only.
-    data = JrcProjects::ProjectSerializer.one(project, account_user: @access.membership)
+    project = JrcNico::MigrationVisibility.authorize!(project, account: @access.account)
+    tasks = JrcNico::MigrationVisibility.scope(project.tasks, account: @access.account)
+    task_counts = { total: tasks.count, completed: tasks.where(status: 'completed').count }
+    # Card comments/files aggregate task content beyond this tool's manifest.
+    data = JrcProjects::ProjectSerializer.one(project, account_user: @access.membership, task_counts: task_counts, card_counts: {})
     resources = [[project.class.name, project.id]]
     if project.contact_id
       begin
@@ -277,7 +288,7 @@ class JrcNico::DomainActions
 
   def list_project_tasks
     project = @domain.project(@args.fetch('project_id'), capability: 'projects.task.view')
-    scope = project.tasks.where(account_id: @access.account.id)
+    scope = JrcNico::MigrationVisibility.scope(project.tasks, account: @access.account)
     scope = scope.where(status: @args['status']) if @args['status']
     result = collection(page(scope.order(:position, :id)).map do |task|
       @domain.authorize_project!(project, 'projects.task.view', task)
@@ -332,12 +343,16 @@ class JrcNico::DomainActions
 
   def read_operations_agenda
     result = JrcOperations::Agenda.new(account_user: @access.membership, filters: @args).call
+    types = { 'project_task' => 'JrcProjects::Task', 'crm_activity' => 'JrcCrm::Activity', 'crm_follow_up' => 'JrcCrm::FollowUp' }
+    result[:data].select! do |row|
+      JrcNico::MigrationVisibility.scope(types.fetch(row[:kind]).constantize, account: @access.account)
+        .exists?(id: row[:id].split(':').last.to_i)
+    end
     raise ArgumentError, 'Mais de 50 compromissos: reduza o periodo ou filtre o responsavel.' if result[:data].length > 50
 
     # Native counts also include entries outside the selected view. Keep the saved
     # response restricted to records represented in its resource manifest.
     result[:meta] = result[:meta].except(:users, :counts).merge(returned: result[:data].length)
-    types = { 'project_task' => 'JrcProjects::Task', 'crm_activity' => 'JrcCrm::Activity', 'crm_follow_up' => 'JrcCrm::FollowUp' }
     result.merge(resources: result[:data].map { |row| [types.fetch(row[:kind]), row[:id].split(':').last.to_i] })
   end
 
@@ -348,6 +363,16 @@ class JrcNico::DomainActions
   def read_operation_links
     result = JrcOperations::Related.new(account_user: @access.membership, source: operation_source).call
     result.except!(:tickets_total, :projects_total)
+    { tickets: JrcServiceDesk::Ticket, projects: JrcProjects::Project, deals: JrcCrm::Deal, relations: JrcOperations::Link }.each do |key, type|
+      result[key].select! do |row|
+        JrcNico::MigrationVisibility.scope(type, account: @access.account).exists?(id: row[:id] || row['id'])
+      end
+    end
+    permitted_links = result[:relations].map { |row| row[:id] }
+    result[:task_links].select! { |row| permitted_links.include?(row[:id]) }
+    result[:conversations].select! do |row|
+      JrcNico::MigrationVisibility.scope(Conversation, account: @access.account).exists?(display_id: row[:id])
+    end
     resources = operation_source_resources + Array(result[:tickets]).map { |row| ['JrcServiceDesk::Ticket', row['id']] } +
                 Array(result[:projects]).map { |row| ['JrcProjects::Project', row['id']] } +
                 Array(result[:deals]).map { |row| ['JrcCrm::Deal', row['id']] } +

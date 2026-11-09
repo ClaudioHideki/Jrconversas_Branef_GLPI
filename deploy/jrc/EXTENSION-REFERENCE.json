@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "extensionId": "branef-glpi",
+  "releaseId": "jrc-core-20261109-candidate",
+  "status": "CANDIDATE_NOT_DEPLOYMENT_PROOF",
+  "repository": "ClaudioHideki/Jrconversas_Branef_GLPI",
+  "extensionBaselineSha": "b7ae0c067c5e0983922d5747da168a98b19b6b1f",
+  "coreBaselineSha": "35976b08077035ee79843b07ad02c0389d002f09",
+  "scope": [
+    "GLPI",
+    "Branef intake and source-specific permissions"
+  ],
+  "mustRemainExclusive": true
+}

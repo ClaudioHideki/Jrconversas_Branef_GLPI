@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_09_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1338,6 +1338,63 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.check_constraint "business_unit_id IS NULL OR issuer_company_id IS NOT NULL", name: "jrc_ap_requests_scope"
   end
 
+  create_table "jrc_backoffice_document_analyses", force: :cascade do |t|
+    t.bigint "document_version_id", null: false
+    t.string "analyzer_version", null: false
+    t.string "state", null: false
+    t.jsonb "evidence", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_version_id"], name: "idx_backoffice_analysis_version", unique: true
+  end
+
+  create_table "jrc_backoffice_document_decisions", force: :cascade do |t|
+    t.bigint "document_version_id", null: false
+    t.bigint "actor_id", null: false
+    t.string "status", null: false
+    t.text "reason", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_jrc_backoffice_document_decisions_on_actor_id"
+    t.index ["document_version_id", "id"], name: "idx_backoffice_decision_history"
+  end
+
+  create_table "jrc_backoffice_document_versions", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "backoffice_request_id", null: false
+    t.bigint "uploaded_by_id", null: false
+    t.string "document_key", null: false
+    t.integer "version", null: false
+    t.string "idempotency_key", null: false
+    t.string "sha256", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_backoffice_document_versions_on_account_id"
+    t.index ["backoffice_request_id", "document_key", "version"], name: "idx_backoffice_document_version", unique: true
+    t.index ["backoffice_request_id", "idempotency_key"], name: "idx_backoffice_document_intent", unique: true
+    t.index ["uploaded_by_id"], name: "index_jrc_backoffice_document_versions_on_uploaded_by_id"
+    t.check_constraint "version > 0", name: "backoffice_document_positive_version"
+  end
+
+  create_table "jrc_broker_connection_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "user_id"
+    t.string "event_type", null: false
+    t.string "event_key"
+    t.string "status_before"
+    t.string "status_after"
+    t.string "correlation_id"
+    t.datetime "occurred_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.index ["account_id", "inbox_id", "event_key"], name: "jrc_connection_events_dedupe", unique: true
+    t.index ["account_id", "inbox_id", "id"], name: "jrc_connection_events_history"
+    t.index ["account_id"], name: "index_jrc_broker_connection_events_on_account_id"
+    t.index ["inbox_id"], name: "index_jrc_broker_connection_events_on_inbox_id"
+    t.index ["user_id"], name: "index_jrc_broker_connection_events_on_user_id"
+  end
+
   create_table "jrc_broker_inbox_bindings", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "inbox_id", null: false
@@ -1345,6 +1402,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.uuid "instance_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "connection_state", default: {}, null: false
     t.index ["account_id", "inbox_id"], name: "jrc_broker_binding_tenant_unique", unique: true
     t.index ["account_id", "integration_id"], name: "jrc_broker_connection_unique", unique: true
     t.index ["inbox_id"], name: "index_jrc_broker_inbox_bindings_on_inbox_id", unique: true
@@ -1371,6 +1429,31 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.index ["account_id"], name: "index_jrc_broker_integrations_on_account_id", unique: true
     t.index ["broker_origin", "organization_id"], name: "jrc_broker_remote_org_unique", unique: true
     t.check_constraint "destination_revision > 0", name: "jrc_broker_revision_positive"
+  end
+
+  create_table "jrc_broker_webhook_obligations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "message_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "binding_id", null: false
+    t.string "integration_id", null: false
+    t.string "instance_id", null: false
+    t.text "url", null: false
+    t.jsonb "payload", null: false
+    t.uuid "delivery_id", default: -> { "gen_random_uuid()" }, null: false
+    t.string "state", default: "pending", null: false
+    t.integer "attempts", default: 0, null: false
+    t.datetime "available_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.uuid "lease_token"
+    t.datetime "lease_until"
+    t.string "last_error_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_broker_webhook_obligations_on_account_id"
+    t.index ["delivery_id"], name: "index_jrc_broker_webhook_obligations_on_delivery_id", unique: true
+    t.index ["message_id"], name: "index_jrc_broker_webhook_obligations_on_message_id", unique: true
+    t.index ["state", "available_at"], name: "idx_jrc_broker_obligations_due"
+    t.check_constraint "(state::text = ANY (ARRAY['pending'::character varying, 'running'::character varying, 'delivered'::character varying, 'rejected'::character varying, 'failed'::character varying]::text[])) AND attempts >= 0", name: "jrc_broker_obligation_state"
   end
 
   create_table "jrc_campaign_blacklists", force: :cascade do |t|
@@ -1695,6 +1778,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.index ["account_id", "id"], name: "jrc_cc_legs_ref", unique: true
     t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying, 'internal'::character varying]::text[])", name: "jrc_cc_leg_direction"
     t.check_constraint "status::text = ANY (ARRAY['created'::character varying, 'ringing'::character varying, 'queued'::character varying, 'connected'::character varying, 'held'::character varying, 'transferred'::character varying, 'ended'::character varying, 'failed'::character varying]::text[])", name: "jrc_cc_leg_status"
+  end
+
+  create_table "jrc_contact_center_call_observations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "call_session_id", null: false
+    t.bigint "author_user_id"
+    t.integer "call_version", null: false
+    t.text "text", null: false
+    t.datetime "created_at", null: false
+    t.index ["account_id", "call_session_id", "call_version"], name: "jrc_cc_observation_once", unique: true
+    t.index ["account_id", "call_session_id", "id"], name: "jrc_cc_observation_page"
+    t.check_constraint "call_version >= 0", name: "jrc_cc_observation_version"
+    t.check_constraint "char_length(text) <= 1000", name: "jrc_cc_observation_length"
   end
 
   create_table "jrc_contact_center_call_sessions", force: :cascade do |t|
@@ -2140,6 +2236,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.datetime "sla_due_at"
     t.datetime "sla_paused_at"
     t.integer "sla_paused_seconds", default: 0, null: false
+    t.integer "workflow_version", default: 1, null: false
     t.index ["account_id", "operations_queue_id", "status"], name: "idx_jrc_bko_queue_status"
     t.index ["account_id", "request_number"], name: "idx_jrc_crm_backoffice_number", unique: true
     t.index ["account_id", "sales_order_id", "request_kind"], name: "idx_jrc_crm_backoffice_order_kind", unique: true, where: "((request_kind)::text = 'fulfillment'::text)"
@@ -2155,6 +2252,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.index ["owner_id"], name: "index_jrc_crm_backoffice_requests_on_owner_id"
     t.index ["requested_by_id"], name: "index_jrc_crm_backoffice_requests_on_requested_by_id"
     t.index ["sales_order_id"], name: "index_jrc_crm_backoffice_requests_on_sales_order_id"
+    t.check_constraint "workflow_version = ANY (ARRAY[1, 2])", name: "backoffice_workflow_version"
   end
 
   create_table "jrc_crm_business_units", force: :cascade do |t|
@@ -3118,7 +3216,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.index ["nonce"], name: "index_jrc_flow_native_session_handles_on_nonce", unique: true
     t.index ["public_id"], name: "index_jrc_flow_native_session_handles_on_public_id", unique: true
     t.index ["user_id"], name: "index_jrc_flow_native_session_handles_on_user_id"
-    t.check_constraint "registration_revision > 0 AND jsonb_typeof(inbox_ids) = 'array'::text AND jsonb_array_length(inbox_ids) <= 100 AND jsonb_typeof(scopes) = 'array'::text AND scopes <@ '[\"flow:read\", \"flow:edit\", \"flow:publish\", \"flow:bind\"]'::jsonb", name: "jrc_flow_handle_scope_bound"
+    t.check_constraint "registration_revision > 0 AND jsonb_typeof(inbox_ids) = 'array'::text AND jsonb_array_length(inbox_ids) <= 100 AND jsonb_typeof(scopes) = 'array'::text AND scopes <@ '[\"flow:read\", \"flow:edit\", \"flow:publish\", \"flow:bind\", \"flow:executions:read\"]'::jsonb", name: "jrc_flow_handle_scope_bound"
   end
 
   create_table "jrc_flow_ownership_effects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3283,6 +3381,134 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     t.index ["account_id"], name: "index_jrc_flows_on_account_id"
     t.index ["connection_id"], name: "index_jrc_flows_on_connection_id"
     t.index ["created_by_id"], name: "index_jrc_flows_on_created_by_id"
+  end
+
+  create_table "jrc_human_assignment_policy_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id"
+    t.bigint "user_id"
+    t.jsonb "previous_policy", default: {}, null: false
+    t.jsonb "next_policy", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "inbox_id", "id"], name: "idx_human_policy_history"
+    t.index ["account_id"], name: "index_jrc_human_assignment_policy_events_on_account_id"
+    t.index ["inbox_id"], name: "index_jrc_human_assignment_policy_events_on_inbox_id"
+    t.index ["user_id"], name: "index_jrc_human_assignment_policy_events_on_user_id"
+    t.check_constraint "inbox_id IS NOT NULL OR NOT (next_policy ->> 'scope'::text) IS DISTINCT FROM 'GLOBAL_ACCOUNT'::text", name: "jrc_human_policy_global_account_scope"
+  end
+
+  create_table "jrc_migration_batches", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "created_by_id", null: false
+    t.bigint "accepted_by_id"
+    t.string "source", null: false
+    t.string "domain", null: false
+    t.string "status", default: "staged", null: false
+    t.integer "version", default: 1, null: false
+    t.jsonb "field_mapping", default: {}, null: false
+    t.string "source_digest", null: false
+    t.string "file_name"
+    t.jsonb "summary", default: {}, null: false
+    t.jsonb "reconciliation", default: {}, null: false
+    t.datetime "executed_at"
+    t.datetime "accepted_at"
+    t.text "acceptance_note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["accepted_by_id"], name: "index_jrc_migration_batches_on_accepted_by_id"
+    t.index ["account_id", "id"], name: "index_jrc_migration_batches_on_account_id_and_id", unique: true
+    t.index ["account_id"], name: "index_jrc_migration_batches_on_account_id"
+    t.index ["created_by_id"], name: "index_jrc_migration_batches_on_created_by_id"
+  end
+
+  create_table "jrc_migration_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "batch_id", null: false
+    t.string "legacy_id", null: false
+    t.jsonb "raw_data", null: false
+    t.jsonb "normalized_data", default: {}, null: false
+    t.string "source_digest", null: false
+    t.string "decision"
+    t.string "status", default: "staged", null: false
+    t.string "error_code"
+    t.jsonb "validation_errors", default: [], null: false
+    t.bigint "target_id"
+    t.string "target_digest"
+    t.jsonb "before_data", default: {}, null: false
+    t.datetime "migrated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "batch_id", "id"], name: "jrc_migration_item_tenant_batch", unique: true
+    t.index ["account_id"], name: "index_jrc_migration_items_on_account_id"
+    t.index ["batch_id", "legacy_id"], name: "index_jrc_migration_items_on_batch_id_and_legacy_id", unique: true
+  end
+
+  create_table "jrc_migration_media_objects", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "batch_id", null: false
+    t.bigint "item_id", null: false
+    t.integer "generation", null: false
+    t.string "service_name", null: false
+    t.string "storage_key", null: false
+    t.string "source_sha256", null: false
+    t.bigint "byte_size", null: false
+    t.string "status", default: "reserved", null: false
+    t.bigint "blob_id"
+    t.uuid "claim_token"
+    t.datetime "claimed_at"
+    t.datetime "checked_at"
+    t.string "error_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "storage_identity"
+    t.datetime "absence_verified_at"
+    t.integer "scan_generation", default: 0, null: false
+    t.uuid "scan_token"
+    t.datetime "scan_started_at"
+    t.index ["account_id"], name: "index_jrc_migration_media_objects_on_account_id"
+    t.index ["blob_id"], name: "index_jrc_migration_media_objects_on_blob_id"
+    t.index ["item_id", "generation"], name: "jrc_migration_media_generation", unique: true
+    t.index ["service_name", "storage_key"], name: "jrc_migration_media_storage_identity", unique: true
+    t.check_constraint "(status::text <> ALL (ARRAY['planned'::character varying, 'attached'::character varying, 'recovering'::character varying, 'cleanup_required'::character varying, 'cleaned'::character varying]::text[])) OR absence_verified_at IS NOT NULL", name: "jrc_migration_media_absence_before_write"
+    t.check_constraint "generation > 0 AND byte_size > 0 AND byte_size <= 1048576", name: "jrc_migration_media_payload_bound"
+    t.check_constraint "scan_generation >= 0", name: "jrc_migration_media_scan_generation"
+    t.check_constraint "status::text = ANY (ARRAY['reserved'::character varying, 'verifying'::character varying, 'verification_required'::character varying, 'planned'::character varying, 'attached'::character varying, 'recovering'::character varying, 'cleanup_required'::character varying, 'cleaned'::character varying, 'kept'::character varying]::text[])", name: "jrc_migration_media_status"
+    t.check_constraint "storage_identity IS NULL AND status::text = 'kept'::text OR storage_identity IS NOT NULL AND storage_identity::text ~ '^[a-f0-9]{64}$'::text", name: "jrc_migration_media_destination_identity"
+    t.check_constraint "storage_key::text ~ '^[a-z0-9]{28}$'::text AND source_sha256::text ~ '^[a-f0-9]{64}$'::text", name: "jrc_migration_media_identity_format"
+  end
+
+  create_table "jrc_migration_mappings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "batch_id", null: false
+    t.string "source", null: false
+    t.string "domain", null: false
+    t.string "legacy_id", null: false
+    t.bigint "target_id", null: false
+    t.string "source_digest", null: false
+    t.string "target_digest", null: false
+    t.datetime "source_updated_at", null: false
+    t.datetime "accepted_at"
+    t.bigint "accepted_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["accepted_by_id"], name: "index_jrc_migration_mappings_on_accepted_by_id"
+    t.index ["account_id", "domain", "target_id"], name: "jrc_migration_target"
+    t.index ["account_id", "source", "domain", "legacy_id"], name: "jrc_migration_source_identity", unique: true
+    t.index ["account_id"], name: "index_jrc_migration_mappings_on_account_id"
+  end
+
+  create_table "jrc_migration_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "batch_id", null: false
+    t.bigint "user_id"
+    t.string "action", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.index ["account_id", "batch_id", "id"], name: "jrc_migration_event_history"
+    t.index ["account_id"], name: "index_jrc_migration_events_on_account_id"
+    t.index ["user_id"], name: "index_jrc_migration_events_on_user_id"
   end
 
   create_table "jrc_nico_broker_send_operations", force: :cascade do |t|
@@ -6421,12 +6647,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
   add_foreign_key "jrc_approvals_requests", "companies", column: ["account_id", "issuer_company_id"], primary_key: ["account_id", "id"], name: "jrc_ap_requests_company_fk"
   add_foreign_key "jrc_approvals_requests", "jrc_approvals_policy_versions", column: ["account_id", "policy_version_id"], primary_key: ["account_id", "id"], name: "jrc_ap_requests_policy_version_id_fk"
   add_foreign_key "jrc_approvals_requests", "jrc_crm_business_units", column: ["account_id", "issuer_company_id", "business_unit_id"], primary_key: ["account_id", "company_id", "id"], name: "jrc_ap_requests_unit_fk"
+  add_foreign_key "jrc_backoffice_document_analyses", "jrc_backoffice_document_versions", column: "document_version_id"
+  add_foreign_key "jrc_backoffice_document_decisions", "jrc_backoffice_document_versions", column: "document_version_id"
+  add_foreign_key "jrc_backoffice_document_decisions", "users", column: "actor_id"
+  add_foreign_key "jrc_backoffice_document_versions", "accounts"
+  add_foreign_key "jrc_backoffice_document_versions", "jrc_crm_backoffice_requests", column: "backoffice_request_id"
+  add_foreign_key "jrc_backoffice_document_versions", "users", column: "uploaded_by_id"
+  add_foreign_key "jrc_broker_connection_events", "accounts", on_delete: :cascade
+  add_foreign_key "jrc_broker_connection_events", "inboxes", on_delete: :cascade
+  add_foreign_key "jrc_broker_connection_events", "users", on_delete: :nullify
   add_foreign_key "jrc_broker_inbox_bindings", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], on_delete: :cascade
   add_foreign_key "jrc_broker_inbox_bindings", "jrc_broker_integrations", column: "account_id", primary_key: "account_id", on_delete: :cascade
   add_foreign_key "jrc_broker_inbox_grants", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], on_delete: :cascade
   add_foreign_key "jrc_broker_inbox_grants", "inbox_members", column: ["inbox_id", "user_id"], primary_key: ["inbox_id", "user_id"], on_delete: :cascade
   add_foreign_key "jrc_broker_inbox_grants", "jrc_broker_inbox_bindings", column: ["account_id", "inbox_id"], primary_key: ["account_id", "inbox_id"], on_delete: :cascade
   add_foreign_key "jrc_broker_integrations", "accounts", on_delete: :cascade
+  add_foreign_key "jrc_broker_webhook_obligations", "accounts", on_delete: :cascade
+  add_foreign_key "jrc_broker_webhook_obligations", "messages", on_delete: :cascade
   add_foreign_key "jrc_campaign_blacklists", "accounts"
   add_foreign_key "jrc_campaign_blacklists", "users", column: "created_by_id"
   add_foreign_key "jrc_campaign_consents", "accounts"
@@ -6472,6 +6709,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
   add_foreign_key "jrc_contact_center_call_legs", "jrc_contact_center_call_legs", column: ["account_id", "parent_leg_id"], primary_key: ["account_id", "id"], name: "jrc_cc_leg_parent_fk"
   add_foreign_key "jrc_contact_center_call_legs", "jrc_contact_center_call_sessions", column: ["account_id", "call_session_id"], primary_key: ["account_id", "id"], name: "jrc_cc_leg_session_fk"
   add_foreign_key "jrc_contact_center_call_legs", "jrc_contact_center_queues", column: ["account_id", "queue_id"], primary_key: ["account_id", "id"], name: "jrc_cc_leg_queue_fk"
+  add_foreign_key "jrc_contact_center_call_observations", "accounts"
+  add_foreign_key "jrc_contact_center_call_observations", "jrc_contact_center_call_sessions", column: ["account_id", "call_session_id"], primary_key: ["account_id", "id"], name: "jrc_cc_observation_session_fk"
+  add_foreign_key "jrc_contact_center_call_observations", "users", column: "author_user_id", on_delete: :nullify
   add_foreign_key "jrc_contact_center_call_sessions", "accounts"
   add_foreign_key "jrc_contact_center_call_sessions", "companies", column: ["account_id", "company_id"], primary_key: ["account_id", "id"], name: "jrc_cc_session_company_fk"
   add_foreign_key "jrc_contact_center_call_sessions", "contacts", column: ["account_id", "contact_id"], primary_key: ["account_id", "id"], name: "jrc_cc_session_contact_fk"
@@ -6687,6 +6927,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
   add_foreign_key "jrc_flows", "accounts"
   add_foreign_key "jrc_flows", "jrc_flow_connections", column: "connection_id"
   add_foreign_key "jrc_flows", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "jrc_human_assignment_policy_events", "accounts", on_delete: :cascade
+  add_foreign_key "jrc_human_assignment_policy_events", "inboxes", on_delete: :cascade
+  add_foreign_key "jrc_human_assignment_policy_events", "users", on_delete: :nullify
+  add_foreign_key "jrc_migration_batches", "accounts"
+  add_foreign_key "jrc_migration_batches", "users", column: "accepted_by_id"
+  add_foreign_key "jrc_migration_batches", "users", column: "created_by_id"
+  add_foreign_key "jrc_migration_media_objects", "accounts"
+  add_foreign_key "jrc_migration_media_objects", "active_storage_blobs", column: "blob_id", on_delete: :nullify
+  add_foreign_key "jrc_migration_media_objects", "jrc_migration_items", column: ["account_id", "batch_id", "item_id"], primary_key: ["account_id", "batch_id", "id"], on_delete: :cascade
+  add_foreign_key "jrc_migration_items", "accounts"
+  add_foreign_key "jrc_migration_items", "jrc_migration_batches", column: ["account_id", "batch_id"], primary_key: ["account_id", "id"]
+  add_foreign_key "jrc_migration_mappings", "accounts"
+  add_foreign_key "jrc_migration_mappings", "jrc_migration_batches", column: ["account_id", "batch_id"], primary_key: ["account_id", "id"]
+  add_foreign_key "jrc_migration_mappings", "users", column: "accepted_by_id"
+  add_foreign_key "jrc_migration_events", "accounts", on_delete: :cascade
+  add_foreign_key "jrc_migration_events", "jrc_migration_batches", column: ["account_id", "batch_id"], primary_key: ["account_id", "id"], on_delete: :cascade
+  add_foreign_key "jrc_migration_events", "users", on_delete: :nullify
   add_foreign_key "jrc_nico_broker_send_operations", "accounts", on_delete: :cascade
   add_foreign_key "jrc_nico_broker_send_operations", "conversations", on_delete: :cascade
   add_foreign_key "jrc_nico_broker_send_operations", "inboxes", on_delete: :cascade
@@ -7267,6 +7524,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     ALTER TABLE "jrc_approvals_requests" ADD CONSTRAINT "jrc_ap_requests_scope" CHECK (((business_unit_id IS NULL) OR (issuer_company_id IS NOT NULL)));
   JRC_SCHEMA_SQL_a15b3c0529f6
 
+  execute <<~'JRC_SCHEMA_SQL_89266eca31eb'
+    ALTER TABLE "jrc_backoffice_document_versions" DROP CONSTRAINT "backoffice_document_positive_version";
+  JRC_SCHEMA_SQL_89266eca31eb
+
+  execute <<~'JRC_SCHEMA_SQL_4e8f64428c52'
+    ALTER TABLE "jrc_backoffice_document_versions" ADD CONSTRAINT "backoffice_document_positive_version" CHECK ((version > 0));
+  JRC_SCHEMA_SQL_4e8f64428c52
+
   execute <<~'JRC_SCHEMA_SQL_1bd69d0a93ee'
     ALTER TABLE "jrc_broker_integrations" DROP CONSTRAINT "jrc_broker_revision_positive";
   JRC_SCHEMA_SQL_1bd69d0a93ee
@@ -7274,6 +7539,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
   execute <<~'JRC_SCHEMA_SQL_a730acfcff45'
     ALTER TABLE "jrc_broker_integrations" ADD CONSTRAINT "jrc_broker_revision_positive" CHECK ((destination_revision > 0));
   JRC_SCHEMA_SQL_a730acfcff45
+
+  execute <<~'JRC_SCHEMA_SQL_40346926996a'
+    ALTER TABLE "jrc_broker_webhook_obligations" DROP CONSTRAINT "jrc_broker_obligation_state";
+  JRC_SCHEMA_SQL_40346926996a
+
+  execute <<~'JRC_SCHEMA_SQL_0674727866c4'
+    ALTER TABLE "jrc_broker_webhook_obligations" ADD CONSTRAINT "jrc_broker_obligation_state" CHECK ((((state)::text = ANY ((ARRAY['pending'::character varying, 'running'::character varying, 'delivered'::character varying, 'rejected'::character varying, 'failed'::character varying])::text[])) AND (attempts >= 0)));
+  JRC_SCHEMA_SQL_0674727866c4
 
   execute <<~'JRC_SCHEMA_SQL_7d8e7fc7adb6'
     ALTER TABLE "jrc_contact_center_agent_state_events" DROP CONSTRAINT "jrc_cc_agent_state";
@@ -7507,6 +7780,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     ALTER TABLE "jrc_contact_center_units" ADD CONSTRAINT "jrc_cc_units_status" CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'inactive'::character varying])::text[])));
   JRC_SCHEMA_SQL_d049c80f7eab
 
+  execute <<~'JRC_SCHEMA_SQL_e17fa63b3555'
+    ALTER TABLE "jrc_crm_backoffice_requests" DROP CONSTRAINT "backoffice_workflow_version";
+  JRC_SCHEMA_SQL_e17fa63b3555
+
+  execute <<~'JRC_SCHEMA_SQL_84e0ddebc6ba'
+    ALTER TABLE "jrc_crm_backoffice_requests" ADD CONSTRAINT "backoffice_workflow_version" CHECK ((workflow_version = ANY (ARRAY[1, 2])));
+  JRC_SCHEMA_SQL_84e0ddebc6ba
+
   execute <<~'JRC_SCHEMA_SQL_9f52f87a5903'
     ALTER TABLE "jrc_crm_team_scopes" DROP CONSTRAINT "jrc_crm_team_scope_shape";
   JRC_SCHEMA_SQL_9f52f87a5903
@@ -7647,9 +7928,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
     ALTER TABLE "jrc_flow_native_session_handles" DROP CONSTRAINT "jrc_flow_handle_scope_bound";
   JRC_SCHEMA_SQL_0af1897fac12
 
-  execute <<~'JRC_SCHEMA_SQL_719494dd098e'
-    ALTER TABLE "jrc_flow_native_session_handles" ADD CONSTRAINT "jrc_flow_handle_scope_bound" CHECK (((registration_revision > 0) AND (jsonb_typeof(inbox_ids) = 'array'::text) AND (jsonb_array_length(inbox_ids) <= 100) AND (jsonb_typeof(scopes) = 'array'::text) AND (scopes <@ '["flow:read", "flow:edit", "flow:publish", "flow:bind"]'::jsonb)));
-  JRC_SCHEMA_SQL_719494dd098e
+  execute <<~'JRC_SCHEMA_SQL_4abd6f2a5359'
+    ALTER TABLE "jrc_flow_native_session_handles" ADD CONSTRAINT "jrc_flow_handle_scope_bound" CHECK (((registration_revision > 0) AND (jsonb_typeof(inbox_ids) = 'array'::text) AND (jsonb_array_length(inbox_ids) <= 100) AND (jsonb_typeof(scopes) = 'array'::text) AND (scopes <@ '["flow:read", "flow:edit", "flow:publish", "flow:bind", "flow:executions:read"]'::jsonb)));
+  JRC_SCHEMA_SQL_4abd6f2a5359
 
   execute <<~'JRC_SCHEMA_SQL_3c8fa9168141'
     ALTER TABLE "jrc_flow_ownership_effects" DROP CONSTRAINT "jrc_ownership_effect_valid";
@@ -9331,5 +9612,105 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_06_190000) do
   execute <<~'JRC_SCHEMA_SQL_777f9ec0c262'
     CREATE UNIQUE INDEX idx_intake_single_survey ON public.jrc_service_desk_intake_notifications USING btree (intake_demand_id) WHERE ((kind)::text = 'survey'::text);
   JRC_SCHEMA_SQL_777f9ec0c262
+
+  execute <<~'JRC_SCHEMA_SQL_ed2150e2fbd9'
+    ALTER TABLE "jrc_human_assignment_policy_events" DROP CONSTRAINT "jrc_human_policy_global_account_scope";
+  JRC_SCHEMA_SQL_ed2150e2fbd9
+
+  execute <<~'JRC_SCHEMA_SQL_b4f35ba8b80f'
+    ALTER TABLE "jrc_human_assignment_policy_events" ADD CONSTRAINT "jrc_human_policy_global_account_scope" CHECK (((inbox_id IS NOT NULL) OR (NOT ((next_policy ->> 'scope'::text) IS DISTINCT FROM 'GLOBAL_ACCOUNT'::text))));
+  JRC_SCHEMA_SQL_b4f35ba8b80f
+
+  execute <<~'JRC_SCHEMA_SQL_ae900f5e1338'
+    CREATE OR REPLACE FUNCTION public.jrc_human_policy_immutable_guard()
+     RETURNS trigger
+     LANGUAGE plpgsql
+     SET search_path TO 'pg_catalog', 'public'
+    AS $function$
+    BEGIN
+      -- Preserve only the parent-removal actions already defined by the original FKs.
+      IF TG_OP = 'DELETE' THEN
+        IF pg_trigger_depth() > 1 AND (
+          NOT EXISTS (SELECT 1 FROM public.accounts WHERE id = OLD.account_id) OR
+          (OLD.inbox_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.inboxes WHERE id = OLD.inbox_id))
+        ) THEN
+          RETURN OLD;
+        END IF;
+      ELSIF TG_OP = 'UPDATE' THEN
+        IF pg_trigger_depth() > 1 AND OLD.user_id IS NOT NULL AND NEW.user_id IS NULL AND
+          (to_jsonb(NEW) - 'user_id') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'user_id') AND
+          NOT EXISTS (SELECT 1 FROM public.users WHERE id = OLD.user_id)
+        THEN
+          RETURN NEW;
+        END IF;
+      END IF;
+      RAISE EXCEPTION 'Human assignment policy history is append-only' USING ERRCODE = '23514';
+    END;
+    $function$
+  JRC_SCHEMA_SQL_ae900f5e1338
+
+  execute <<~'JRC_SCHEMA_SQL_e738d6ee27ad'
+    CREATE TRIGGER jrc_human_policy_immutable_rows BEFORE DELETE OR UPDATE ON jrc_human_assignment_policy_events FOR EACH ROW EXECUTE FUNCTION jrc_human_policy_immutable_guard();
+  JRC_SCHEMA_SQL_e738d6ee27ad
+
+  execute <<~'JRC_SCHEMA_SQL_0df134023ee3'
+    CREATE TRIGGER jrc_human_policy_immutable_truncate BEFORE TRUNCATE ON jrc_human_assignment_policy_events FOR EACH STATEMENT EXECUTE FUNCTION jrc_human_policy_immutable_guard();
+  JRC_SCHEMA_SQL_0df134023ee3
+  execute <<~'JRC_SCHEMA_SQL_9a7c1bf6b1f5'
+    CREATE OR REPLACE FUNCTION public.jrc_connection_event_immutable_guard()
+     RETURNS trigger
+     LANGUAGE plpgsql
+     SET search_path TO 'pg_catalog', 'public'
+    AS $function$
+    BEGIN
+      IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 AND (
+        NOT EXISTS (SELECT 1 FROM public.accounts WHERE id = OLD.account_id) OR
+        NOT EXISTS (SELECT 1 FROM public.inboxes WHERE id = OLD.inbox_id)
+      ) THEN RETURN OLD;
+      ELSIF TG_OP = 'UPDATE' AND pg_trigger_depth() > 1 AND OLD.user_id IS NOT NULL AND NEW.user_id IS NULL AND
+        (to_jsonb(NEW) - 'user_id') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'user_id') AND
+        NOT EXISTS (SELECT 1 FROM public.users WHERE id = OLD.user_id)
+      THEN RETURN NEW;
+      END IF;
+      RAISE EXCEPTION 'Connection history is append-only' USING ERRCODE = '23514';
+    END;
+    $function$
+  JRC_SCHEMA_SQL_9a7c1bf6b1f5
+  execute <<~'JRC_SCHEMA_SQL_2ce7f4f547fa'
+    CREATE TRIGGER jrc_connection_event_immutable_rows BEFORE DELETE OR UPDATE ON jrc_broker_connection_events FOR EACH ROW EXECUTE FUNCTION jrc_connection_event_immutable_guard();
+  JRC_SCHEMA_SQL_2ce7f4f547fa
+  execute <<~'JRC_SCHEMA_SQL_aeac535f8e23'
+    CREATE TRIGGER jrc_connection_event_immutable_truncate BEFORE TRUNCATE ON jrc_broker_connection_events FOR EACH STATEMENT EXECUTE FUNCTION jrc_connection_event_immutable_guard();
+  JRC_SCHEMA_SQL_aeac535f8e23
+  execute <<~'JRC_SCHEMA_SQL_6635904880b1'
+    CREATE OR REPLACE FUNCTION public.jrc_migration_event_guard()
+     RETURNS trigger
+     LANGUAGE plpgsql
+     SET search_path TO 'pg_catalog', 'public'
+    AS $function$ BEGIN IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 AND ( NOT EXISTS (SELECT 1 FROM public.accounts WHERE id = OLD.account_id) OR NOT EXISTS (SELECT 1 FROM public.jrc_migration_batches WHERE id = OLD.batch_id) ) THEN RETURN OLD; ELSIF TG_OP = 'UPDATE' AND pg_trigger_depth() > 1 AND OLD.user_id IS NOT NULL AND NEW.user_id IS NULL AND (to_jsonb(NEW) - 'user_id') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'user_id') AND NOT EXISTS (SELECT 1 FROM public.users WHERE id = OLD.user_id) THEN RETURN NEW; END IF; RAISE EXCEPTION 'Migration history is append-only' USING ERRCODE = '23514'; END; $function$
+  JRC_SCHEMA_SQL_6635904880b1
+
+  execute <<~'JRC_SCHEMA_SQL_9da8f3a6aa81'
+    CREATE TRIGGER jrc_migration_event_rows BEFORE DELETE OR UPDATE ON jrc_migration_events FOR EACH ROW EXECUTE FUNCTION jrc_migration_event_guard();
+  JRC_SCHEMA_SQL_9da8f3a6aa81
+
+  execute <<~'JRC_SCHEMA_SQL_b780ed2b2bc1'
+    CREATE TRIGGER jrc_migration_event_truncate BEFORE TRUNCATE ON jrc_migration_events FOR EACH STATEMENT EXECUTE FUNCTION jrc_migration_event_guard();
+  JRC_SCHEMA_SQL_b780ed2b2bc1
+  execute <<~'JRC_SCHEMA_SQL_eb63c32829c8'
+    CREATE OR REPLACE FUNCTION public.jrc_migration_media_owner_guard()
+     RETURNS trigger
+     LANGUAGE plpgsql
+     SET search_path TO 'pg_catalog', 'public'
+    AS $function$ BEGIN IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 AND NOT EXISTS (SELECT 1 FROM public.jrc_migration_items WHERE id = OLD.item_id AND account_id = OLD.account_id) THEN RETURN OLD; ELSIF TG_OP = 'UPDATE' AND (to_jsonb(NEW) - ARRAY['status','blob_id','claim_token','claimed_at','checked_at','error_code','updated_at', 'absence_verified_at','scan_generation','scan_token','scan_started_at']) IS NOT DISTINCT FROM (to_jsonb(OLD) - ARRAY['status','blob_id','claim_token','claimed_at','checked_at','error_code','updated_at', 'absence_verified_at','scan_generation','scan_token','scan_started_at']) AND (NEW.absence_verified_at IS NOT DISTINCT FROM OLD.absence_verified_at OR (OLD.absence_verified_at IS NULL AND NEW.absence_verified_at IS NOT NULL AND OLD.status = 'verifying' AND NEW.status = 'planned')) AND NEW.scan_generation >= OLD.scan_generation THEN RETURN NEW; END IF; RAISE EXCEPTION 'Migration media ownership is immutable' USING ERRCODE = '23514'; END; $function$
+  JRC_SCHEMA_SQL_eb63c32829c8
+
+  execute <<~'JRC_SCHEMA_SQL_2bca6b23c834'
+    CREATE TRIGGER jrc_migration_media_owner_rows BEFORE DELETE OR UPDATE ON jrc_migration_media_objects FOR EACH ROW EXECUTE FUNCTION jrc_migration_media_owner_guard();
+  JRC_SCHEMA_SQL_2bca6b23c834
+
+  execute <<~'JRC_SCHEMA_SQL_808eaf09795b'
+    CREATE TRIGGER jrc_migration_media_owner_truncate BEFORE TRUNCATE ON jrc_migration_media_objects FOR EACH STATEMENT EXECUTE FUNCTION jrc_migration_media_owner_guard();
+  JRC_SCHEMA_SQL_808eaf09795b
 
 end

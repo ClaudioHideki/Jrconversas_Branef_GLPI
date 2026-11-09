@@ -9,6 +9,7 @@ import { emitter } from 'shared/helpers/mitt';
 import { CONTENT_TYPES } from 'dashboard/components-next/message/constants.js';
 
 const state = {
+  accessVersion: 0,
   allConversations: [],
   attachments: {},
   listLoadingStatus: true,
@@ -32,6 +33,9 @@ const getConversationById = _state => conversationId => {
 
 // mutations
 export const mutations = {
+  [types.INVALIDATE_CONVERSATION_ACCESS](_state) {
+    _state.accessVersion = (_state.accessVersion || 0) + 1;
+  },
   [types.SET_ALL_CONVERSATION](_state, conversationList) {
     const newAllConversations = [..._state.allConversations];
     conversationList.forEach(conversation => {
@@ -63,6 +67,10 @@ export const mutations = {
   [types.EMPTY_ALL_CONVERSATION](_state) {
     _state.allConversations = [];
     _state.selectedChatId = null;
+    _state.attachments = {};
+    _state.syncConversationsMessages = {};
+    _state.conversationParticipants = [];
+    _state.conversationLastSeen = null;
   },
   [types.SET_ALL_MESSAGES_LOADED](_state, conversationId) {
     const chat = getConversationById(_state)(conversationId);
@@ -167,14 +175,22 @@ export const mutations = {
     conversation.status = status;
   },
 
-  [types.MUTE_CONVERSATION](_state) {
-    const [chat] = getSelectedChatConversation(_state);
-    chat.muted = true;
+  [types.MUTE_CONVERSATION](_state, conversationId = _state.selectedChatId) {
+    const chat = getConversationById(_state)(conversationId);
+    if (chat) chat.muted = true;
   },
 
-  [types.UNMUTE_CONVERSATION](_state) {
-    const [chat] = getSelectedChatConversation(_state);
-    chat.muted = false;
+  [types.UNMUTE_CONVERSATION](_state, conversationId = _state.selectedChatId) {
+    const chat = getConversationById(_state)(conversationId);
+    if (chat) chat.muted = false;
+  },
+
+  [types.UPDATE_CONVERSATION_PARTICIPANTS](
+    _state,
+    { conversationId, participantIds }
+  ) {
+    const chat = getConversationById(_state)(conversationId);
+    if (chat) chat.meta.participant_ids = participantIds;
   },
 
   [types.ADD_CONVERSATION_ATTACHMENTS](_state, message) {
@@ -246,6 +262,13 @@ export const mutations = {
     _state.allConversations = _state.allConversations.filter(
       c => c.id !== conversationId
     );
+    delete _state.attachments?.[conversationId];
+    delete _state.syncConversationsMessages?.[conversationId];
+    if (_state.selectedChatId === conversationId) {
+      _state.selectedChatId = null;
+      _state.conversationParticipants = [];
+      _state.conversationLastSeen = null;
+    }
   },
 
   [types.UPDATE_CONVERSATION](_state, conversation) {

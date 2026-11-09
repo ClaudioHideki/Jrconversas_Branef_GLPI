@@ -31,20 +31,21 @@ class AutoAssignment::Eligibility
     nil
   end
 
-  def agent_reason(account_user, online_ids: nil)
+  def agent_reason(account_user, online_ids: nil, respect_availability: true)
     return 'account_membership_missing' unless account_user&.account_id == inbox.account_id
     return 'agent_auto_assignment_disabled' unless account_user.auto_assignment_enabled?
-    return 'agent_unavailable' unless account_user.online?
+    return 'agent_unavailable' if respect_availability && !account_user.online?
 
     ids = online_ids || OnlineStatusTracker.effective_available_users(inbox.account_id).keys.map(&:to_i)
-    return 'no_online_agents' unless ids.include?(account_user.user_id)
+    return 'no_online_agents' if respect_availability && !ids.include?(account_user.user_id)
     return 'inbox_restriction' unless inbox.inbox_members.exists?(user_id: account_user.user_id)
     return 'team_restriction' if conversation&.team_id.present? && !conversation.team&.members&.exists?(id: account_user.user_id)
     if inbox.account.feature_enabled?('jrc_contact_center') &&
        JrcContactCenter::Qualification.pending.where(account_id: inbox.account_id, account_user_id: account_user.id).exists?
       return 'qualification_pending'
     end
-    return 'capacity_reached' unless inbox.member_ids_with_assignment_capacity.include?(account_user.user_id)
+    capacity_ids = inbox.member_ids_with_assignment_capacity(respect_availability: respect_availability)
+    return 'capacity_reached' unless capacity_ids.include?(account_user.user_id)
 
     nil
   end

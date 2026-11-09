@@ -20,6 +20,9 @@ import {
 } from 'dashboard/helper/voice';
 
 const activeListRequests = new WeakMap();
+const accessKey = (state, rootGetters) =>
+  `${rootGetters?.getCurrentAccountId}:${state?.accessVersion || 0}`;
+const accessDenied = error => [401, 403, 404].includes(error?.response?.status);
 const listFilterKey = filters =>
   JSON.stringify(
     Object.fromEntries(
@@ -43,24 +46,34 @@ export const hasMessageFailedWithExternalError = pendingMessage => {
 
 // actions
 const actions = {
-  getConversation: async ({ commit, rootGetters }, conversationId) => {
+  getConversation: async ({ commit, state, rootGetters }, conversationId) => {
+    const access = accessKey(state, rootGetters);
     const accountId = rootGetters.getCurrentAccountId;
     try {
       const response = await ConversationApi.show(conversationId);
-      if (rootGetters.getCurrentAccountId !== accountId) return;
+      if (
+        rootGetters.getCurrentAccountId !== accountId ||
+        access !== accessKey(state, rootGetters)
+      )
+        return null;
       commit(types.UPDATE_CONVERSATION, response.data);
       commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
+      return response.data;
     } catch (error) {
-      // Ignore error
+      if (accessDenied(error))
+        commit(types.DELETE_CONVERSATION, conversationId);
     }
+    return null;
   },
 
   fetchAllConversations: async ({ commit, state, dispatch, rootGetters }) => {
+    const access = accessKey(state, rootGetters);
     const accountId = rootGetters.getCurrentAccountId;
     const request = {};
     activeListRequests.set(state, request);
     const ownsRequest = () =>
       rootGetters.getCurrentAccountId === accountId &&
+      access === accessKey(state, rootGetters) &&
       activeListRequests.get(state) === request;
     const params = { ...state.conversationFilters };
     const filterKey = listFilterKey(params);
@@ -73,13 +86,14 @@ const actions = {
         !ownsRequest() ||
         listFilterKey(state.conversationFilters) !== filterKey
       )
-        return;
+        return null;
       buildConversationList(
         { commit, dispatch },
         params,
         data,
         params.assigneeType
       );
+      return data;
     } catch {
       if (ownsRequest()) commit(types.SET_LIST_ERROR_STATUS);
     } finally {
@@ -88,17 +102,20 @@ const actions = {
         activeListRequests.delete(state);
       }
     }
+    return null;
   },
 
   fetchFilteredConversations: async (
     { commit, dispatch, state, rootGetters },
     params
   ) => {
+    const access = accessKey(state, rootGetters);
     const accountId = rootGetters.getCurrentAccountId;
     const request = {};
     activeListRequests.set(state, request);
     const ownsRequest = () =>
       rootGetters.getCurrentAccountId === accountId &&
+      access === accessKey(state, rootGetters) &&
       activeListRequests.get(state) === request;
     commit(types.SET_LIST_LOADING_STATUS);
     try {
@@ -128,11 +145,13 @@ const actions = {
     commit(types.CLEAR_CURRENT_CHAT_WINDOW);
   },
 
-  fetchPreviousMessages: async ({ commit }, data) => {
+  fetchPreviousMessages: async ({ commit, state, rootGetters }, data) => {
+    const access = accessKey(state, rootGetters);
     try {
       const {
         data: { meta, payload },
       } = await MessageApi.getPreviousMessages(data);
+      if (access !== accessKey(state, rootGetters)) return;
       commit(`conversationMetadata/${types.SET_CONVERSATION_METADATA}`, {
         id: data.conversationId,
         data: meta,
@@ -145,11 +164,16 @@ const actions = {
         commit(types.SET_ALL_MESSAGES_LOADED, data.conversationId);
       }
     } catch (error) {
-      // Handle error
+      if (accessDenied(error))
+        commit(types.DELETE_CONVERSATION, data.conversationId);
     }
   },
 
-  fetchAllAttachments: async ({ commit }, conversationId) => {
+  fetchAllAttachments: async (
+    { commit, state, rootGetters },
+    conversationId
+  ) => {
+    const access = accessKey(state, rootGetters);
     let attachments = [];
 
     try {
@@ -164,17 +188,19 @@ const actions = {
     } finally {
       // we run the commit even if the request fails
       // this ensures that the `attachment` variable is always present on chat
-      commit(types.SET_ALL_ATTACHMENTS, {
-        id: conversationId,
-        data: attachments,
-      });
+      if (access === accessKey(state, rootGetters))
+        commit(types.SET_ALL_ATTACHMENTS, {
+          id: conversationId,
+          data: attachments,
+        });
     }
   },
 
   syncActiveConversationMessages: async (
-    { commit, state, dispatch },
+    { commit, state, dispatch, rootGetters },
     { conversationId }
   ) => {
+    const access = accessKey(state, rootGetters);
     const { allConversations, syncConversationsMessages } = state;
     const lastMessageId = syncConversationsMessages[conversationId];
     const selectedChat = allConversations.find(
@@ -190,6 +216,7 @@ const actions = {
         conversationId,
         after: lastMessageId,
       });
+      if (access !== accessKey(state, rootGetters)) return;
       commit(`conversationMetadata/${types.SET_CONVERSATION_METADATA}`, {
         id: conversationId,
         data: meta,
@@ -213,7 +240,8 @@ const actions = {
       });
       dispatch('markMessagesRead', { id: conversationId }, { root: true });
     } catch (error) {
-      // Handle error
+      if (accessDenied(error))
+        commit(types.DELETE_CONVERSATION, conversationId);
     }
   },
 
@@ -253,22 +281,30 @@ const actions = {
   },
 
   assignAgent: async (
-    { dispatch },
+    { dispatch, rootGetters },
     { conversationId, agentId, assigneeType }
   ) => {
+    const accountId = rootGetters.getCurrentAccountId;
+    const userId = rootGetters.getCurrentUserID;
     try {
       const response = await ConversationApi.assignAgent({
         conversationId,
         agentId,
         assigneeType,
       });
-      dispatch('setCurrentChatAssignee', {
+      if (
+        rootGetters.getCurrentAccountId !== accountId ||
+        rootGetters.getCurrentUserID !== userId
+      )
+        return false;
+      await dispatch('setCurrentChatAssignee', {
         conversationId,
         assignee: response.data,
         assigneeType,
       });
+      return true;
     } catch (error) {
-      // Handle error
+      return false;
     }
   },
 
@@ -279,15 +315,26 @@ const actions = {
     commit(types.ASSIGN_AGENT, { conversationId, assignee, assigneeType });
   },
 
-  assignTeam: async ({ dispatch }, { conversationId, teamId }) => {
+  assignTeam: async ({ dispatch, rootGetters }, { conversationId, teamId }) => {
+    const accountId = rootGetters.getCurrentAccountId;
+    const userId = rootGetters.getCurrentUserID;
     try {
       const response = await ConversationApi.assignTeam({
         conversationId,
         teamId,
       });
-      dispatch('setCurrentChatTeam', { team: response.data, conversationId });
+      if (
+        rootGetters.getCurrentAccountId !== accountId ||
+        rootGetters.getCurrentUserID !== userId
+      )
+        return false;
+      await dispatch('setCurrentChatTeam', {
+        team: response.data,
+        conversationId,
+      });
+      return true;
     } catch (error) {
-      // Handle error
+      return false;
     }
   },
 
@@ -421,6 +468,17 @@ const actions = {
     }
   },
 
+  revokeConversationAccess({ commit, state, dispatch }, conversationId) {
+    activeListRequests.delete(state);
+    commit(types.INVALIDATE_CONVERSATION_ACCESS);
+    if (conversationId) commit(types.DELETE_CONVERSATION, conversationId);
+    else commit(types.EMPTY_ALL_CONVERSATION);
+    dispatch('notifications/clear', null, { root: true });
+    dispatch('contactConversations/clear', null, { root: true });
+    dispatch('conversationMetadata/clear', null, { root: true });
+    dispatch('conversationSearch/clearSearchResults', null, { root: true });
+  },
+
   addConversation({ commit, state, dispatch, rootState }, conversation) {
     const { currentInbox, appliedFilters } = state;
     const {
@@ -502,21 +560,37 @@ const actions = {
     commit(types.SET_ACTIVE_INBOX, inboxId);
   },
 
-  muteConversation: async ({ commit }, conversationId) => {
+  muteConversation: async ({ commit, rootGetters }, conversationId) => {
+    const accountId = rootGetters.getCurrentAccountId;
+    const userId = rootGetters.getCurrentUserID;
     try {
       await ConversationApi.mute(conversationId);
-      commit(types.MUTE_CONVERSATION);
+      if (
+        rootGetters.getCurrentAccountId !== accountId ||
+        rootGetters.getCurrentUserID !== userId
+      )
+        return false;
+      commit(types.MUTE_CONVERSATION, conversationId);
+      return true;
     } catch (error) {
-      //
+      return false;
     }
   },
 
-  unmuteConversation: async ({ commit }, conversationId) => {
+  unmuteConversation: async ({ commit, rootGetters }, conversationId) => {
+    const accountId = rootGetters.getCurrentAccountId;
+    const userId = rootGetters.getCurrentUserID;
     try {
       await ConversationApi.unmute(conversationId);
-      commit(types.UNMUTE_CONVERSATION);
+      if (
+        rootGetters.getCurrentAccountId !== accountId ||
+        rootGetters.getCurrentUserID !== userId
+      )
+        return false;
+      commit(types.UNMUTE_CONVERSATION, conversationId);
+      return true;
     } catch (error) {
-      //
+      return false;
     }
   },
 

@@ -2,12 +2,14 @@ import * as types from '../mutation-types';
 
 const state = {
   currentPage: {
+    mine_or_shared: 0,
     me: 0,
     unassigned: 0,
     all: 0,
     appliedFilters: 0,
   },
   hasEndReached: {
+    mine_or_shared: false,
     me: false,
     unassigned: false,
     all: false,
@@ -60,6 +62,7 @@ export const mutations = {
   },
   [types.default.CLEAR_CONVERSATION_PAGE]: $state => {
     $state.currentPage = {
+      mine_or_shared: 0,
       me: 0,
       unassigned: 0,
       all: 0,
@@ -67,6 +70,7 @@ export const mutations = {
     };
 
     $state.hasEndReached = {
+      mine_or_shared: false,
       me: false,
       unassigned: false,
       all: false,

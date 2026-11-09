@@ -42,6 +42,20 @@ describe('ConversationCard', () => {
     expect(wrapper.text()).toContain('Em atendimento');
     expect(wrapper.text()).not.toContain('Aguardando');
   });
+  it('supports an inbox preview before its message collection is loaded', () => {
+    const wrapper = mountComponent({
+      messages: undefined,
+      last_non_activity_message: {
+        id: 9,
+        message_type: 0,
+        content: 'Preview',
+        created_at: 1700000001,
+      },
+    });
+    expect(wrapper.findComponent({ name: 'MessagePreview' }).exists()).toBe(
+      true
+    );
+  });
   it('keeps the default card and offers a dense operational presentation without reserving name space for the clock', async () => {
     const wrapper = mountComponent({});
     expect(wrapper.get('.conversation--user').classes()).toContain('ltr:pr-16');
@@ -56,7 +70,11 @@ describe('ConversationCard', () => {
     );
     expect(wrapper.text()).toContain('Jane Doe');
     expect(wrapper.text()).toContain('Assigned operator');
-    expect(wrapper.findComponent({ name: 'TimeAgo' }).exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'TimeAgo' }).exists()).toBe(false);
+    expect(wrapper.get('time').attributes('datetime')).toBe(
+      '2023-11-14T22:13:20.000Z'
+    );
+    expect(wrapper.text()).toContain('Atendendo: Assigned operator');
   });
   it('does not reserve the labels row when only a persisted SLA policy id is present', () => {
     const wrapper = mountComponent({ sla_policy_id: 1, applied_sla: null });
