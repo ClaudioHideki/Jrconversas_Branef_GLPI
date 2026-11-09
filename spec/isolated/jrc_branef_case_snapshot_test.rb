@@ -28,6 +28,7 @@ module ActiveRecord
       def connection = self
       def transaction_open? = !!open
       def transaction(isolation:)
+        raise 'unexpected snapshot isolation' unless isolation == :repeatable_read
         raise 'nested isolation change' if transaction_open?
         self.transactions += 1
         self.open = true
