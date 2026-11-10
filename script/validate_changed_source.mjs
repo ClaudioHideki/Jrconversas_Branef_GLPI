@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { validateNewMigrationTimestamps } from './validate_migration_timestamps.mjs';
+import { verifyReviewedCoreImports } from './branef_core_migration_imports.mjs';
 
 const base = process.argv[2];
 if (!base) throw new Error('Provide the reviewed base revision.');
@@ -14,7 +15,16 @@ const addedMigrations = new Set([
   ...untracked,
 ]);
 const baseSchema = execFileSync('git', ['show', `${base}:db/schema.rb`]).toString();
-const migrationPolicy = validateNewMigrationTimestamps(baseSchema, [...addedMigrations].filter(Boolean));
+const reviewedCoreImports = fs.existsSync('deploy/jrc/EXTENSION-REFERENCE.json') ? verifyReviewedCoreImports({
+  baseSchemaSource: baseSchema,
+  newPaths: [...addedMigrations].filter(Boolean),
+  reference: JSON.parse(fs.readFileSync('deploy/jrc/EXTENSION-REFERENCE.json', 'utf8')),
+  assertAncestor: sha => execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD']),
+  readCoreFile: (sha, filename) => execFileSync('git', ['show', `${sha}:${filename}`]),
+  readCurrentFile: filename => fs.readFileSync(filename),
+}) : [];
+const imported = new Set(reviewedCoreImports);
+const migrationPolicy = validateNewMigrationTimestamps(baseSchema, [...addedMigrations].filter(filename => filename && !imported.has(filename)));
 let count = 0;
 for (const filename of [...changed].filter(Boolean)) {
   if (!/\.(json|js|mjs|vue)$/.test(filename)) continue;
@@ -40,3 +50,4 @@ const timestamps = fs.readdirSync('db/migrate').filter(name => /^\d{14}_.*\.rb$/
 if (timestamps.length !== new Set(timestamps).size) throw new Error('Duplicate migration timestamp.');
 console.log(`Validated ${count} changed sources and ${timestamps.length} migration timestamps.`);
 console.log(`Validated ${migrationPolicy.migrationCount} new migrations after base schema ${migrationPolicy.baseSchemaVersion}.`);
+console.log(`Verified ${reviewedCoreImports.length} unchanged historical core migrations against the reviewed ancestor and checksums.`);

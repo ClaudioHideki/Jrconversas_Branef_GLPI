@@ -82,6 +82,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Conferir isolamento dos servicos descartaveis
         env:
@@ -128,6 +129,15 @@ jobs:
             bundle exec ruby "$suite" || result=1
           done
           exit "$result"
+      - name: Upgrade do nucleo a partir do schema Branef historico com dados sinteticos
+        env:
+          POSTGRES_DATABASE: jrc_branef_core_upgrade_20261110_test
+        run: |
+          node --test script/branef_core_migration_imports.test.mjs script/validate_migration_timestamps.test.mjs
+          bundle exec ruby test/jrc_consolidation/branef_core_upgrade_guard_test.rb
+          node script/prepare_branef_core_upgrade.mjs "$RUNNER_TEMP/branef-core-upgrade"
+          SCHEMA="$RUNNER_TEMP/branef-core-upgrade/schema.rb" bundle exec rails db:create db:schema:load
+          bundle exec rails runner script/verify_branef_core_upgrade.rb "$RUNNER_TEMP/branef-core-upgrade/baseline.json"
       - name: Lint do intake e protocolo tipado
         id: intake_lint
         if: always() && steps.ruby.outcome == 'success'

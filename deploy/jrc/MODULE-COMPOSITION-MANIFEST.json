@@ -28,8 +28,8 @@
     {
       "path": ".github/workflows/build-ghcr.yml",
       "baseSha256": "05b856abe74f1897c52e76910a03a77065e8c12418b7cffbc74b15d906ce9fd2",
-      "sha256": "ab9595a11c4b24c345194c0dd5b59d55f12b129af7dac8fa1a04d1e01dac45d0",
-      "bytes": 31000
+      "sha256": "8213e1bd8edf1951feb2b4a0e3e7b656edd848f7f1f7344d485d728d766236b5",
+      "bytes": 31722
     },
     {
       "path": ".github/workflows/nico-broker-candidate.yml",
@@ -1030,8 +1030,8 @@
     {
       "path": "script/validate_changed_source.mjs",
       "baseSha256": "b108658ee82d4af68e913f321603d173eb19383a00367ffddf57a503855b6542",
-      "sha256": "4b8431469e04fcf150152a49bad4a1d6b518a82bc403253fd35230c25a64f4b2",
-      "bytes": 2387
+      "sha256": "61fda69b570d10ca5a00795bdeddd7d5cf31fd19c9dff630d63d82e6d818925d",
+      "bytes": 3221
     },
     {
       "path": "script/validate_migration_timestamps.mjs",

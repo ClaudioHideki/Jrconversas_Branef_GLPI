@@ -12,5 +12,65 @@
   ],
   "mustRemainExclusive": true,
   "sourceCoreSha": "4dfdd3fdb54c2af4a085c8a44548e45e5c7d81fd",
-  "brokerSourceSha": "5f98f767bea9645aa8f3d6029568ce028e053fd2"
+  "brokerSourceSha": "5f98f767bea9645aa8f3d6029568ce028e053fd2",
+  "sourceCoreRepository": "ClaudioHideki/jrc-conversas-lab2",
+  "sourceCoreValidationRun": 42709460841,
+  "reviewedCoreMigrations": [
+    {
+      "path": "db/migrate/20261101190000_create_backoffice_document_versions.rb",
+      "sha256": "4466eae70535545483f79534f8a6e80b6c72ef76fd5a556bfef959ee08ccf296"
+    },
+    {
+      "path": "db/migrate/20261101200000_version_backoffice_fulfillment_flow.rb",
+      "sha256": "dc7db83fb7db781cfb4ae750d2d6946bd0556f9077a56c6828609925958b95da"
+    },
+    {
+      "path": "db/migrate/20261102090000_create_jrc_broker_webhook_obligations.rb",
+      "sha256": "5d58062263792b5df3e186b8774d7945af116f8d9b674af86efc96381274b351"
+    },
+    {
+      "path": "db/migrate/20261102100000_create_jrc_human_assignment_policy_events.rb",
+      "sha256": "8ba4bb800c6be00e8d5feb6c8cae15879d4adb2e37096e9638e51f3958cbd63a"
+    },
+    {
+      "path": "db/migrate/20261102110000_protect_jrc_human_assignment_policy_events.rb",
+      "sha256": "726aedf4a2774a56329b41881ade88118a4b6c1edc90b204c17b7f73bb533e5d"
+    },
+    {
+      "path": "db/migrate/20261102120000_create_jrc_broker_connection_events.rb",
+      "sha256": "9ae201e57f99890ba6136f5b22a5e6883361fa89fa55e1ce95ce7c4023a69f78"
+    },
+    {
+      "path": "db/migrate/20261102130000_create_jrc_migration_center.rb",
+      "sha256": "4e84ee0e688225beb22f4ed1197def1dbf92e36f1c3aac65663faa304046f7c2"
+    },
+    {
+      "path": "db/migrate/20261102201000_allow_jrc_flow_execution_inspection_scope.rb",
+      "sha256": "f1476e6f7a1b050a6acb28c7efcbda231d29a8823f97285838a0fafc5b19b0fd"
+    },
+    {
+      "path": "db/migrate/20261102202000_create_jrc_migration_events.rb",
+      "sha256": "dba8aeb4d9c5f6ec4e3d8e5507571161945c3495c14e6b456d83b6a3829f9a6c"
+    },
+    {
+      "path": "db/migrate/20261102203000_create_jrc_migration_media_objects.rb",
+      "sha256": "88e981f0953c9ac147cbf986b57f6ce00c19e535941dfbd7180bf0eebbf0a45d"
+    },
+    {
+      "path": "db/migrate/20261102204000_harden_jrc_migration_media_protocol.rb",
+      "sha256": "0779536039ad171d92e7fbdd5ef50b80bbac147c01c5945aa08f82dfa0412132"
+    },
+    {
+      "path": "db/migrate/20261102205000_enforce_jrc_migration_media_identity.rb",
+      "sha256": "3b0c1dee97979138a2d66b125979f640a1f795081251a8b3a9c7f5a5b985bd7c"
+    },
+    {
+      "path": "db/migrate/20261109150000_create_jrc_contact_center_call_observations.rb",
+      "sha256": "12ad421fbb5b4d74a2225002a4893abd3bc02680cecebfe80ff931ba036c37fd"
+    },
+    {
+      "path": "db/migrate/20261109160000_add_projects_and_portal_establishments.rb",
+      "sha256": "fe2b196ae5d06295d7ae4eb68d7cc311b06bba57679fcc095aa5ba750b88011b"
+    }
+  ]
 }
