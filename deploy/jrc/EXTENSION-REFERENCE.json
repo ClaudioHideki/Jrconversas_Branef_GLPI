@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "extensionId": "branef-glpi",
-  "releaseId": "jrc-core-20261109-candidate",
+  "releaseId": "jrc-core-20261110-candidate",
   "status": "CANDIDATE_NOT_DEPLOYMENT_PROOF",
   "repository": "ClaudioHideki/Jrconversas_Branef_GLPI",
   "extensionBaselineSha": "b7ae0c067c5e0983922d5747da168a98b19b6b1f",
@@ -11,10 +11,10 @@
     "Branef intake and source-specific permissions"
   ],
   "mustRemainExclusive": true,
-  "sourceCoreSha": "4dfdd3fdb54c2af4a085c8a44548e45e5c7d81fd",
+  "sourceCoreSha": "d8a83b824b11cc68ddbbce7c79681f368051fb70",
   "brokerSourceSha": "5f98f767bea9645aa8f3d6029568ce028e053fd2",
   "sourceCoreRepository": "ClaudioHideki/jrc-conversas-lab2",
-  "sourceCoreValidationRun": 42709460841,
+  "sourceCoreValidationRun": 42829272917,
   "reviewedCoreMigrations": [
     {
       "path": "db/migrate/20261101190000_create_backoffice_document_versions.rb",
