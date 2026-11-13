@@ -64,6 +64,30 @@ beforeEach(() => {
 });
 
 describe('GLPI operational workspace context', () => {
+  it('does not present a valid empty search when the projection total is unavailable', async () => {
+    API.get.mockImplementation(async (_account, path) => {
+      if (path === 'context')
+        return envelope({ available: true, entities: [] });
+      if (path === 'capabilities') return envelope({ operations: [] });
+      return envelope({
+        items: [],
+        meta: { total: null, page: 1, per_page: 25 },
+        coverage: { state: 'unavailable' },
+      });
+    });
+    const global = globals();
+    global.stubs.GlpiTicketWorkspace = false;
+    const wrapper = mount(GlpiServiceDesk, {
+      props: { screen: 'tickets' },
+      global,
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain(
+      messages.JRC_GLPI.visual.unavailable_total
+    );
+    expect(wrapper.text()).not.toContain(messages.JRC_GLPI.empty);
+    wrapper.unmount();
+  });
   it.each(['America/Sao_Paulo', undefined])(
     'identifies the source timezone or explicitly marks it unknown: %s',
     async timezone => {

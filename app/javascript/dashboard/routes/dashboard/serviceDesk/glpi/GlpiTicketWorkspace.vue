@@ -389,7 +389,7 @@ const create = () =>
           </table>
         </div>
         <p
-          v-if="!list.items.length"
+          v-if="!list.items.length && list.meta.total != null"
           class="text-sm"
         >
           {{ t('JRC_GLPI.empty') }}
