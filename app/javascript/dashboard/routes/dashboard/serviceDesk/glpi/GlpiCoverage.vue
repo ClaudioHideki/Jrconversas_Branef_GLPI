@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { formatGlpiDate } from './presentation';
 const props = defineProps({
   coverage: { type: Object, default: null },
   observedAt: { type: String, default: '' },
@@ -28,28 +29,51 @@ const status = computed(() => {
 
 <template>
   <div
-    class="grid gap-1 rounded-lg border border-n-weak bg-n-slate-2 p-3 text-xs"
+    class="min-w-0 rounded-xl border p-3 text-sm"
+    :class="
+      status === 'complete'
+        ? 'border-n-teal-6 bg-n-teal-2 text-n-teal-11'
+        : status === 'partial'
+          ? 'border-n-amber-6 bg-n-amber-2 text-n-amber-11'
+          : 'border-n-weak bg-n-slate-2 text-n-slate-11'
+    "
     role="status"
   >
-    <p>{{ t(`JRC_GLPI.workspace.coverage.${status}`) }}</p>
-    <p v-if="coverage?.observed_at || observedAt">
-      {{
-        t('JRC_GLPI.workspace.observed', {
-          time: coverage?.observed_at || observedAt,
-        })
-      }}
-    </p>
-    <p>{{ t('JRC_GLPI.workspace.non_atomic') }}</p>
-    <p
-      v-for="error in errors"
-      :key="error.code"
-    >
-      {{
-        t('JRC_GLPI.source_code', {
-          code: error.code,
-        })
-      }}
-      ({{ error.count }})
-    </p>
+    <details>
+      <summary
+        class="cursor-pointer font-semibold focus-visible:outline focus-visible:outline-2"
+      >
+        <span>{{ t(`JRC_GLPI.workspace.coverage.${status}`) }}</span>
+        <span
+          v-if="coverage?.collected_at || observedAt"
+          class="ml-2 font-normal"
+        >
+          {{
+            t('JRC_GLPI.visual.utc_timestamp', {
+              time: formatGlpiDate(coverage?.collected_at || observedAt, 'UTC'),
+            })
+          }}
+        </span>
+      </summary>
+      <p v-if="coverage?.observed_at || observedAt">
+        {{
+          t('JRC_GLPI.workspace.observed', {
+            time: formatGlpiDate(coverage?.observed_at || observedAt, 'UTC'),
+          })
+        }}
+      </p>
+      <p>{{ t('JRC_GLPI.workspace.non_atomic') }}</p>
+      <p
+        v-for="error in errors"
+        :key="error.code"
+      >
+        {{
+          t('JRC_GLPI.source_code', {
+            code: error.code,
+          })
+        }}
+        ({{ error.count }})
+      </p>
+    </details>
   </div>
 </template>

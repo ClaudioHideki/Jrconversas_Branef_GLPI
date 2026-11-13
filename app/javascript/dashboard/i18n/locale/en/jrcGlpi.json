@@ -457,6 +457,36 @@
       "12": "Em qualificação",
       "13": "Recusada",
       "14": "Cancelada"
+    },
+    "visual": {
+      "service_desk": "Service Desk · GLPI",
+      "clear": "Limpar filtros",
+      "applied": "Filtros aplicados",
+      "remove": "Remover {filter}",
+      "collection": "Coleta da origem · administração",
+      "error_details": "Detalhes · {count} operação(ões)",
+      "right_missing": "O perfil técnico do GLPI não tem a permissão necessária para esta consulta.",
+      "forbidden": "Acesso não disponível. Confira o vínculo do operador, as entidades autorizadas e as permissões.",
+      "titles": {
+        "glpi": "Chamados GLPI",
+        "detail": "Detalhe do chamado",
+        "edit": "Atualizar chamado",
+        "new": "Novo chamado GLPI"
+      },
+      "help": {
+        "tickets": "Pesquise os chamados e acompanhe o estado, a prioridade e os prazos no escopo autorizado.",
+        "overview": "Indicadores e distribuições da consulta autorizada. Ajuste o período de abertura nos filtros.",
+        "resource": "Consulte os recursos disponíveis e suas ações autorizadas na origem.",
+        "ticket": "Identificação, classificação, prazos e histórico do chamado na origem."
+      },
+      "exceeded": "Prazo excedido no GLPI",
+      "catalog_id": "Identificador {id} · nome não fornecido pela consulta",
+      "unavailable_total": "Total indisponível",
+      "timezone": "Datas do GLPI: {timezone}",
+      "unknown_timezone": "fuso não informado",
+      "export": "Exportação da consulta",
+      "source": "Origem GLPI",
+      "utc_timestamp": "· {time} UTC"
     }
   }
 }

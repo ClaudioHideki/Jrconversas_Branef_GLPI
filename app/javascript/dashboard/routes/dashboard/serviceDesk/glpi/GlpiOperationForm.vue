@@ -328,7 +328,7 @@ const submit = async () => {
 
 <template>
   <section
-    class="grid gap-3 rounded-xl border border-n-weak p-4"
+    class="grid min-w-0 gap-4 rounded-2xl border border-n-blue-6 bg-n-solid-2 p-5 shadow-sm"
     data-testid="glpi-operation-form"
   >
     <h3 class="font-semibold">{{ t('JRC_GLPI.workspace.actions') }}</h3>
@@ -345,7 +345,7 @@ const submit = async () => {
       {{ t('JRC_GLPI.workspace.no_operations') }}
     </p>
     <template v-else>
-      <label class="grid gap-1 text-xs">
+      <label class="grid gap-2 text-sm font-medium text-n-slate-12">
         {{ t('JRC_GLPI.workspace.action') }}
         <select
           v-model="operation"
@@ -393,7 +393,7 @@ const submit = async () => {
         class="grid gap-3 sm:grid-cols-2"
         @submit.prevent="submit"
       >
-        <label class="grid gap-1 text-xs">
+        <label class="grid gap-2 text-sm font-medium text-n-slate-12">
           {{ t('JRC_GLPI.entity') }}
           <select
             v-model="entityId"
@@ -419,7 +419,7 @@ const submit = async () => {
         <template v-if="policyMode">
           <label
             v-if="entityId !== ''"
-            class="grid gap-1 text-xs"
+            class="grid gap-2 text-sm font-medium text-n-slate-12"
             data-testid="glpi-template-selector"
           >
             {{ t('JRC_GLPI.ticket_form.template') }}
@@ -513,7 +513,7 @@ const submit = async () => {
           v-for="field in fields"
           :key="`${operation}:${field}`"
           :data-field="field"
-          class="grid gap-1 text-xs"
+          class="grid gap-2 text-sm font-medium text-n-slate-12"
           :class="multiline(field) ? 'sm:col-span-2' : ''"
         >
           {{ t(`JRC_GLPI.fields.${field}`) }}

@@ -8,6 +8,7 @@ import GlpiOperationForm from './GlpiOperationForm.vue';
 import GlpiDocuments from './GlpiDocuments.vue';
 import GlpiLookup from './GlpiLookup.vue';
 import { operationFamily } from '../helpers/glpiScreens';
+import { plainText, formatGlpiDate } from './presentation';
 
 const props = defineProps({
   glpi: { type: Object, required: true },
@@ -150,10 +151,12 @@ const summaryFields = [
 <template>
   <section
     v-if="resource === 'assets' && !parentId"
-    class="grid gap-4"
+    class="grid min-w-0 gap-4 rounded-2xl border border-n-weak bg-n-solid-2 p-5 shadow-sm"
     :data-testid="`glpi-resource-${resource}`"
   >
-    <h3 class="font-semibold">{{ t('JRC_GLPI.resources.assets') }}</h3>
+    <h3 class="text-base font-bold text-n-slate-12">
+      {{ t('JRC_GLPI.resources.assets') }}
+    </h3>
     <label class="grid gap-2 text-sm">
       {{ t('JRC_GLPI.workspace.select_asset_ticket') }}
       <GlpiLookup
@@ -171,10 +174,12 @@ const summaryFields = [
   </section>
   <section
     v-else
-    class="grid gap-4"
+    class="grid min-w-0 gap-4 rounded-2xl border border-n-weak bg-n-solid-2 p-5 shadow-sm"
     :data-testid="`glpi-resource-${resource}`"
   >
-    <h3 class="font-semibold">{{ t(`JRC_GLPI.resources.${resource}`) }}</h3>
+    <h3 class="text-base font-bold text-n-slate-12">
+      {{ t(`JRC_GLPI.resources.${resource}`) }}
+    </h3>
     <form
       v-if="!parentId"
       class="flex gap-2"
@@ -221,14 +226,13 @@ const summaryFields = [
           v-for="row in data.items"
           :key="row.id"
           type="button"
-          class="grid gap-2 rounded-lg border border-n-weak p-3 text-left hover:bg-n-slate-2"
+          class="grid min-w-0 gap-3 rounded-xl border border-n-blue-6 bg-n-blue-2 p-4 text-left shadow-sm hover:border-n-blue-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-blue-9"
           :aria-pressed="selected?.id === row.id"
           @click="open(row)"
         >
-          <span class="font-semibold">
+          <span class="text-base font-bold text-n-slate-12">
             {{
-              row.name ||
-              row.filename ||
+              plainText(row.name || row.filename) ||
               t('JRC_GLPI.workspace.record_number', { id: row.id })
             }}
           </span>
@@ -255,7 +259,12 @@ const summaryFields = [
             }}
           </span>
           <time class="text-xs text-n-slate-11">
-            {{ row.date_mod || row.date || row.begin }}
+            {{
+              formatGlpiDate(
+                row.date_mod || row.date || row.begin,
+                glpi.state.context.timezone
+              )
+            }}
           </time>
         </button>
       </div>
@@ -274,7 +283,7 @@ const summaryFields = [
       v-if="selected"
       class="grid gap-3 rounded-xl border border-n-weak bg-n-slate-2 p-4"
     >
-      <h4 class="font-semibold">
+      <h4 class="text-base font-bold text-n-slate-12">
         {{ t('JRC_GLPI.workspace.record_number', { id: selected.id }) }}
       </h4>
       <p
@@ -296,7 +305,9 @@ const summaryFields = [
           )"
           :key="field"
         >
-          <dt class="text-xs font-medium">
+          <dt
+            class="rounded-md bg-n-slate-2 px-2 py-1 text-sm font-semibold text-n-slate-11"
+          >
             {{ t(`JRC_GLPI.fields.${field}`) }}
           </dt>
           <dd

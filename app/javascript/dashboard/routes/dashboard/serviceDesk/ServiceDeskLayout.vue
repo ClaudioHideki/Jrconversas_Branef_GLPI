@@ -140,7 +140,7 @@ const blocked = computed(() =>
     <template v-if="enabled">
       <main
         :key="`${accountId}:${userId}`"
-        class="flex-1 min-h-0 min-w-0 overflow-auto p-4 xl:p-5"
+        class="flex-1 min-h-0 min-w-0 overflow-auto bg-gradient-to-br from-n-blue-2 to-n-background p-4 xl:p-5"
       >
         <Breadcrumb
           v-if="state.status === 'ready'"
