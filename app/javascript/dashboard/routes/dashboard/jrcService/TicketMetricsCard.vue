@@ -63,7 +63,10 @@ const navigate = () => {
       >{{ t('JRC_COCKPIT_TICKETS.scope', metrics.filters) }}</span
     >
     <span class="mt-1 block text-xs text-n-slate-11">{{
-      t('JRC_COCKPIT_TICKETS.collected', { time: collected })
+      t('JRC_COCKPIT_TICKETS.collected', {
+        time: collected,
+        timezone: metrics.timezone || 'UTC',
+      })
     }}</span>
   </button>
 </template>

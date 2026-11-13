@@ -14,6 +14,18 @@ const render = metrics =>
   });
 
 describe('authorized ticket indicator', () => {
+  it('identifies the timezone used to display the collection timestamp', () => {
+    const wrapper = render({
+      source: 'Example',
+      state: 'complete',
+      total: 1,
+      collected_at: '2026-11-13T13:30:00Z',
+      timezone: 'America/Sao_Paulo',
+      filters: {},
+    });
+    expect(wrapper.text()).toContain('America/Sao_Paulo');
+    expect(wrapper.text()).toContain('10:30');
+  });
   it('keeps unavailable distinct from a valid empty collection', () => {
     const unavailable = render({
       source: 'GLPI',

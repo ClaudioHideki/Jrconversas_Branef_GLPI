@@ -4,7 +4,7 @@
     "scope": "Abertos de {from} a {to} · escopo autorizado",
     "active": "{count} ativos",
     "exceeded": "{count} com prazo excedido",
-    "collected": "Coleta: {time}",
+    "collected": "Coleta ({timezone}): {time}",
     "complete": "Cobertura conferida",
     "partial": "Cobertura parcial",
     "unavailable": "Dados indisponíveis",
