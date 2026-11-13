@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { reactive, ref } from 'vue';
 import { createI18n } from 'vue-i18n';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import API from 'dashboard/api/serviceDeskGlpi';
 import GlpiServiceDesk from './GlpiServiceDesk.vue';
 import messages from 'dashboard/i18n/locale/en/jrcGlpi.json';
@@ -63,6 +64,81 @@ beforeEach(() => {
 });
 
 describe('GLPI operational workspace context', () => {
+  it.each(['America/Sao_Paulo', undefined])(
+    'identifies the source timezone or explicitly marks it unknown: %s',
+    async timezone => {
+      API.get.mockImplementation(async (_account, path) =>
+        envelope(
+          path === 'context'
+            ? { available: true, entities: [], timezone }
+            : { operations: [] }
+        )
+      );
+      const wrapper = mount(GlpiServiceDesk, {
+        props: { screen: 'tickets' },
+        global: globals(),
+      });
+      await flushPromises();
+      expect(wrapper.text()).toContain(timezone || 'fuso não informado');
+      wrapper.unmount();
+    }
+  );
+
+  it('keeps the displayed scope and reload URL equal after opening trash and returning to active tickets', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div />' } }],
+    });
+    await router.push('/?status=4');
+    API.get.mockImplementation(async (_account, path, params = {}) => {
+      if (path === 'context')
+        return envelope({
+          available: true,
+          entities: [],
+          can_manage_trash: true,
+        });
+      if (path === 'capabilities') return envelope({ operations: [] });
+      return envelope({
+        items:
+          path === 'trash'
+            ? []
+            : [
+                {
+                  id: params.status ? 4 : 1,
+                  title: params.status ? 'Pending example' : 'Active example',
+                  status: params.status || '1',
+                  priority: '3',
+                },
+              ],
+        meta: { total: path === 'trash' ? 0 : 1, page: 1, per_page: 25 },
+      });
+    });
+    const global = globals();
+    global.plugins.push(router);
+    global.stubs.GlpiTicketWorkspace = false;
+    const wrapper = mount(GlpiServiceDesk, {
+      props: { screen: 'tickets' },
+      global,
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Pending example');
+    await wrapper.get('[data-testid="glpi-trash-toggle"]').trigger('click');
+    await flushPromises();
+    await wrapper.get('[data-testid="glpi-trash-toggle"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Active example');
+    expect(wrapper.find('[data-filter="status"]').exists()).toBe(false);
+    expect(router.currentRoute.value.query).toEqual({});
+    wrapper.unmount();
+    const reloaded = mount(GlpiServiceDesk, {
+      props: { screen: 'tickets' },
+      global,
+    });
+    await flushPromises();
+    expect(reloaded.text()).toContain('Active example');
+    expect(reloaded.text()).not.toContain('Pending example');
+    reloaded.unmount();
+  });
   it.each([
     ['overview', 'remote-overview'],
     ['tickets', 'remote-tickets'],

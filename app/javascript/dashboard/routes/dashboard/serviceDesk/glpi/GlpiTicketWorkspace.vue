@@ -119,6 +119,7 @@ const toggleTrash = () => {
   localId.value = null;
   page.value = 1;
   filters.value = {};
+  emit('filters', {});
   props.glpi.discard('tickets');
   props.glpi.discard('detail');
   load();

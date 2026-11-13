@@ -101,6 +101,18 @@ watch(
         </p>
         <p class="text-sm text-n-slate-11">
           {{ t('JRC_GLPI.workspace.source') }}
+          <span
+            v-if="state.context?.available"
+            class="mt-2 block text-xs font-semibold text-n-blue-11"
+          >
+            {{
+              t('JRC_GLPI.visual.timezone', {
+                timezone:
+                  state.context.timezone ||
+                  t('JRC_GLPI.visual.unknown_timezone'),
+              })
+            }}
+          </span>
         </p>
       </div>
       <Button
