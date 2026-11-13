@@ -22,35 +22,47 @@ Conferir: troca de conta/usuário durante requisição; escopo de operador restr
 
 ## Task 1 — Núcleo: navegação e contrato neutro
 
-- [ ] Testar configuração por conta em `temporaryVisibility.spec.js`, preservação dos defaults e atalhos equivalentes.
-- [ ] `temporaryVisibility.js`, `Sidebar.vue`, `layout/useQuickActionAccess.js`: Cockpit antes de Inbox; visibilidade por `custom_attributes.jrc_navigation.hidden_entries`; serializar somente chave necessária no `_account.json.jbuilder`.
-- [ ] `JrcAi::CockpitTicketMetrics` como ponto de extensão neutro; `CockpitMetricsService` inclui `ticket_metrics`, sem amostra de espera retorna null. Testes de provider/período e nulidade.
-- [ ] `TicketMetricsCard.vue` no Cockpit, estados explícitos e rota/período do servidor. Proteger requisições concorrentes e limpeza na troca de conta.
-- [ ] Validar testes/frontend lint; commit local do núcleo e integrar seletivamente esse incremento à Branef.
+- [x] Testar configuração por conta em `temporaryVisibility.spec.js`, preservação dos defaults e atalhos equivalentes.
+- [x] `temporaryVisibility.js`, `Sidebar.vue`, `layout/useQuickActionAccess.js`: Cockpit antes de Inbox; visibilidade por `custom_attributes.jrc_navigation.hidden_entries`; serializar somente chave necessária no `_account.json.jbuilder`.
+- [x] `JrcAi::CockpitTicketMetrics` como ponto de extensão neutro; `CockpitMetricsService` inclui `ticket_metrics`, sem amostra de espera retorna null. Testes de provider/período e nulidade.
+- [x] `TicketMetricsCard.vue` no Cockpit, estados explícitos e rota/período do servidor. Proteger requisições concorrentes e limpeza na troca de conta.
+- [x] Validar testes/frontend lint; commit local do núcleo e integrar seletivamente esse incremento à Branef.
 
 ## Task 2 — Branef: adaptador GLPI
 
-- [ ] Testar fonte nativa/sem acesso, leitura permitida, período, zero/indisponível/parcial, erro e ausência de chamadas remotas.
-- [ ] `JrcServiceDesk::Glpi::CockpitMetrics` e initializer registram provider neutro; `Overview.selection`/Report existentes fornecem agregado autorizado. Usar política `report?`, contexto autenticado e conexão habilitada como origem GLPI.
-- [ ] Resposta com source, state, total, active, exceeded, coverage, collected_at, filters, timezone e rota neutra. Não expor metadados de outros operadores.
-- [ ] Contexto GLPI expõe fuso configurado para formatação de datas sem offset.
-- [ ] Verificar em PostgreSQL/Rails isolados; commit local.
+- [x] Testar fonte nativa/sem acesso, leitura permitida, período, zero/indisponível/parcial, erro e ausência de chamadas remotas.
+- [x] `JrcServiceDesk::Glpi::CockpitMetrics` e initializer registram provider neutro; `Overview.selection`/Report existentes fornecem agregado autorizado. Usar política `report?`, contexto autenticado e conexão habilitada como origem GLPI.
+- [x] Resposta com source, state, total, active, exceeded, coverage, collected_at, filters, timezone e rota neutra. Não expor metadados de outros operadores.
+- [x] Contexto GLPI expõe fuso configurado para formatação de datas sem offset.
+- [x] Verificar em PostgreSQL/Rails isolados; commit local.
 
 ## Task 3 — Branef: visual compartilhado
 
-- [ ] Testes comportamentais de filtros/chips/limpeza, escape de entidades, timezone e agrupamento de erros; preservar testes atuais.
-- [ ] Helpers de apresentação + `GlpiBadge.vue`, `GlpiFilters.vue`, `GlpiCoverage.vue`: cores semânticas, rótulos, foco, filtros aplicados/URL, compactação com detalhes de cobertura.
-- [ ] `GlpiServiceDesk.vue`, `GlpiSync.vue`: títulos por tela, erros agrupados com operação e detalhe, coleta administrativa em detalhes expansíveis.
-- [ ] `GlpiTicketWorkspace.vue`, `GlpiOverview.vue`, `GlpiResourceBoard.vue`, formulários: painéis, tabela, status/prioridade, nomes e datas legíveis, gráficos com valores e legendas, sem alterar ações/permissões/exportação.
-- [ ] Matriz de rotas: glpi/tickets/mine/incidents/detail/edit/new; overview/reports/sla; queues/assignees/catalog/knowledge/tasks/approvals/problems/changes/assets/documents/surveys; telas locais/governança/gestão conservam rotas e controles, recebem hierarquia do layout comum.
-- [ ] Vitest de origem, operações, filtros e regressões, lint e build. Conferência visual desktop/estreita/teclado, dados sintéticos marcados. Commit local.
+- [x] Testes comportamentais de filtros/chips/limpeza, escape de entidades, timezone e agrupamento de erros; preservar testes atuais.
+- [x] Helpers de apresentação + `GlpiBadge.vue`, `GlpiFilters.vue`, `GlpiCoverage.vue`: cores semânticas, rótulos, foco, filtros aplicados/URL, compactação com detalhes de cobertura.
+- [x] `GlpiServiceDesk.vue`, `GlpiSync.vue`: títulos por tela, erros agrupados com operação e detalhe, coleta administrativa em detalhes expansíveis.
+- [x] `GlpiTicketWorkspace.vue`, `GlpiOverview.vue`, `GlpiResourceBoard.vue`, formulários: painéis, tabela, status/prioridade, nomes e datas legíveis, gráficos com valores e legendas, sem alterar ações/permissões/exportação.
+- [x] Matriz de rotas: glpi/tickets/mine/incidents/detail/edit/new; overview/reports/sla; queues/assignees/catalog/knowledge/tasks/approvals/problems/changes/assets/documents/surveys; telas locais/governança/gestão conservam rotas e controles, recebem hierarquia do layout comum.
+- [x] Vitest de origem, operações, filtros e regressões, lint e build. Conferência visual desktop/estreita/teclado, dados sintéticos marcados. Commit local.
 
 ## Task 4 — revisão e entrega local
 
-- [ ] Revisão independente do diff conjunto, corrigir achados importantes com testes.
-- [ ] Verificação final adequada, diff/check/clean, relatar separadamente código/testes/build e produção não implantada.
-- [ ] Registrar instrução futura para configurar Calling na conta escolhida; não aplicar alteração de ambiente agora.
+- [x] Revisão independente do diff conjunto, corrigir achados importantes com testes.
+- [x] Verificação final adequada, diff/check/clean, relatar separadamente código/testes/build e produção não implantada.
+- [x] Registrar instrução futura para configurar Calling na conta escolhida; não aplicar alteração de ambiente agora.
 
 ## Roteiro de testes
 
 Vitest via Node 24 e dependências existentes; suítes dos arquivos alterados e contratos GLPI, sem cache/coverage. Rails em containers descartáveis próprios com PostgreSQL pgvector/Redis e rede interna; nenhum endpoint de cliente. Lint dos arquivos tocados e build Vite nas revisões finais. Resultados e limites ficam no relatório de entrega.
+
+## Execução local concluída — 13/11/2026
+
+Código: b0d5a4bd6c498638a7e01ffd00ce6f40ec2b08b7. Núcleo: 05bc5999d5bc25ba4454a0cd614a8ab7cde1947f.
+Frontend: 120/120; reexecução GLPI após responsividade: 113/113; Rails: 13/13. Build Vite final aprovado. Lint dos 24 arquivos JS/Vue: zero erros, 61 avisos registrados; três arquivos Ruby novos sem infrações.
+Revisão independente apontou fuso e URL da lixeira; ambos corrigidos por RED→GREEN. QA corrigiu vazio/indisponível e largura intrínseca da paginação. Componentes reais com transporte sintético conferidos em 320 e 390 px, claro/escuro e teclado, sem erros JS.
+Melhoria menor adiada: nomes acessíveis das barras de status/prioridade ainda mostram códigos numéricos; rótulos e contagens visíveis estão disponíveis.
+O teste legado suplementar foi interrompido por ausência de resposta do Docker local após falta de espaço. Sua execução e a limpeza dos três containers descartáveis não foram confirmadas; não foram reiniciados outros containers.
+Não houve push, CI, imagem publicada, deploy, escrita GLPI real ou alteração de credenciais/URA/NICO/permissões. Publicação e aceitação operacional permanecem fora desta etapa. A configuração por conta para ocultar Calling está preparada no relatório; não foi aplicada no ambiente.
+Rulings: no Windows, registros diretos substituíram o helper Bash (sem resumo automático); QA visual feita pelo executor (sem avaliação visual independente); produção fora do escopo autorizado (sem comprovação operacional).
+Evidências e passos futuros: output/implementacao-visual-20261113 no diretório de coordenação JRCBranef.
+
