@@ -1,0 +1,15 @@
+{
+  "JRC_COCKPIT_TICKETS": {
+    "title": "Chamados {source}",
+    "scope": "Abertos de {from} a {to} · escopo autorizado",
+    "active": "{count} ativos",
+    "exceeded": "{count} com prazo excedido",
+    "collected": "Coleta: {time}",
+    "complete": "Cobertura conferida",
+    "partial": "Cobertura parcial",
+    "unavailable": "Dados indisponíveis",
+    "forbidden": "Acesso não disponível",
+    "waiting": "Espera das conversas (estimativa)",
+    "no_sample": "Sem amostra"
+  }
+}
