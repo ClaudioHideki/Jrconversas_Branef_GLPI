@@ -65,4 +65,3 @@ O teste legado suplementar foi interrompido por ausência de resposta do Docker 
 Não houve push, CI, imagem publicada, deploy, escrita GLPI real ou alteração de credenciais/URA/NICO/permissões. Publicação e aceitação operacional permanecem fora desta etapa. A configuração por conta para ocultar Calling está preparada no relatório; não foi aplicada no ambiente.
 Rulings: no Windows, registros diretos substituíram o helper Bash (sem resumo automático); QA visual feita pelo executor (sem avaliação visual independente); produção fora do escopo autorizado (sem comprovação operacional).
 Evidências e passos futuros: output/implementacao-visual-20261113 no diretório de coordenação JRCBranef.
-
