@@ -151,7 +151,7 @@ const summaryFields = [
 <template>
   <section
     v-if="resource === 'assets' && !parentId"
-    class="grid min-w-0 gap-4 rounded-2xl border border-n-weak bg-n-solid-2 p-5 shadow-sm"
+    class="grid min-w-0 grid-cols-1 gap-4 rounded-2xl border border-n-weak bg-n-solid-2 p-5 shadow-sm"
     :data-testid="`glpi-resource-${resource}`"
   >
     <h3 class="text-base font-bold text-n-slate-12">
@@ -174,7 +174,7 @@ const summaryFields = [
   </section>
   <section
     v-else
-    class="grid min-w-0 gap-4 rounded-2xl border border-n-weak bg-n-solid-2 p-5 shadow-sm"
+    class="grid min-w-0 grid-cols-1 gap-4 rounded-2xl border border-n-weak bg-n-solid-2 p-5 shadow-sm"
     :data-testid="`glpi-resource-${resource}`"
   >
     <h3 class="text-base font-bold text-n-slate-12">
@@ -270,6 +270,7 @@ const summaryFields = [
       </div>
       <Pagination
         v-if="data.meta?.per_page && data.meta.total"
+        class="!h-auto min-h-[3.375rem] min-w-0 flex-wrap gap-3 !px-3 [&>div]:min-w-0 [&>div]:flex-wrap"
         :current-page="data.meta.page"
         :items-per-page="data.meta.per_page"
         :total-items="data.meta.total"

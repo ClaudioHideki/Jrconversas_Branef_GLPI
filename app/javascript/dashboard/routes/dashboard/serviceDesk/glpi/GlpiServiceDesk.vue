@@ -77,7 +77,7 @@ watch(
 
 <template>
   <section
-    class="grid min-w-0 gap-5"
+    class="grid min-w-0 grid-cols-1 gap-5"
     data-testid="glpi-service-desk"
   >
     <header

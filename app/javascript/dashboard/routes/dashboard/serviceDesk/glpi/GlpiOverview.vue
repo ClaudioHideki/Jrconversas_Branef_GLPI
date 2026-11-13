@@ -150,7 +150,7 @@ load();
 
 <template>
   <section
-    class="grid gap-4"
+    class="grid min-w-0 grid-cols-1 gap-4"
     data-testid="glpi-overview"
   >
     <GlpiFilters

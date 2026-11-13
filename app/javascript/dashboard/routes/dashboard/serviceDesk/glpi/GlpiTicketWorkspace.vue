@@ -140,7 +140,7 @@ const create = () =>
 
 <template>
   <section
-    class="grid gap-4"
+    class="grid min-w-0 grid-cols-1 gap-4"
     data-testid="glpi-ticket-workspace"
   >
     <GlpiOperationForm
@@ -396,6 +396,7 @@ const create = () =>
         </p>
         <Pagination
           v-if="list.meta.total"
+          class="!h-auto min-h-[3.375rem] min-w-0 flex-wrap gap-3 !px-3 [&>div]:min-w-0 [&>div]:flex-wrap"
           :current-page="list.meta.page"
           :total-items="list.meta.total"
           :items-per-page="list.meta.per_page"
