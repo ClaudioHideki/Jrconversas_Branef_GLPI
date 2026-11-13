@@ -16,6 +16,7 @@ module JrcAi
         generated_at: Time.current.iso8601,
         period: period,
         summary: summary,
+        ticket_metrics: JrcAi::CockpitTicketMetrics.call(account: account, user: user, account_user: account_user, period: period),
         attention: attention_items,
         channel_distribution: channel_distribution,
         daily_volume: daily_volume,
@@ -140,7 +141,7 @@ module JrcAi
 
     def estimated_sla_percent
       total = open_conversations.count
-      return 100 if total.zero?
+      return nil if total.zero?
 
       risk = waiting_over(SLA_RISK_MINUTES).count
       [[((total - risk).to_f / total * 100).round, 0].max, 100].min

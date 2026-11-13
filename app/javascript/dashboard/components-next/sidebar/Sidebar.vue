@@ -2,7 +2,7 @@
 import { useOperations } from 'dashboard/routes/dashboard/jrcOperations/useOperations';
 import { h, ref, computed, onMounted, watch } from 'vue';
 import { provideSidebarContext, useSidebarResize } from './provider';
-import { visibleSidebarSections } from './temporaryVisibility';
+import { visibleSidebarSections as filterSidebarSections } from './temporaryVisibility';
 import { universityLink } from './university';
 import { withNewBadge } from './newModules';
 import SidebarUniversity from './SidebarUniversity.vue';
@@ -60,7 +60,13 @@ const emit = defineEmits([
   'closeMobileSidebar',
 ]);
 
-const { accountScopedRoute, isOnChatwootCloud } = useAccount();
+const {
+  accountScopedRoute,
+  isOnChatwootCloud,
+  currentAccount: navigationAccount,
+} = useAccount();
+const visibleSidebarSections = sections =>
+  filterSidebarSections(sections, navigationAccount.value);
 const { isEnterprise } = useConfig();
 const store = useStore();
 const globalConfig = useMapGetter('globalConfig/get');
@@ -1726,7 +1732,7 @@ const menuSections = computed(() => {
       {
         name: 'attendance',
         label: t('JRC_CONTACT_CENTER.NAV_GROUPS.ATTENDANCE'),
-        items: take(['JRC Call Center', 'Inbox', 'JRC Cockpit']),
+        items: take(['JRC Call Center', 'JRC Cockpit', 'Inbox']),
       },
       {
         name: 'crm',

@@ -21,7 +21,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
                                     .map { |row| { id: row['id'], name: ::JrcServiceDesk::Glpi::Normalize.text(row['name']) } }
         payload[:categories] = access.connection.categories.select { |row| access.entity_ids.include?(row['entity_id'].to_i) }
         payload[:requester_id] = access.glpi_user_id
-        payload[:timezone] = access.connection.timezone
+        payload[:timezone] = ActiveSupport::TimeZone[access.connection.timezone].tzinfo.name
       end
     end
     render json: envelope.merge(payload)

@@ -6,6 +6,15 @@ RSpec.describe JrcAi::CockpitMetricsService do
   let(:membership) { account.account_users.find_by!(user_id: user.id) }
   subject(:metrics) { described_class.new(account: account, user: user, account_user: membership).perform }
 
+  it 'does not claim a waiting SLA percentage without open conversations' do
+    expect(metrics[:summary][:sla_estimated_percent]).to be_nil
+  end
+
+  it 'does not expose ticket metrics when no extension is configured' do
+    expect(metrics).to have_key(:ticket_metrics)
+    expect(metrics[:ticket_metrics]).to be_nil
+  end
+
   it 'does not invent an analysis timestamp for a configured but unused agent' do
     agent = metrics[:ai_agents].find { |item| item[:key] == 'nico' }
     expect(agent).to include(status: 'not_run', analyzed_at: nil)

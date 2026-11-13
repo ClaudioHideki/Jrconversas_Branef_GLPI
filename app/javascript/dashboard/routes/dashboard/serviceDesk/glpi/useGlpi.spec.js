@@ -41,6 +41,25 @@ beforeEach(() => vi.stubGlobal('Blob', NodeBlob));
 afterEach(() => vi.unstubAllGlobals());
 
 describe('GLPI request isolation', () => {
+  it('removes a previous collection while a new filtered query is pending', async () => {
+    const { glpi, wrapper } = setup();
+    API.get.mockResolvedValueOnce({
+      data: envelope({ items: [{ id: 1 }], meta: { total: 1 } }),
+    });
+    await glpi.read('tickets', 'tickets', { status: '1' });
+    let complete;
+    API.get.mockReturnValueOnce(
+      new Promise(resolve => {
+        complete = resolve;
+      })
+    );
+    const pending = glpi.read('tickets', 'tickets', { status: '4' });
+    expect(glpi.state.data.tickets).toBeUndefined();
+    complete({ data: envelope({ items: [], meta: { total: 0 } }) });
+    await pending;
+    expect(glpi.state.data.tickets.meta.total).toBe(0);
+    wrapper.unmount();
+  });
   it('discards a late response and clears data when authenticated account changes', async () => {
     let resolve;
     API.get.mockReturnValueOnce(

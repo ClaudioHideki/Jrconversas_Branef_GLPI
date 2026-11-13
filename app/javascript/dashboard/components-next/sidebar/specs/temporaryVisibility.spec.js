@@ -1,6 +1,20 @@
 import { visibleSidebarSections } from '../temporaryVisibility';
 
 describe('temporary sidebar presentation', () => {
+  it('hides configured entries only for the selected account without mutating the menu', () => {
+    const sections = [
+      { items: [{ name: 'WhatsApp Calling' }, { name: 'Inbox' }] },
+    ];
+    const account = {
+      custom_attributes: {
+        jrc_navigation: { hidden_entries: ['WhatsApp Calling'] },
+      },
+    };
+    expect(visibleSidebarSections(sections, account)[0].items).toEqual([
+      { name: 'Inbox' },
+    ]);
+    expect(visibleSidebarSections(sections)[0].items).toHaveLength(2);
+  });
   it('hides only the three legacy entries without changing other modules or routes', () => {
     const calls = {
       name: 'JRC Calls Center',

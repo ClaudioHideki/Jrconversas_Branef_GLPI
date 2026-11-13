@@ -9,19 +9,32 @@ import GlpiCoverage from './GlpiCoverage.vue';
 import GlpiResourceBoard from './GlpiResourceBoard.vue';
 import GlpiOperationForm from './GlpiOperationForm.vue';
 import { serviceDeskRouteName } from '../routeDefinitions';
+import GlpiBadge from './GlpiBadge.vue';
+import { plainText, formatGlpiDate, selectedFilters } from './presentation';
 const props = defineProps({
   glpi: { type: Object, required: true },
   screen: { type: String, default: 'tickets' },
   ticketId: { type: [String, Number], default: null },
   fixedFilters: { type: Object, default: () => ({}) },
+  initialFilters: { type: Object, default: () => ({}) },
 });
+const emit = defineEmits(['filters']);
 const { t } = useI18n();
 const router = useRouter();
 const localId = ref(null);
 const trash = ref(false);
 const selectedId = computed(() => props.ticketId || localId.value);
 const page = ref(1);
-const filters = ref({});
+const filters = ref(selectedFilters(props.initialFilters));
+
+const entityLabel = ticket =>
+  plainText(
+    ticket.entity ||
+      props.glpi.state.context.entities?.find(
+        entity => String(entity.id) === String(ticket.entities_id)
+      )?.name ||
+      t('JRC_GLPI.entity_number', { id: ticket.entities_id })
+  );
 const relation = ref('followups');
 const list = computed(() => props.glpi.state.data.tickets);
 const detail = computed(() => props.glpi.state.data.detail);
@@ -66,6 +79,23 @@ const load = () => {
     per_page: 25,
   });
 };
+const applyFilters = values => {
+  filters.value = values;
+  page.value = 1;
+  emit('filters', values);
+  load();
+};
+watch(
+  () => props.initialFilters,
+  query => {
+    const next = selectedFilters(query);
+    if (JSON.stringify(next) === JSON.stringify(filters.value)) return;
+    filters.value = next;
+    page.value = 1;
+    load();
+  },
+  { deep: true }
+);
 watch(selectedId, () => {
   props.glpi.discard('detail');
   load();
@@ -80,6 +110,7 @@ const open = id => {
     router.push({
       name: serviceDeskRouteName('detail'),
       params: { accountId: props.glpi.session.accountId.value, ticketId: id },
+      query: filters.value,
     });
   else localId.value = id;
 };
@@ -88,6 +119,7 @@ const toggleTrash = () => {
   localId.value = null;
   page.value = 1;
   filters.value = {};
+  emit('filters', {});
   props.glpi.discard('tickets');
   props.glpi.discard('detail');
   load();
@@ -108,19 +140,9 @@ const create = () =>
 
 <template>
   <section
-    class="grid gap-4"
+    class="grid min-w-0 grid-cols-1 gap-4"
     data-testid="glpi-ticket-workspace"
   >
-    <p
-      v-if="glpi.state.errors[selectedId ? 'detail' : 'tickets']"
-      role="alert"
-    >
-      {{
-        t('JRC_GLPI.source_code', {
-          code: glpi.state.errors[selectedId ? 'detail' : 'tickets'].code,
-        })
-      }}
-    </p>
     <GlpiOperationForm
       v-if="screen === 'new'"
       :glpi="glpi"
@@ -140,7 +162,9 @@ const create = () =>
           :label="t('JRC_GLPI.workspace.trash_back')"
           @click="localId = null"
         />
-        <article class="grid gap-3 rounded-xl border border-n-weak p-4">
+        <article
+          class="grid min-w-0 gap-4 rounded-2xl border border-n-blue-6 bg-n-solid-2 p-5 shadow-sm"
+        >
           <p
             v-if="deleted"
             data-testid="glpi-deleted-state"
@@ -185,8 +209,12 @@ const create = () =>
           <p class="text-sm">
             {{
               t('JRC_GLPI.workspace.deadline_value', {
-                value:
-                  detail.ticket.time_to_resolve || t('JRC_GLPI.no_deadline'),
+                value: detail.ticket.time_to_resolve
+                  ? formatGlpiDate(
+                      detail.ticket.time_to_resolve,
+                      glpi.state.context.timezone
+                    )
+                  : t('JRC_GLPI.no_deadline'),
               })
             }}
           </p>
@@ -262,11 +290,8 @@ const create = () =>
       <GlpiFilters
         :entities="glpi.state.context.entities"
         :busy="glpi.state.loading.tickets"
-        @apply="
-          filters = $event;
-          page = 1;
-          load();
-        "
+        :initial-filters="filters"
+        @apply="applyFilters"
       />
       <p
         v-if="glpi.state.loading.tickets"
@@ -279,12 +304,18 @@ const create = () =>
           :coverage="list.coverage"
           :observed-at="list.observed_at || list.generated_at || ''"
         />
-        <p class="text-sm">
-          {{ t('JRC_GLPI.visible_total', { count: list.meta.total }) }}
+        <p class="text-sm font-semibold text-n-slate-12">
+          {{
+            list.meta.total == null
+              ? t('JRC_GLPI.visual.unavailable_total')
+              : t('JRC_GLPI.visible_total', { count: list.meta.total })
+          }}
         </p>
-        <div class="overflow-x-auto rounded-xl border border-n-weak">
+        <div
+          class="min-w-0 overflow-x-auto rounded-2xl border border-n-weak bg-n-solid-2 shadow-sm"
+        >
           <table class="w-full text-left text-sm">
-            <thead>
+            <thead class="bg-n-slate-2 text-n-slate-12">
               <tr>
                 <th
                   v-for="field in [
@@ -296,7 +327,7 @@ const create = () =>
                     'solution_deadline',
                   ]"
                   :key="field"
-                  class="p-3 text-xs"
+                  class="whitespace-nowrap px-4 py-3 text-sm font-semibold"
                 >
                   {{ t(`JRC_GLPI.${field}`) }}
                 </th>
@@ -306,42 +337,66 @@ const create = () =>
               <tr
                 v-for="ticket in list.items"
                 :key="ticket.id"
-                class="border-t border-n-weak"
+                class="border-t border-n-weak transition-colors hover:bg-n-blue-2"
               >
-                <td class="p-3">{{ ticket.id }}</td>
+                <td class="p-4 font-semibold text-n-blue-11">
+                  #{{ ticket.id }}
+                </td>
                 <td class="p-3">
                   <button
                     type="button"
-                    class="text-left text-n-blue-11 hover:underline"
+                    class="min-w-48 text-left font-semibold text-n-blue-11 hover:underline focus-visible:outline focus-visible:outline-2"
                     @click="open(ticket.id)"
                   >
-                    {{ ticket.title }}
+                    {{ plainText(ticket.title) }}
                   </button>
                 </td>
                 <td class="p-3">
-                  {{ ticket.entity || t('JRC_GLPI.unclassified') }}
+                  {{ entityLabel(ticket) }}
                 </td>
                 <td class="p-3">
-                  {{ t(`JRC_GLPI.statuses.${ticket.status}`) }}
+                  <GlpiBadge
+                    kind="status"
+                    :value="ticket.status"
+                  />
                 </td>
                 <td class="p-3">
-                  {{ t(`JRC_GLPI.priorities.${ticket.priority}`) }}
+                  <GlpiBadge
+                    kind="priority"
+                    :value="ticket.priority"
+                  />
                 </td>
                 <td class="p-3">
-                  {{ ticket.solution_deadline || t('JRC_GLPI.no_deadline') }}
+                  <span class="whitespace-nowrap">
+                    {{
+                      ticket.solution_deadline
+                        ? formatGlpiDate(
+                            ticket.solution_deadline,
+                            glpi.state.context.timezone
+                          )
+                        : t('JRC_GLPI.no_deadline')
+                    }}
+                  </span>
+                  <span
+                    v-if="[true, 1, '1'].includes(ticket.solution_exceeded)"
+                    class="mt-1 block text-xs font-semibold text-n-ruby-11"
+                  >
+                    {{ t('JRC_GLPI.visual.exceeded') }}
+                  </span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <p
-          v-if="!list.items.length"
+          v-if="!list.items.length && list.meta.total != null"
           class="text-sm"
         >
           {{ t('JRC_GLPI.empty') }}
         </p>
         <Pagination
           v-if="list.meta.total"
+          class="!h-auto min-h-[3.375rem] min-w-0 flex-wrap gap-3 !px-3 [&>div]:min-w-0 [&>div]:flex-wrap"
           :current-page="list.meta.page"
           :total-items="list.meta.total"
           :items-per-page="list.meta.per_page"

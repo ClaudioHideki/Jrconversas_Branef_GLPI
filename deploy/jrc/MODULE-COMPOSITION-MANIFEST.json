@@ -166,8 +166,8 @@
     {
       "path": "app/javascript/dashboard/components-next/sidebar/Sidebar.vue",
       "baseSha256": "4eb35689e3727861a17007c90d86e85cdfae3955409b6150261010e992406358",
-      "sha256": "24184441e576bacc08c57963352e5d901b7d44a5ac596dabfab3846eb0e6496f",
-      "bytes": 63365
+      "sha256": "efa12e0b0d7a652f857d399811729ad214e1c27ab19bad09e15e062eefa3b3b6",
+      "bytes": 63535
     },
     {
       "path": "app/javascript/dashboard/i18n/locale/en/jrcNico.json",
