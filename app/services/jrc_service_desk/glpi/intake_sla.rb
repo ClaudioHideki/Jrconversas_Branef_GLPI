@@ -12,6 +12,9 @@ class JrcServiceDesk::Glpi::IntakeSla
     slm_id = JrcServiceDesk::Input.id(sla.fetch('slms_id'))
     slm = client.get("SLM/#{slm_id}")
     access.unit_for(entity_id)
+    scope = JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: entity_id)
+    scope.authorize!('SLA', sla)
+    scope.authorize!('SLM', slm)
     valid = identity_matches?(sla, slm, id, slm_id, entity_id) && definition_matches?(sla, values, expected) &&
             calendar_matches?(slm, calendar)
     raise JrcServiceDesk::Glpi::Error.new('intake_sla_mismatch', 422) unless valid
@@ -24,7 +27,7 @@ class JrcServiceDesk::Glpi::IntakeSla
 
   def identity_matches?(sla, slm, id, slm_id, entity)
     sla['id'].to_s == id.to_s && slm['id'].to_s == slm_id.to_s &&
-      sla['entities_id'].to_s == entity.to_s && slm['entities_id'].to_s == entity.to_s &&
+      sla['entities_id'].to_s == slm['entities_id'].to_s &&
       [1, '1', true].exclude?(sla['is_deleted']) && [1, '1', true].exclude?(slm['is_deleted'])
   end
 

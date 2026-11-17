@@ -18,6 +18,11 @@ class JrcServiceDesk::Glpi::TicketCreationPolicy
       input[field] = defaults[field] if defaults.key?(field)
     end
     final = defaults.merge(input)
+    if final['_groups_id_assign'].to_i.positive? && final['status'] == 1
+      raise JrcServiceDesk::Glpi::Error.new('hidden_field_override', 422) if form.fetch(:hidden).include?('status')
+
+      final['status'] = 2
+    end
     if form.fetch(:required).any? { |field| missing?(final[field]) }
       raise JrcServiceDesk::Glpi::Error.new('required_fields_missing', 422)
     end

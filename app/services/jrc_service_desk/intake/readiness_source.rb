@@ -43,7 +43,11 @@ class JrcServiceDesk::Intake::ReadinessSource
     JrcServiceDesk::Glpi::Destination.new(mapping.destination).access!(@context.to_h)
     metadata = JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: mapping.route.fetch('entity_id'))
     metadata.authorize!('ITILCategory', client.get("ITILCategory/#{mapping.route.fetch('category_id')}"))
-    metadata.authorize!('User', client.get("User/#{mapping.requester_id}"))
-    mapping.preflight!(access: access, client: client)
+    if requester['policy_probe']
+      JrcServiceDesk::Intake::Requester.new.email_field(client)
+    else
+      metadata.authorize!('User', client.get("User/#{mapping.requester_id}"))
+    end
+    mapping.preflight!(access: access, client: client, resolve_requester: !requester['policy_probe'])
   end
 end
