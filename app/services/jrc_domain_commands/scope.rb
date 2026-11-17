@@ -27,7 +27,10 @@ class JrcDomainCommands::Scope
   def commands(inbox:, intake_protocol: nil)
     available = crm? ? JrcDomainCommands::Request::COMMANDS.dup : []
     configuration = JrcServiceDesk::IntakeConfiguration.find_by(account_id: @account.id, inbox_id: inbox.id, current: true, enabled: true)
-    available += JrcDomainCommands::Request::INTAKE_COMMANDS if intake_protocol == '1' && service_desk? && configuration
+    if %w[1 2].include?(intake_protocol) && service_desk?
+      available += %w[service_desk_intake service_desk_status] if configuration
+      available << 'service_desk_handoff' if intake_protocol == '2'
+    end
     available
   end
 

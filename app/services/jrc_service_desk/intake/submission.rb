@@ -7,10 +7,12 @@ class JrcServiceDesk::Intake::Submission
   KEYS = %w[configuration_id configuration_revision episode_key phase input].freeze
   UUID = /\A[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/
 
-  def call(authority:, conversation:, arguments:)
+  def call(authority:, conversation:, arguments:, handoff_operation_id: nil)
+    @handoff_operation_id = handoff_operation_id
     values = JrcServiceDesk::Input.attributes(arguments, KEYS)
     raise ArgumentError, 'intake_episode' unless values['episode_key'].is_a?(String) && UUID.match?(values['episode_key'])
     raise ArgumentError, 'intake_phase' unless %w[qualified handoff].include?(values['phase'])
+    raise ArgumentError, 'intake_handoff_operation' if handoff_operation_id && !UUID.match?(handoff_operation_id)
 
     JrcServiceDesk::IntakeDemand.transaction do
       authorized = authority.authorize!(lock: true)
@@ -57,7 +59,8 @@ class JrcServiceDesk::Intake::Submission
       account_user: context.account_user, intake_configuration: configuration, episode_key: values.fetch('episode_key'),
       normalized_input: normalized, fingerprint: fingerprint,
       source_context: JrcServiceDesk::Intake::Origin.capture(authority: authority, context: context,
-                                                             conversation: target, configuration: configuration),
+                                                             conversation: target, configuration: configuration)
+                     .merge(@handoff_operation_id ? { 'handoff_operation_id' => @handoff_operation_id } : {}),
       state: state_for(configuration, values.fetch('phase'))
     )
     demand.receipt(created: true)

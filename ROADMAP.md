@@ -27,3 +27,5 @@ Veja [TASKS.md](TASKS.md). Roadmaps e planos anteriores continuam válidos no se
 ## Incremento de 17/11/2026 — retorno GLPI
 
 O contrato local foi ajustado para os prazos nativos atuais, atributos na criação e políticas aprováveis de solicitante, preservando rotas anteriores. Ver [ADR 0002](docs/adr/0002-intake-prazos-nativos-glpi.md). A ativação automática permanece condicionada à coordenação com a transferência humana, às liberações GLPI e à homologação. O código e os candidatos locais não comprovam imagem publicada ou execução em produção.
+
+Transferência independente preparada em código e testes dirigidos: [ADR0003](docs/adr/0003-handoff-glpi-independente.md). O GLPI não é consultado dentro da transação de encaminhamento humano. Ainda requer evidência de release e ativação.

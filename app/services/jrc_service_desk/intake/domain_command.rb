@@ -2,6 +2,11 @@
 
 class JrcServiceDesk::Intake::DomainCommand
   def call(authority:, conversation:, arguments:, operation_id:)
+    if arguments.fetch('command') == 'service_desk_handoff'
+      return JrcServiceDesk::Intake::Handoff.new.call(authority: authority, conversation: conversation,
+                                                      arguments: arguments, operation_id: operation_id)
+    end
+
     receipt = if arguments.fetch('command') == 'service_desk_intake'
                 JrcServiceDesk::Intake::Submission.new.call(authority: authority, conversation: conversation,
                                                             arguments: arguments.except('command'))
@@ -16,6 +21,10 @@ class JrcServiceDesk::Intake::DomainCommand
   end
 
   def authorize_receipt!(account:, user:, conversation:, result:)
+    if result['command'] == 'service_desk_handoff'
+      return JrcServiceDesk::Intake::Handoff.new.authorize_receipt!(account: account, user: user, conversation: conversation, result: result)
+    end
+
     unless JrcDomainCommands::Request::INTAKE_COMMANDS.include?(result['command']) && result['resource_type'] == 'JrcServiceDesk::IntakeDemand'
       raise ArgumentError, 'intake_receipt'
     end

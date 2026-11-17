@@ -8,13 +8,7 @@ class JrcFlowEffectReceipt < ApplicationRecord
     same &&= ActiveSupport::SecurityUtils.secure_compare(dispatch_proof_hash, Digest::SHA256.hexdigest(proof))
     raise ArgumentError, 'receipt_conflict' unless same
 
-    if operation == 'domain'
-      if domain_result['resource_type'] == 'JrcServiceDesk::IntakeDemand'
-        JrcServiceDesk::Intake::DomainCommand.new.authorize_receipt!(account: account, user: user, conversation: conversation, result: domain_result)
-      else
-        JrcDomainCommands::ResourceScope.new(account: account, user: user).authorize_result!(domain_result)
-      end
-    end
+    authorize_domain_result!(conversation, user) if operation == 'domain'
     self
   end
 
@@ -25,5 +19,15 @@ class JrcFlowEffectReceipt < ApplicationRecord
                         .merge('protocol' => JrcFlowEffects::Request::PROTOCOL, 'state' => 'CONFIRMED', 'conversation_id' => remote_conversation_id)
     receipt['domain_result'] = domain_result if operation == 'domain'
     receipt
+  end
+
+  private
+
+  def authorize_domain_result!(conversation, user)
+    if domain_result['resource_type'] == 'JrcServiceDesk::IntakeDemand' || domain_result['command'] == 'service_desk_handoff'
+      JrcServiceDesk::Intake::DomainCommand.new.authorize_receipt!(account: account, user: user, conversation: conversation, result: domain_result)
+    else
+      JrcDomainCommands::ResourceScope.new(account: account, user: user).authorize_result!(domain_result)
+    end
   end
 end
