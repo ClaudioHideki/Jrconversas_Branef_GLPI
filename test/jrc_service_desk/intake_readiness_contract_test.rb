@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Flat synthetic fixtures retain their stubs and complete scenario assertions.
+# rubocop:disable Style/OneClassPerFile, Rails/RefuteMethods
+
 require_relative 'intake_source_contract_test'
 require_relative '../../app/services/jrc_service_desk/intake/readiness_source'
 require_relative '../../app/services/jrc_service_desk/glpi/ticket_form'
@@ -15,7 +18,7 @@ class IntakeReadinessContractTest < IntakeSourceContractTest
     selection = { 'system' => 'example', 'location' => 'south', 'reason' => 'request', 'subject' => 'access',
                   'profile' => nil, 'severity' => nil, 'sla' => { 'duration' => 36, 'unit' => 'hours' } }
     route = selection.except('sla').merge('entity_id' => 11, 'category_id' => 15, 'group_id' => 1,
-      'requester_policy' => 'email_only', 'requester_approved' => true, 'sla' => @sla)
+                                          'requester_policy' => 'email_only', 'requester_approved' => true, 'sla' => @sla)
     config = Struct.new(:mappings).new({ 'routes' => [route] })
     context = Object.new
     context.define_singleton_method(:to_h) { {} }
@@ -26,7 +29,7 @@ class IntakeReadinessContractTest < IntakeSourceContractTest
     @source.rows['ITILCategory/15'] = { 'id' => 15, 'entities_id' => 7, 'is_recursive' => 1 }
     service = JrcServiceDesk::Intake::ReadinessSource.new(context, config)
     service.send(:verify, @access, @source, selection, { 'policy_probe' => true })
-    refute @source.reads.any? { |path| path.start_with?('search/User') }
+    refute(@source.reads.any? { |path| path.start_with?('search/User') })
   end
 
   def test_improvement_own_sla_readiness_requires_update_right
@@ -34,7 +37,7 @@ class IntakeReadinessContractTest < IntakeSourceContractTest
     @source.rows['getActiveProfile/'] = { 'active_profile' => { 'ticket' => 4 | 8192 } }
     error = assert_raises(JrcServiceDesk::Glpi::Error) do
       JrcServiceDesk::Intake::ReadinessSource.new(nil, config).send(:authorize_operations!, @source,
-        [[{ 'sla' => { 'unit' => 'none' } }, []]])
+                                                                    [[{ 'sla' => { 'unit' => 'none' } }, []]])
     end
     assert_equal 'operation_not_permitted', error.code
   end
@@ -45,7 +48,7 @@ class IntakeReadinessContractTest < IntakeSourceContractTest
     access.context.define_singleton_method(:capability?) { |_capability| true }
     form.instance_variable_set(:@access, access)
     form.instance_variable_set(:@entity, 11)
-    template = { id: 1, revision: 'v1', required: ['_groups_id_assign'], hidden: ['_groups_id_assign', 'requesttypes_id'],
+    template = { id: 1, revision: 'v1', required: ['_groups_id_assign'], hidden: %w[_groups_id_assign requesttypes_id],
                  predefined: { '_groups_id_assign' => 1, 'requesttypes_id' => 8 }, unsupported: [] }
     result = form.send(:build, template, 'category', 2, 0, { 'id' => 6 })
     assert result[:supported], result.inspect
@@ -60,7 +63,9 @@ class IntakeReadinessContractTest < IntakeSourceContractTest
     @access.define_singleton_method(:context) { self }
     @access.define_singleton_method(:capability?) { |_value| true }
     assert JrcServiceDesk::Glpi::IntakeSla.new.validate!(access: @access, client: @source, entity_id: 11,
-      mapping: @sla, expected: @expected)
+                                                         mapping: @sla, expected: @expected)
     assert_raises(Pundit::NotAuthorizedError) { @access.unit_for(7) }
   end
 end
+
+# rubocop:enable Style/OneClassPerFile, Rails/RefuteMethods

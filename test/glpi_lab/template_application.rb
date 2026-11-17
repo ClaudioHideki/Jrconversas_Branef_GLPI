@@ -106,7 +106,7 @@ class GlpiTemplateLaboratoryTest < GlpiIntegrationTest
     source do |client|
       unsupported = ticket_form(client, 'template_id' => @fixtures.fetch('models').fetch('unsupported'))
       refute unsupported.fetch(:supported)
-      assert_includes unsupported.fetch(:unsupported_required), 'requesttypes_id'
+      assert_includes unsupported.fetch(:unsupported_required), 'locations_id'
     end
     cases.each do |attributes, error|
       before = GlpiLabTransport::ITEM_MUTATIONS.dup

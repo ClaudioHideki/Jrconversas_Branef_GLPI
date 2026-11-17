@@ -1,12 +1,14 @@
 # frozen_string_literal: true
 
+# Flat synthetic fixtures retain their stubs and complete scenario assertions.
+# rubocop:disable Style/OneClassPerFile, Lint/EmptyBlock, Rails/RefuteMethods
+
 require_relative 'intake_route_contract_test'
 require_relative '../../app/services/jrc_service_desk/intake/delivery'
 require_relative '../../app/services/jrc_service_desk/glpi/execute'
 
-module Pundit
-  class NotAuthorizedError < StandardError; end
-end
+module Pundit; end
+class Pundit::NotAuthorizedError < StandardError; end
 
 class IntakeCreationDeliveryTest < Minitest::Test
   def test_creation_attributes_do_not_trigger_assignment_or_sla_patch
@@ -72,3 +74,5 @@ class IntakeCreationDeliveryTest < Minitest::Test
     refute executor.send(:anonymous_requester_matches?, client, 501, notification)
   end
 end
+
+# rubocop:enable Style/OneClassPerFile, Lint/EmptyBlock, Rails/RefuteMethods

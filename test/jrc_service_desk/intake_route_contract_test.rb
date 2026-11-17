@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Flat synthetic fixtures retain their stubs and complete scenario assertions.
+# rubocop:disable Rails/RefuteMethods
+
 require 'minitest/autorun'
 require 'active_support'
 require 'active_support/core_ext/hash'
@@ -32,7 +35,8 @@ class IntakeRouteContractTest < Minitest::Test
       'entity_id' => 11, 'category_id' => 15, 'group_id' => 1, 'requester_policy' => 'mapped_contact',
       'request_type_id' => 8, 'creation_attributes' => true,
       'slas' => { 'own' => { 'id' => 12, 'purpose' => 'own', 'calendar_id' => 2, 'expected' => { 'duration' => 4, 'unit' => 'hours' } },
-                  'resolve' => { 'id' => 13, 'purpose' => 'resolve', 'calendar_id' => 2 } })
+                  'resolve' => { 'id' => 13, 'purpose' => 'resolve', 'calendar_id' => 2 } }
+    )
     @mappings = { 'routes' => [@route], 'requesters' => [{ 'contact_id' => 5, 'entity_id' => 11, 'user_id' => 105 }] }
     @demand = Demand.new(@selection, Config.new(@mappings), 5, {})
   end
@@ -84,7 +88,8 @@ class IntakeRouteContractTest < Minitest::Test
   def test_anonymous_notification_contract_is_strict_and_requires_zero_requester
     args = { 'name' => 'Synthetic', 'content' => 'Test', 'type' => 2, 'urgency' => 3, 'impact' => 3,
              '_users_id_requester' => 0, '_users_id_requester_notif' => {
-               'use_notification' => [1], 'alternative_email' => ['request@example.invalid'] } }
+               'use_notification' => [1], 'alternative_email' => ['request@example.invalid']
+             } }
     contract = JrcServiceDesk::Glpi::CommandInput.new(operation: 'ticket.create', target_id: nil, entity_id: 11, attributes: args)
     assert_equal args['_users_id_requester_notif'], contract.input['_users_id_requester_notif']
     args['_users_id_requester'] = 105
@@ -93,3 +98,5 @@ class IntakeRouteContractTest < Minitest::Test
     end
   end
 end
+
+# rubocop:enable Rails/RefuteMethods

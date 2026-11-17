@@ -15,7 +15,7 @@ class JrcServiceDesk::Glpi::IntakeSla
     scope = JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: entity_id)
     scope.authorize!('SLA', sla)
     scope.authorize!('SLM', slm)
-    valid = identity_matches?(sla, slm, id, slm_id, entity_id) && definition_matches?(sla, values, expected) &&
+    valid = identity_matches?(sla, slm, id, slm_id) && definition_matches?(sla, values, expected) &&
             calendar_matches?(slm, calendar)
     raise JrcServiceDesk::Glpi::Error.new('intake_sla_mismatch', 422) unless valid
 
@@ -25,7 +25,7 @@ class JrcServiceDesk::Glpi::IntakeSla
 
   private
 
-  def identity_matches?(sla, slm, id, slm_id, entity)
+  def identity_matches?(sla, slm, id, slm_id)
     sla['id'].to_s == id.to_s && slm['id'].to_s == slm_id.to_s &&
       sla['entities_id'].to_s == slm['entities_id'].to_s &&
       [1, '1', true].exclude?(sla['is_deleted']) && [1, '1', true].exclude?(slm['is_deleted'])
@@ -47,7 +47,7 @@ class JrcServiceDesk::Glpi::IntakeSla
     raise Pundit::NotAuthorizedError unless access.context.capability?(:sla_view)
 
     row = client.get("Calendar/#{calendar}")
-    raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless row['id'].to_s == calendar.to_s
+    raise JrcServiceDesk::Glpi::Error, 'invalid_response' unless row['id'].to_s == calendar.to_s
 
     JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: entity_id).authorize!('Calendar', row)
   end

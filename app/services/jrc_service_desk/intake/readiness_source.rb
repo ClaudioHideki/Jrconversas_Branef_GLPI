@@ -27,14 +27,18 @@ class JrcServiceDesk::Intake::ReadinessSource
   def authorize_operations!(client, candidates)
     profile = client.get('getActiveProfile/').fetch('active_profile')
     operations = %w[ticket.create ticket.assign]
-    mapped_slas = @configuration.mappings.fetch('routes', []).any? { |route| route.fetch('slas', {}).any? }
-    operations << 'ticket.sla' if mapped_slas || candidates.any? { |selection, _requesters| selection.dig('sla', 'unit') != 'none' }
+    operations << 'ticket.sla' if requires_sla?(candidates)
     operations.each do |operation|
       descriptor = JrcServiceDesk::Glpi::OperationCatalogue.fetch(operation)
       alternatives = [descriptor[:source_right]] + descriptor[:source_alternatives]
       allowed = alternatives.any? { |right, mask| profile.fetch(right, 0).to_i.anybits?(mask) }
       raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) unless allowed
     end
+  end
+
+  def requires_sla?(candidates)
+    @configuration.mappings.fetch('routes', []).any? { |route| route.fetch('slas', {}).any? } ||
+      candidates.any? { |selection, _requesters| selection.dig('sla', 'unit') != 'none' }
   end
 
   def verify(access, client, selection, requester)
@@ -45,20 +49,25 @@ class JrcServiceDesk::Intake::ReadinessSource
     JrcServiceDesk::Glpi::Destination.new(mapping.destination).access!(@context.to_h)
     metadata = JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: mapping.route.fetch('entity_id'))
     metadata.authorize!('ITILCategory', client.get("ITILCategory/#{mapping.route.fetch('category_id')}"))
+    verify_requester!(access, client, requester, mapping, metadata)
+    mapping.preflight!(access: access, client: client, resolve_requester: !requester['policy_probe'])
+  end
+
+  def verify_requester!(access, client, requester, mapping, metadata)
     if requester['policy_probe']
       JrcServiceDesk::Intake::Requester.new.email_field(client)
-      if mapping.route['requester_policy'] == 'email_or_anonymous'
-        form = JrcServiceDesk::Glpi::TicketForm.new.call(access: access, client: client, filters: {
-          'entity_id' => mapping.route.fetch('entity_id'), 'category_id' => mapping.route.fetch('category_id'),
-          'type' => selection['reason'] == 'bug' ? 1 : 2 })
-        if !form.fetch(:supported) || form.fetch(:required).include?('_users_id_requester') ||
-           form.fetch(:hidden).include?('_users_id_requester')
-          raise JrcServiceDesk::Glpi::Error.new('intake_anonymous_template_incompatible', 422)
-        end
-      end
+      verify_anonymous_template!(access, client, mapping) if mapping.route['requester_policy'] == 'email_or_anonymous'
     else
       metadata.authorize!('User', client.get("User/#{mapping.requester_id}"))
     end
-    mapping.preflight!(access: access, client: client, resolve_requester: !requester['policy_probe'])
+  end
+
+  def verify_anonymous_template!(access, client, mapping)
+    filters = { 'entity_id' => mapping.route.fetch('entity_id'), 'category_id' => mapping.route.fetch('category_id'),
+                'type' => mapping.input['reason'] == 'bug' ? 1 : 2 }
+    form = JrcServiceDesk::Glpi::TicketForm.new.call(access: access, client: client, filters: filters)
+    if !form.fetch(:supported) || form.fetch(:required).include?('_users_id_requester') || form.fetch(:hidden).include?('_users_id_requester')
+      raise JrcServiceDesk::Glpi::Error.new('intake_anonymous_template_incompatible', 422)
+    end
   end
 end
