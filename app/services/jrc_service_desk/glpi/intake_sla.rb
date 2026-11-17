@@ -19,7 +19,7 @@ class JrcServiceDesk::Glpi::IntakeSla
             calendar_matches?(slm, calendar)
     raise JrcServiceDesk::Glpi::Error.new('intake_sla_mismatch', 422) unless valid
 
-    validate_calendar!(access, client, calendar)
+    validate_calendar!(access, client, calendar, entity_id)
     true
   end
 
@@ -41,9 +41,14 @@ class JrcServiceDesk::Glpi::IntakeSla
     slm['calendars_id'].to_s == calendar.to_s && [0, '0', false].include?(slm['use_ticket_calendar'])
   end
 
-  def validate_calendar!(access, client, calendar)
+  def validate_calendar!(access, client, calendar, entity_id)
     return unless calendar.positive?
 
-    JrcServiceDesk::Glpi::ResourceQuery.new.raw(access: access, client: client, kind: 'calendars', id: calendar)
+    raise Pundit::NotAuthorizedError unless access.context.capability?(:sla_view)
+
+    row = client.get("Calendar/#{calendar}")
+    raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless row['id'].to_s == calendar.to_s
+
+    JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: entity_id).authorize!('Calendar', row)
   end
 end

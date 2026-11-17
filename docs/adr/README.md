@@ -8,3 +8,4 @@ Não marcar uma proposta como aceita sem a decisão correspondente. Preserve os 
 ## Decisões deste bootstrap
 
 - [0001-governanca-operacional-init](0001-governanca-operacional-init.md): adoção do INIT solicitado pelo usuário.
+- [0002-intake-prazos-nativos-glpi](0002-intake-prazos-nativos-glpi.md): prazos atuais do GLPI, atributos na criação e limites da ativação automática.

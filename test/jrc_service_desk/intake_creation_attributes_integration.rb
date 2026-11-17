@@ -11,7 +11,13 @@ class IntakeCreationAttributesIntegrationTest < IntakeDeliveryTest
       'slas' => { 'own' => { 'id' => 31, 'purpose' => 'own', 'calendar_id' => 0,
                              'expected' => { 'duration' => 4, 'unit' => 'hours' } },
                   'resolve' => { 'id' => 30, 'purpose' => 'resolve', 'calendar_id' => 0 } })
-    @delivery_configuration.update!(mappings: mappings)
+    configuration = JrcServiceDesk::IntakeConfiguration.create!(
+      account: @account, inbox: @inbox, created_by_account_user: @member, revision: 3, catalogue: @catalogue,
+      mode: 'on_qualification', enabled: true, remote_writes_enabled: true, mappings: mappings)
+    receipt = JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation,
+      arguments: @arguments.merge('configuration_id' => configuration.id, 'configuration_revision' => 3,
+                                   'episode_key' => SecureRandom.uuid))
+    @demand = JrcServiceDesk::IntakeDemand.find(receipt.fetch(:id))
     @remote.rows['RequestType/8'] = { 'id' => 8, 'name' => 'WhatsApp' }
     @remote.rows['SLA/31'] = { 'id' => 31, 'entities_id' => 0, 'slms_id' => 40,
                              'type' => 1, 'number_time' => 4, 'definition_time' => 'hour' }
@@ -34,11 +40,30 @@ class IntakeCreationAttributesIntegrationTest < IntakeDeliveryTest
   def test_unapproved_email_policy_is_rejected_before_any_source_write
     mappings = @delivery_configuration.mappings.deep_dup
     mappings.fetch('routes').first.merge!('requester_policy' => 'email_or_anonymous', 'requester_approved' => false)
-    @delivery_configuration.update!(mappings: mappings)
+    configuration = JrcServiceDesk::IntakeConfiguration.create!(
+      account: @account, inbox: @inbox, created_by_account_user: @member, revision: 3, catalogue: @catalogue,
+      mode: 'on_qualification', enabled: true, remote_writes_enabled: true, mappings: mappings)
+    receipt = JrcServiceDesk::Intake::Submission.new.call(authority: @authority, conversation: @conversation,
+      arguments: @arguments.merge('configuration_id' => configuration.id, 'configuration_revision' => 3,
+                                   'episode_key' => SecureRandom.uuid))
+    @demand = JrcServiceDesk::IntakeDemand.find(receipt.fetch(:id))
     JrcServiceDesk::Glpi::Client.stub(:new, @remote) do
       result = JrcServiceDesk::Intake::Delivery.new.call(demand_id: @demand.id)
       assert_equal 'rejected', result[:state]
       assert_empty @remote.writes
     end
+  end
+
+  def test_direct_creation_rejects_first_response_sla_in_resolution_field
+    @remote.rows['SLA/31'] = { 'id' => 31, 'entities_id' => 0, 'slms_id' => 40,
+                             'type' => 1, 'number_time' => 4, 'definition_time' => 'hour' }
+    result = JrcServiceDesk::Glpi::Execute.new(client_factory: ->(_) { @remote }).call(
+      access: JrcServiceDesk::Glpi::Access.new(@identity), operation: 'ticket.create', target_id: nil, entity_id: 0,
+      attributes: { 'name' => 'Synthetic request', 'content' => 'Synthetic description', 'type' => 2,
+                    'urgency' => 3, 'impact' => 3, 'itilcategories_id' => 10, '_users_id_requester' => 77, 'slas_id_ttr' => 31 },
+      idempotency_key: SecureRandom.uuid)
+    assert_equal 'rejected', result[:state]
+    assert_equal 'intake_sla_mismatch', result[:error_code]
+    assert_empty @remote.writes
   end
 end

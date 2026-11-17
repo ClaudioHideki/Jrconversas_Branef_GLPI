@@ -23,3 +23,7 @@ Referência inicial: INIT solicitado pelo usuário em 2026-11-13. É uma trilha 
 - [ ] Revisar proveniência, isolamento e versões a cada candidata de release.
 
 Veja [TASKS.md](TASKS.md). Roadmaps e planos anteriores continuam válidos no seu escopo.
+
+## Incremento de 17/11/2026 — retorno GLPI
+
+O contrato local foi ajustado para os prazos nativos atuais, atributos na criação e políticas aprováveis de solicitante, preservando rotas anteriores. Ver [ADR 0002](docs/adr/0002-intake-prazos-nativos-glpi.md). A ativação automática permanece condicionada à coordenação com a transferência humana, às liberações GLPI e à homologação. O código e os candidatos locais não comprovam imagem publicada ou execução em produção.

@@ -10,7 +10,6 @@ class JrcServiceDesk::Intake::Mapping
     @route = resolve_route(mappings)
     @requester_id = resolve_requester(mappings, demand.contact_id) if route['requester_policy'] == 'mapped_contact'
     @destination = demand.source_context.slice('connection_id', 'connection_version').merge('entity_id' => route['entity_id'])
-    sla_definitions
   end
 
   def resolve_route(mappings)

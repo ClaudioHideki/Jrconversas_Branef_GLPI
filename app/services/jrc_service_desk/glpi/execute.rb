@@ -170,6 +170,9 @@ class JrcServiceDesk::Glpi::Execute
         if type == 'Group' && ![1, '1', true].include?(related['is_assign'])
           raise JrcServiceDesk::Glpi::Error.new('intake_group_unavailable', 422)
         end
+        if type == 'SLA' && related['type'].to_s != (field == 'slas_id_ttr' ? '0' : '1')
+          raise JrcServiceDesk::Glpi::Error.new('intake_sla_mismatch', 422)
+        end
       else
         query.authorize_record!(access, client, type, related)
       end
@@ -354,7 +357,7 @@ class JrcServiceDesk::Glpi::Execute
 
   def anonymous_requester_matches?(client, id, notification)
     client.collection("Ticket/#{id}/Ticket_User/").any? do |actor|
-      actor['tickets_id'].to_s == id.to_s && actor['type'].to_i == 1 && actor['users_id'].to_i.zero? &&
+      actor['tickets_id'].to_s == id.to_s && actor['type'].to_s == '1' && [0, '0'].include?(actor['users_id']) &&
         actor['alternative_email'] == notification.fetch('alternative_email').first && actor['use_notification'].to_i == 1
     end
   end

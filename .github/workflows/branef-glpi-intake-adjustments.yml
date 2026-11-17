@@ -31,6 +31,7 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY_BASE: isolated-intake-test-only-012345678901234567890123456789012345678901234567890123456789
       JRC_BROKER_ENABLED: 'true'
+      JRC_BROKER_CREDENTIAL_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,3 +57,4 @@ jobs:
           for suite in test/jrc_service_desk/intake_*_integration.rb; do
             bundle exec ruby "$suite"
           done
+          bundle exec ruby test/jrc_service_desk/glpi_ticket_form_integration.rb

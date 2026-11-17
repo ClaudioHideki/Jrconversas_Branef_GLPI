@@ -2,7 +2,8 @@
 
 # Reproduces GLPI 10's form policy using typed, authorized metadata, not Ticket.add defaults.
 class JrcServiceDesk::Glpi::TicketForm
-  FIELDS = %w[name content type urgency impact priority itilcategories_id _users_id_requester status].freeze
+  FIELDS = %w[name content type urgency impact priority itilcategories_id _users_id_requester status
+              _groups_id_assign slas_id_tto slas_id_ttr requesttypes_id].freeze
   STATUS_CAPABILITIES = { 2 => :tickets_assign, 3 => :tasks_manage, 4 => :pause, 5 => :resolve, 6 => :close }.freeze
   OPTION_FIELDS = {
     ['glpi_tickets', 'name'] => 'name', ['glpi_tickets', 'content'] => 'content',
@@ -180,6 +181,9 @@ class JrcServiceDesk::Glpi::TicketForm
     return ACTORS[number] if ACTORS.key?(number)
 
     option = @options[number.to_s]
+    if option.is_a?(Hash) && option['table'] == 'glpi_slas' && %w[slas_id_tto slas_id_ttr].include?(option['linkfield'])
+      return option['linkfield']
+    end
     option.is_a?(Hash) ? OPTION_FIELDS.fetch([option['table'], option['field']], "field_#{number}") : "field_#{number}"
   end
 

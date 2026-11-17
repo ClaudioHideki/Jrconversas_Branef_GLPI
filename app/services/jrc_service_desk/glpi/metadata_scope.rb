@@ -2,7 +2,7 @@
 
 # Contextual form metadata only. Inheritance never grants access to ancestor tickets.
 class JrcServiceDesk::Glpi::MetadataScope
-  TYPES = %w[ITILCategory TicketTemplate User SLA SLM Group].freeze
+  TYPES = %w[ITILCategory TicketTemplate User SLA SLM Group Calendar].freeze
   attr_reader :entity_id
 
   def initialize(access:, client:, entity_id:)
