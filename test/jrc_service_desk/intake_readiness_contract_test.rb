@@ -4,6 +4,7 @@
 # rubocop:disable Style/OneClassPerFile, Rails/RefuteMethods
 
 require_relative 'intake_source_contract_test'
+require 'active_support/core_ext/object/deep_dup'
 require_relative '../../app/services/jrc_service_desk/intake/readiness_source'
 require_relative '../../app/services/jrc_service_desk/intake/readiness_source/read_only_source'
 require_relative '../../app/services/jrc_service_desk/glpi/ticket_form'
