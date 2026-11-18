@@ -21,6 +21,7 @@ class JrcServiceDesk::Intake::Mapping
     value['entity_id'] = JrcServiceDesk::Glpi::Identifiers.remote(value.fetch('entity_id'))
     %w[category_id group_id].each { |key| value[key] = JrcServiceDesk::Input.id(value.fetch(key)) }
     validate_creation_policy!(value)
+    validate_priority!(value) if value.key?('priority')
     validate_requester_policy!(value)
     validate_route_slas!(value) if value.key?('slas')
     value
@@ -34,8 +35,9 @@ class JrcServiceDesk::Intake::Mapping
     end
 
     JrcServiceDesk::Input.id(value['request_type_id']) if value.key?('request_type_id')
-    return unless value.key?('priority')
+  end
 
+  def validate_priority!(value)
     valid = value['creation_attributes'] == true && value['reason'] == 'bug' &&
             %w[low medium high critical].include?(value['severity']) &&
             value['priority'].is_a?(Integer) && value['priority'].between?(1, 6)
@@ -111,7 +113,6 @@ class JrcServiceDesk::Intake::Mapping
                'content' => content,
                'type' => input['reason'] == 'bug' ? 1 : 2, 'urgency' => input.fetch('urgency_value', 3), 'impact' => input.fetch('impact_value', 3),
                'itilcategories_id' => route.fetch('category_id'), '_users_id_requester' => requester_id }
-    values['priority'] = route['priority'] if route.key?('priority')
     unless route['requester_policy'] == 'mapped_contact'
       raise ArgumentError, 'intake_requester_unresolved' unless @requester_attributes
 
@@ -122,7 +123,7 @@ class JrcServiceDesk::Intake::Mapping
   end
 
   def creation_values
-    values = { '_groups_id_assign' => route.fetch('group_id') }.merge(sla_attributes || {})
+    values = { '_groups_id_assign' => route.fetch('group_id') }.merge(sla_attributes || {}).merge(route.slice('priority'))
     values['requesttypes_id'] = route['request_type_id'] if route['request_type_id']
     values
   end

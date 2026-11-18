@@ -80,13 +80,16 @@ class IntakeRouteContractTest < Minitest::Test
   def test_invalid_route_priorities_and_non_bug_routes_are_rejected
     @route['priority'] = 6
     assert_raises(ArgumentError) { JrcServiceDesk::Intake::Mapping.new(@demand) }
-    @selection.merge!('reason' => 'bug', 'severity' => 'critical')
-    @route.merge!('reason' => 'bug', 'severity' => 'critical')
+    @selection['reason'] = 'bug'
+    @selection['severity'] = 'critical'
+    @route['reason'] = 'bug'
+    @route['severity'] = 'critical'
     [0, 7, '6', nil].each do |priority|
       @route['priority'] = priority
       assert_raises(ArgumentError) { JrcServiceDesk::Intake::Mapping.new(@demand) }
     end
-    @route.merge!('priority' => 6, 'creation_attributes' => false)
+    @route['priority'] = 6
+    @route['creation_attributes'] = false
     assert_raises(ArgumentError) { JrcServiceDesk::Intake::Mapping.new(@demand) }
   end
 
