@@ -5,6 +5,7 @@
 
 require_relative 'intake_source_contract_test'
 require_relative '../../app/services/jrc_service_desk/intake/readiness_source'
+require_relative '../../app/services/jrc_service_desk/intake/readiness_source/read_only_source'
 require_relative '../../app/services/jrc_service_desk/glpi/ticket_form'
 require_relative '../../app/services/jrc_service_desk/canonical_json'
 
@@ -14,6 +15,27 @@ class JrcServiceDesk::Glpi::Destination
 end
 
 class IntakeReadinessContractTest < IntakeSourceContractTest
+  def test_readiness_forwards_recursive_entity_query_and_separates_cached_scopes
+    calls = []
+    source = Object.new
+    source.define_singleton_method(:get) do |path, parameters = {}|
+      calls << [path, parameters]
+      { 'myentities' => parameters['is_recursive'] == 'true' ? [{ 'id' => 11 }] : [] }
+    end
+    cached = JrcServiceDesk::Intake::ReadinessSource::ReadOnlySource.new(source)
+    assert_equal [{ 'id' => 11 }], cached.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities')
+    assert_empty cached.get('getMyEntities/', 'is_recursive' => 'false').fetch('myentities')
+    assert_equal [{ 'id' => 11 }], cached.get('getMyEntities/', 'is_recursive' => 'true').fetch('myentities')
+    assert_equal [['getMyEntities/', { 'is_recursive' => 'true' }], ['getMyEntities/', { 'is_recursive' => 'false' }]], calls
+  end
+
+  def test_readiness_keeps_parameterless_get_contract
+    source = Object.new
+    source.define_singleton_method(:get) { |path| { 'id' => path.split('/').last.to_i } }
+    cached = JrcServiceDesk::Intake::ReadinessSource::ReadOnlySource.new(source)
+    assert_equal 190, cached.get('ITILCategory/190').fetch('id')
+  end
+
   def test_email_policy_probe_does_not_need_a_contact_record
     selection = { 'system' => 'example', 'location' => 'south', 'reason' => 'request', 'subject' => 'access',
                   'profile' => nil, 'severity' => nil, 'sla' => { 'duration' => 36, 'unit' => 'hours' } }
