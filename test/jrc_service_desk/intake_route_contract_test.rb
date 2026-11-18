@@ -61,6 +61,35 @@ class IntakeRouteContractTest < Minitest::Test
     refute values.key?('slas_id_ttr')
   end
 
+  def test_approved_bug_route_sends_explicit_priority_with_neutral_axes
+    { 'low' => 2, 'medium' => 3, 'high' => 4, 'critical' => 6 }.each do |severity, priority|
+      @selection.merge!('reason' => 'bug', 'severity' => severity, 'impact_value' => 3, 'urgency_value' => 3)
+      @route.merge!('reason' => 'bug', 'severity' => severity, 'priority' => priority)
+      values = JrcServiceDesk::Intake::Mapping.new(@demand).attributes
+      contract = JrcServiceDesk::Glpi::CommandInput.new(operation: 'ticket.create', target_id: nil, entity_id: 11, attributes: values)
+      assert_equal priority, contract.input.fetch('priority')
+      assert_equal [3, 3], contract.input.values_at('impact', 'urgency')
+    end
+  end
+
+  def test_priority_is_not_added_to_legacy_routes
+    values = JrcServiceDesk::Intake::Mapping.new(@demand).attributes
+    refute values.key?('priority')
+  end
+
+  def test_invalid_route_priorities_and_non_bug_routes_are_rejected
+    @route['priority'] = 6
+    assert_raises(ArgumentError) { JrcServiceDesk::Intake::Mapping.new(@demand) }
+    @selection.merge!('reason' => 'bug', 'severity' => 'critical')
+    @route.merge!('reason' => 'bug', 'severity' => 'critical')
+    [0, 7, '6', nil].each do |priority|
+      @route['priority'] = priority
+      assert_raises(ArgumentError) { JrcServiceDesk::Intake::Mapping.new(@demand) }
+    end
+    @route.merge!('priority' => 6, 'creation_attributes' => false)
+    assert_raises(ArgumentError) { JrcServiceDesk::Intake::Mapping.new(@demand) }
+  end
+
   def test_old_route_retains_separate_stage_contract
     @route.except!('slas', 'creation_attributes', 'request_type_id')
     @route['sla'] = { 'id' => 13, 'purpose' => 'resolve', 'calendar_id' => 2 }

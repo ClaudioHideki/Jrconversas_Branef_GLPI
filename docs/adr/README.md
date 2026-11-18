@@ -11,3 +11,4 @@ Não marcar uma proposta como aceita sem a decisão correspondente. Preserve os 
 - [0002-intake-prazos-nativos-glpi](0002-intake-prazos-nativos-glpi.md): prazos atuais do GLPI, atributos na criação e limites da ativação automática.
 
 - [0003-handoff-glpi-independente](0003-handoff-glpi-independente.md): transferência humana atômica e entrega GLPI posterior, sem bloquear atendimento.
+- [0004-prioridade-explicita-bug](0004-prioridade-explicita-bug.md): prioridade definida na rota BUG conforme retorno documental aprovado em 18/11.

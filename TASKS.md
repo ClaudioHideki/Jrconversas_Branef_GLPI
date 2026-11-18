@@ -3,6 +3,8 @@
 
 ## Em progresso (WIP)
 
+- [ ] **GLPI-18-RETORNO:** Aplicar perfil 14/categoria 190 e rotas aprovadas, prioridade BUG explícita, validar CI do SHA final, publicar imagem e configuração, testar JRC Conversas/URA/GLPI e registrar regras que substituem os atributos enviados. Perfil 14 e categoria 190 confirmados por leitura autenticada em 18/11; ver ADR 0004. Não confundir validação documental com homologação operacional.
+
 Nenhuma execução funcional é iniciada por este bootstrap. As frentes já em andamento permanecem nos planos/checkpoints existentes.
 
 - [ ] **GLPI-17-ATIVACAO:** Concluir a coordenação entre abertura automática e transferência humana, inclusive resultado UNKNOWN. O candidato de coleta sem IO preserva a transferência; o candidato de abertura continua bloqueado. Publicação, configuração final e homologação real ainda são etapas distintas.

@@ -1,7 +1,7 @@
 name: Branef intake adjustments - isolated validation
 on:
   push:
-    branches: [codex/branef-glpi-ajustes-20261117]
+    branches: [codex/branef-glpi-ajustes-20261117, codex/branef-documentos-20261118]
   workflow_dispatch:
 permissions:
   contents: read
