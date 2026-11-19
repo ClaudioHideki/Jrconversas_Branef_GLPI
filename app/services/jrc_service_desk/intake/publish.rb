@@ -22,7 +22,7 @@ class JrcServiceDesk::Intake::Publish
   def authorize!(user_context)
     context = JrcServiceDesk::OperationalContext.new(user_context)
     allowed = context.native_operator? && context.administrator? && context.capability?(:settings_view) &&
-              context.user&.confirmed? && context.user.active_for_authentication? && context.account.active?
+              context.user&.confirmed? && context.user.active_for_authentication?
     raise Pundit::NotAuthorizedError unless allowed
 
     context

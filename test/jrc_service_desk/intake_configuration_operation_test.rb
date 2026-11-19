@@ -1,16 +1,17 @@
 # frozen_string_literal: true
 
+# Standalone fixtures replace job, account and Redis dependencies.
+# rubocop:disable Style/OneClassPerFile
+
 require 'minitest/autorun'
 require 'minitest/mock'
 require 'logger'
 
-module Pundit
-  class NotAuthorizedError < StandardError; end
-end
+module Pundit; end
+class Pundit::NotAuthorizedError < StandardError; end
 
-module ActiveRecord
-  class RecordNotFound < StandardError; end
-end
+module ActiveRecord; end
+class ActiveRecord::RecordNotFound < StandardError; end
 
 module Rails
   def self.logger = Logger.new($stderr)
@@ -37,24 +38,24 @@ class AccountUser
   def self.find_by!(**) = raise('Stub account membership lookup')
 end
 
-class Redis
-  class Alfred
-    class << self
-      attr_accessor :entries
+Redis = Class.new
 
-      def get(key) = entries[key]
-      def delete(key) = entries.delete(key)
+class Redis::Alfred
+  class << self
+    attr_accessor :entries
 
-      def set(key, value, ex:, nx: false)
-        return false if nx && entries.key?(key)
+    def get(key) = entries[key]
+    def delete(key) = entries.delete(key)
 
-        entries[key] = value if ex.positive?
-        true
-      end
+    def set(key, value, **options)
+      return false if options[:nx] && entries.key?(key)
 
-      def delete_if_equals(key, value)
-        delete(key) if get(key) == value
-      end
+      entries[key] = value if options.fetch(:ex).positive?
+      true
+    end
+
+    def delete_if_equals(key, value)
+      delete(key) if get(key) == value
     end
   end
 end
@@ -96,7 +97,7 @@ class IntakeConfigurationOperationTest < Minitest::Test
     record = Struct.new(:public_configuration).new({ id: '18', revision: 5, inbox_id: '13', remote_writes_enabled: true })
     service = Minitest::Mock.new.expect(:call, record, [], user_context: actor, attributes: attributes)
     perform_with(JrcServiceDesk::Intake::Publish, service)
-    refute @operation.perform
+    assert_nil @operation.perform
     assert_equal(record.public_configuration.transform_keys(&:to_s), @operation.status.dig('result', 'record'))
   end
 
@@ -133,3 +134,5 @@ class IntakeConfigurationOperationTest < Minitest::Test
     service.verify
   end
 end
+
+# rubocop:enable Style/OneClassPerFile
