@@ -120,6 +120,8 @@ Rails.application.routes.draw do
             post 'intake/preview', to: 'intake#preview'
             get 'intake/inboxes', to: 'intake#inboxes'
             post 'intake/readiness', to: 'intake#readiness'
+            post 'intake/operations/:kind', to: 'intake#start_operation', constraints: { kind: /readiness|publish/ }
+            get 'intake/operations/:operation_id', to: 'intake#operation'
             get 'intake/conversations/:conversation_id', to: 'intake#conversation'
             post 'intake/demands/:demand_id/notice', to: 'intake#notice'
             post 'intake/demands/:demand_id/complete', to: 'intake#complete'

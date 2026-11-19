@@ -4,6 +4,8 @@
       "title": "Documented service intake",
       "help": "Import the approved catalogue and mappings. Test mode records the qualification without writing to GLPI. Source access and calendars must be verified before enabling real writes.",
       "error": "The configuration could not be verified. Reload the selected account and check the imported files.",
+      "processing": "Checking GLPI dependencies in the background. This can take several minutes.",
+      "current_configuration": "Configuration {id} · Revision {revision}",
       "inbox": "Inbox",
       "catalogue": "Import service catalogue (JSON)",
       "responses": "Import approved response templates (JSON)",
