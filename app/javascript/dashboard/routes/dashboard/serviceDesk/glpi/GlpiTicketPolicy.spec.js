@@ -59,7 +59,11 @@ const policy = values => ({
   unsupported_required: [],
   ...values,
 });
-const render = (source = 'glpi', operation = 'ticket.create', locale = 'en') => {
+const render = (
+  source = 'glpi',
+  operation = 'ticket.create',
+  locale = 'en'
+) => {
   holder.session.state.context.data_source = source;
   const wrapper = mount(
     {
