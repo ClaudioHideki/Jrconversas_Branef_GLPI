@@ -117,7 +117,10 @@ const fields = computed(() =>
   policyMode.value ? ticketPolicy.fields.value : descriptor.value?.fields || []
 );
 const unknownField = computed(() =>
-  fields.value.some(field => !te(`JRC_GLPI.fields.${field}`))
+  fields.value.some(field => {
+    const label = `JRC_GLPI.fields.${field}`;
+    return !te(label) && !te(label, 'en');
+  })
 );
 const required = field =>
   policyMode.value
