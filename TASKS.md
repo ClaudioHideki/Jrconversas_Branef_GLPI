@@ -28,3 +28,8 @@ Nenhuma execução funcional é iniciada por este bootstrap. As frentes já em a
 Uma tarefa deve registrar problema, escopo, critério de aceite, evidência/arquivo e limite. Só mover para Concluído com a prova correspondente; não converter publicação de imagem em aceite operacional.
 
 - [x] **GLPI-17-HANDOFF-CODIGO:** Comando local atômico, recibo imutável e job posterior implementados; 12 cenários/64 assertivas aprovados. Ver ADR0003. CI, publicação, implantação e homologação permanecem separados.
+
+## Consumo NICO — 23/11/2026
+
+- [x] Implementar candidata com controle pelo provedor e teto local opcional; preservar reservas incertas e isolamento. Ver ADR0007.
+- [ ] Concluir testes nativos/CI, publicação das imagens e implantação autorizada na Branef. Validação local não comprova ambiente atualizado.

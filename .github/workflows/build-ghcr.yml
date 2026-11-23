@@ -2,7 +2,7 @@ name: Branef GLPI - validacao e imagem por SHA
 
 on:
   push:
-    branches: ['codex/branef-glpi-*-20261104', 'codex/consolidacao-*']
+    branches: ['codex/branef-glpi-*-20261104', 'codex/consolidacao-*', 'codex/branef-nico-provider-20261123']
   workflow_dispatch:
     inputs:
       validation_only:

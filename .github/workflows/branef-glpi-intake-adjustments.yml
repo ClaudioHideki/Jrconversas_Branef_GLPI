@@ -1,7 +1,7 @@
 name: Branef intake adjustments - isolated validation
 on:
   push:
-    branches: [codex/branef-glpi-ajustes-20261117, codex/branef-documentos-20261118]
+    branches: [codex/branef-glpi-ajustes-20261117, codex/branef-documentos-20261118, codex/branef-nico-provider-20261123]
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,6 +24,7 @@ jobs:
         options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 15
     env:
       RAILS_ENV: test
+      FRONTEND_URL: https://branef-native.example.test
       POSTGRES_HOST: localhost
       POSTGRES_DATABASE: branef_glpi_test
       POSTGRES_USERNAME: postgres

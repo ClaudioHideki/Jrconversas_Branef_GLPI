@@ -31,3 +31,7 @@ Incremento 18/11: retorno documental aceito pelo usuário; prioridade explícita
 O contrato local foi ajustado para os prazos nativos atuais, atributos na criação e políticas aprováveis de solicitante, preservando rotas anteriores. Ver [ADR 0002](docs/adr/0002-intake-prazos-nativos-glpi.md). A ativação automática permanece condicionada à coordenação com a transferência humana, às liberações GLPI e à homologação. O código e os candidatos locais não comprovam imagem publicada ou execução em produção.
 
 Transferência independente preparada em código e testes dirigidos: [ADR0003](docs/adr/0003-handoff-glpi-independente.md). O GLPI não é consultado dentro da transação de encaminhamento humano. Ainda requer evidência de release e ativação.
+
+### Consumo NICO — 23/11/2026
+
+Candidata isolada sobre LAB2 e6bd4cc9: registro confirmado e estimado separado, limite local opcional e observação dos limites da API. Histórico incerto preservado; sem alteração de outros ambientes. CI e implantação continuam gates próprios. Ver ADR0007.
