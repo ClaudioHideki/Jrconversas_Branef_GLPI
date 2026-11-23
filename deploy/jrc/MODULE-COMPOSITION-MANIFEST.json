@@ -28,8 +28,8 @@
     {
       "path": ".github/workflows/build-ghcr.yml",
       "baseSha256": "05b856abe74f1897c52e76910a03a77065e8c12418b7cffbc74b15d906ce9fd2",
-      "sha256": "146530c91434cdad780d68f060b0abfe53e8c4f5b2d3bf4588dbc0efa3af33cc",
-      "bytes": 31761
+      "sha256": "d2ca1c64cf6c2b0cd0297e2e48e568fc7e6ecba71eb9771033606304736bdc34",
+      "bytes": 31805
     },
     {
       "path": ".github/workflows/nico-broker-candidate.yml",
@@ -820,8 +820,8 @@
     {
       "path": "config/routes.rb",
       "baseSha256": "a00b0f9b8f9735ec0673eed1719ac5b5df16f8b19e24bbd20cb7bd2cfee38596",
-      "sha256": "9574bc91281d3fe177174c65af020d20931e0efa14b69341683561b1bd2f1494",
-      "bytes": 71924
+      "sha256": "e76ef9108324259d34a97c9b05e1af9842ee2c29dfe5541267faaf9aaf52539a",
+      "bytes": 72078
     },
     {
       "path": "config/schedule.yml",
