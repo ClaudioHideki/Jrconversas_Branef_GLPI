@@ -13,3 +13,5 @@ Contrato genérico de origem implementado no núcleo LAB2; leitura GLPI somente 
 ## Coleta em ambiente ativo
 
 A primeira leitura real abortou com source_changed durante a paginação da coleção completa de tickets. A enumeração agora usa campos efetivamente identificados por listSearchOptions/Ticket, filtros de entidade/data e uma janela superior de IDs reais capturada da própria API. IDs são enumerados antes das leituras individuais autorizadas, com páginas limitadas a1000 identificadores. A proteção global de paginação permanece intacta; contagens instáveis continuam abortando. O corte parcial é convertido ao fuso configurado na conexão antes da consulta.
+
+A pré-validação identificou que, no GLPI10, comparações numéricas usam searchtype=contains com o operador no valor (por exemplo <= seguido do ID real capturado). Um searchtype=lessthan com valor numérico puro vira igualdade nessa versão. A janela agora precisa conter o ID máximo capturado, ou aborta com source_changed em vez de informar um histórico vazio incorreto. Referência: https://github.com/glpi-project/glpi/blob/10.0/bugfixes/src/Search.php

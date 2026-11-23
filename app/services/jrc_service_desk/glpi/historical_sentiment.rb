@@ -116,11 +116,16 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
     return [] if rows.empty?
 
     high_water = JrcServiceDesk::Input.id(rows.first.fetch(fields.fetch('id').to_s))
-    criteria << condition(fields.fetch('id'), 'lessthan', high_water + 1)
+    # GLPI 10 numeric fields encode comparisons in the value. A numeric
+    # `lessthan` search type alone is treated as equality by that version.
+    criteria << condition(fields.fetch('id'), 'contains', "<=#{high_water}")
     # Enumerate IDs quickly before individual authorization/detail reads. New
     # tickets cannot shift this window; Collection still rejects source drift.
-    client.collection('search/Ticket/', parameters.except('range').merge('order' => 'ASC'), batch_size: 1000)
-          .map { |row| JrcServiceDesk::Input.id(row.fetch(fields.fetch('id').to_s)) }
+    ids = client.collection('search/Ticket/', parameters.except('range').merge('order' => 'ASC'), batch_size: 1000)
+                .map { |row| JrcServiceDesk::Input.id(row.fetch(fields.fetch('id').to_s)) }
+    raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) unless ids.include?(high_water)
+
+    ids
   end
 
   def condition(field, searchtype, value, link = 'AND')

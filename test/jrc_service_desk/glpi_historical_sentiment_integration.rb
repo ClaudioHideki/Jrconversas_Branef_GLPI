@@ -71,7 +71,7 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
                     { 'field' => 19, 'searchtype' => 'morethan', 'value' => '2026-09-30 23:59:59', 'link' => 'AND' }
     assert_equal 'DESC', @source.searches.first.fetch('order')
     assert_equal 'ASC', @source.searches.last.fetch('order')
-    assert_includes @source.searches.last.fetch('criteria'), { 'field' => 2, 'searchtype' => 'lessthan', 'value' => 304, 'link' => 'AND' }
+    assert_includes @source.searches.last.fetch('criteria'), { 'field' => 2, 'searchtype' => 'contains', 'value' => '<=303', 'link' => 'AND' }
     assert_empty @source.writes
   end
 
@@ -122,5 +122,13 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
       assert_includes @source.searches.first.fetch('criteria'),
                       { 'field' => 15, 'searchtype' => 'lessthan', 'value' => '2026-11-23 12:00:00', 'link' => 'AND' }
     end
+  end
+
+  def test_a_window_that_loses_its_captured_ticket_never_reports_a_false_empty_history
+    error = assert_raises(JrcServiceDesk::Glpi::Error) do
+      @source.stub(:collection, []) { @analysis.candidates(client: @source) }
+    end
+    assert_equal 'source_changed', error.code
+    assert_empty @source.writes
   end
 end
