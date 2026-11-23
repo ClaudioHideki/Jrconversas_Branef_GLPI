@@ -17,3 +17,7 @@ A rejeição 429 não gera recibo de tokens. Somente a usage efetivamente devolv
 Testes de espera, cancelamento, limite de tentativas, consumo confirmado e reparo JSON. CI no SHA final; publicar somente runtime e implantar apenas no ambiente autorizado. Validar consulta real de conhecimento e separar a prontidão de rotas GLPI de abertura real de chamado e SLA.
 
 Fonte: https://console.groq.com/docs/rate-limits
+
+## Evidência posterior:413 após leitura do conhecimento
+
+Na Branef, a consulta search_knowledge foi executada, mas a síntese recebeu HTTP413 com limite observado de8000TPM. O retorno429 não era a única causa. Para esse provedor/modelo e cota observada, a projeção da inferência omite guias de módulos redundantes, mantém quatro mensagens recentes, limita corpos de conhecimento a1000caracteres preservando IDs/URLs e elimina apenas duplicatas exatas de resultados. Fontes, autorizações e ferramentas permanecem intactas. A cadência usa reset do provedor e último recibo confirmado, antes de criar reserva; nenhuma espera é contabilizada como consumo. Não alterar outros provedores/modelos nem liberar reservas incertas antigas.
