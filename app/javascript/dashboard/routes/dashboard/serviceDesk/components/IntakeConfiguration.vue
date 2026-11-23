@@ -13,8 +13,10 @@ const inboxes = ref([]);
 const inboxId = ref('');
 const loaded = ref(false);
 const error = ref(false);
+const operationError = ref('');
 const busy = ref(false);
 const readiness = ref(null);
+const configuration = ref(null);
 const roster = ref([]);
 const form = reactive({
   catalogue: null,
@@ -50,7 +52,9 @@ const reset = () => {
   busy.value = false;
   loaded.value = false;
   error.value = false;
+  operationError.value = '';
   readiness.value = null;
+  configuration.value = null;
   roster.value = [];
   revision = 0;
   Object.assign(form, {
@@ -81,6 +85,7 @@ const load = async () => {
         remote_writes_enabled,
       });
       revision = data.record.revision;
+      configuration.value = { id: data.record.id, revision };
     }
     loaded.value = true;
   } catch {
@@ -125,15 +130,17 @@ const preview = async () => {
   const request = begin();
   busy.value = true;
   error.value = false;
+  operationError.value = '';
   try {
     readiness.value = accept(
       request,
       await API.preview(request.account, draft(), request.signal)
     );
     if (!readiness.value?.ready) form.remote_writes_enabled = false;
-  } catch {
+  } catch (failure) {
     if (request.epoch === epoch) {
       error.value = true;
+      operationError.value = failure?.message;
       readiness.value = null;
     }
   } finally {
@@ -144,6 +151,7 @@ const publish = async () => {
   const request = begin();
   busy.value = true;
   error.value = false;
+  operationError.value = '';
   try {
     const data = accept(
       request,
@@ -155,10 +163,14 @@ const publish = async () => {
     );
     if (data) {
       revision = data.record.revision;
+      configuration.value = { id: data.record.id, revision };
       readiness.value = null;
     }
-  } catch {
-    if (request.epoch === epoch) error.value = true;
+  } catch (failure) {
+    if (request.epoch === epoch) {
+      error.value = true;
+      operationError.value = failure?.message;
+    }
   } finally {
     if (request.epoch === epoch) busy.value = false;
   }
@@ -198,6 +210,12 @@ const importFile = async (field, event) => {
     </p>
     <p v-if="error" role="alert" class="mb-3 text-n-ruby-11">
       {{ t('JRC_SERVICE_DESK.INTAKE.error') }}
+      <span v-if="/^intake_[a-z_]+$/.test(operationError)">{{
+        operationError
+      }}</span>
+    </p>
+    <p v-if="busy" role="status" class="mb-3 text-sm text-n-slate-11">
+      {{ t('JRC_SERVICE_DESK.INTAKE.processing') }}
     </p>
     <label class="grid gap-1 text-sm">
       {{ t('JRC_SERVICE_DESK.INTAKE.inbox') }}
@@ -208,6 +226,9 @@ const importFile = async (field, event) => {
       </select>
     </label>
     <div v-if="loaded" class="grid gap-3">
+      <p v-if="configuration" class="text-sm">
+        {{ t('JRC_SERVICE_DESK.INTAKE.current_configuration', configuration) }}
+      </p>
       <label
         v-for="field in ['catalogue', 'responses', 'mappings', 'roster']"
         :key="field"

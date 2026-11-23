@@ -4,11 +4,12 @@ class JrcServiceDesk::Intake::Publish
   KEYS = %w[inbox_id expected_revision catalogue mappings responses mode remote_writes_enabled].freeze
 
   def call(user_context:, attributes:)
-    context = JrcServiceDesk::OperationalContext.new(user_context)
-    raise Pundit::NotAuthorizedError unless context.native_operator? && context.administrator? && context.capability?(:settings_view)
-
+    context = authorize!(user_context)
     values = JrcServiceDesk::Input.attributes(attributes, KEYS)
-    verify_source!(context, values) if values['remote_writes_enabled'] == true
+    if values['remote_writes_enabled'] == true
+      verify_source!(context, values)
+      context = authorize!(user_context)
+    end
     JrcServiceDesk::IntakeConfiguration.transaction do
       inbox = context.account.inboxes.lock.find(JrcServiceDesk::Input.id(values.fetch('inbox_id')))
       previous = next_revision!(context.account, inbox, values.fetch('expected_revision'))
@@ -17,6 +18,15 @@ class JrcServiceDesk::Intake::Publish
   end
 
   private
+
+  def authorize!(user_context)
+    context = JrcServiceDesk::OperationalContext.new(user_context)
+    allowed = context.native_operator? && context.administrator? && context.capability?(:settings_view) &&
+              context.user&.confirmed? && context.user.active_for_authentication?
+    raise Pundit::NotAuthorizedError unless allowed
+
+    context
+  end
 
   def verify_source!(context, values)
     readiness = JrcServiceDesk::Intake::Readiness.new.call(user_context: context.to_h, attributes: values.except('expected_revision'))

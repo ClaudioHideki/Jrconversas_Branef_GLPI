@@ -16,7 +16,8 @@ class JrcServiceDesk::Glpi::OperationCatalogue
         required: [], defaults: {}, parent: nil, parent_field: nil, admin: false, source_right: ['ticket', 2],
         source_alternatives: [] }.merge(options).freeze
     end
-    add.call('ticket.create', 'Ticket', 'post', 'tickets_create', TICKET_FIELDS + %w[entities_id priority _users_id_requester status template_id],
+    add.call('ticket.create', 'Ticket', 'post', 'tickets_create', TICKET_FIELDS + %w[entities_id priority _users_id_requester status template_id
+                                                                               _users_id_requester_notif _groups_id_assign slas_id_tto slas_id_ttr requesttypes_id],
              required: %w[name content type urgency impact], source_right: ['ticket', 4])
     add.call('ticket.update', 'Ticket', 'patch', 'tickets_edit', TICKET_FIELDS)
     add.call('ticket.sla', 'Ticket', 'patch', 'tickets_edit', %w[slas_id_ttr slas_id_tto])

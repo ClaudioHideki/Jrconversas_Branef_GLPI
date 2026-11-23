@@ -29,6 +29,11 @@ class JrcServiceDesk::Intake::Delivery
     return @demand.receipt unless create_ticket!
 
     record_link!
+    if @mapping.creation_attributes?
+      record_stage('assignment', state: 'succeeded')
+      record_stage('sla', state: @mapping.sla_attributes.present? ? 'succeeded' : 'not_required')
+      return finish('confirmed')
+    end
     return @demand.receipt unless assignment! && sla!
 
     finish('confirmed')

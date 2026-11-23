@@ -1,5 +1,13 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
+const entityScopedFields = [
+  'itilcategories_id',
+  '_users_id_requester',
+  '_groups_id_assign',
+  'slas_id_tto',
+  'slas_id_ttr',
+];
+
 const supportedFields = new Set([
   'name',
   'content',
@@ -7,8 +15,8 @@ const supportedFields = new Set([
   'urgency',
   'impact',
   'priority',
-  'itilcategories_id',
-  '_users_id_requester',
+  ...entityScopedFields,
+  'requesttypes_id',
   'status',
 ]);
 const text = (value, rich = false) => {
@@ -109,7 +117,7 @@ export function useGlpiTicketPolicy({ glpi, active, entityId, values, rich }) {
     if (String(entityId.value) !== previousEntity) {
       delete selectors.value.category_id;
       templateId.value = '';
-      ['itilcategories_id', '_users_id_requester'].forEach(field => {
+      entityScopedFields.forEach(field => {
         values[field] = '';
       });
       form.value = null;

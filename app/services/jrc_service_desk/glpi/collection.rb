@@ -72,6 +72,13 @@ class JrcServiceDesk::Glpi::Collection
       source_changed! if total && header_total && total != header_total
       total ||= header_total
       source_changed! unless match[1].to_i == offset || total == 0
+      if @path == 'User/' && data.is_a?(Array) && offset.zero? && match[1] == '0' &&
+         @client.last_response[:status] == 200 && header_total&.between?(1, @batch_size) &&
+         match[2].to_i + 1 == header_total && rows.size < header_total
+        # GLPI can remove inaccessible users after counting its complete response window.
+        # Use only the returned candidates; the caller still authorizes each user.
+        return [rows, rows.size]
+      end
       source_changed! if rows.any? && match[2].to_i - match[1].to_i + 1 != rows.size
     end
     [rows, total]

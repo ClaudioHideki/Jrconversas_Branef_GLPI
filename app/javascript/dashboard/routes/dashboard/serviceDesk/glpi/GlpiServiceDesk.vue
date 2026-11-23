@@ -10,6 +10,7 @@ import GlpiOverview from './GlpiOverview.vue';
 import GlpiResourceBoard from './GlpiResourceBoard.vue';
 import GlpiSync from './GlpiSync.vue';
 import { serviceDeskRouteName } from '../routeDefinitions';
+import { groupErrors, selectedFilters } from './presentation';
 
 const props = defineProps({
   screen: { type: String, default: 'tickets' },
@@ -17,9 +18,19 @@ const props = defineProps({
 });
 const { t } = useI18n();
 const router = useRouter();
+const initialFilters = computed(() =>
+  selectedFilters(router?.currentRoute?.value?.query)
+);
+const persistFilters = query => router.replace({ query });
 const glpi = useGlpi();
 const { session, state, read } = glpi;
 const screenDefinition = computed(() => glpiScreen(props.screen));
+const errors = computed(() => groupErrors(state.errors));
+const screenTitle = computed(() =>
+  ['glpi', 'detail', 'edit', 'new'].includes(props.screen)
+    ? t(`JRC_GLPI.visual.titles.${props.screen}`)
+    : t(`JRC_SERVICE_DESK.SCREENS.${props.screen}`)
+);
 const catalogResource = ref('templates');
 watch(
   () => props.screen,
@@ -66,14 +77,42 @@ watch(
 
 <template>
   <section
-    class="grid gap-4"
+    class="grid min-w-0 grid-cols-1 gap-5"
     data-testid="glpi-service-desk"
   >
-    <header class="flex flex-wrap items-start justify-between gap-3">
+    <header
+      class="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-n-blue-6 bg-gradient-to-r from-n-blue-2 to-n-solid-2 p-5 shadow-sm"
+    >
       <div>
-        <h2 class="text-xl font-semibold">{{ t('JRC_GLPI.heading') }}</h2>
+        <p
+          class="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-n-blue-11"
+        >
+          <i
+            class="i-lucide-headset size-4"
+            aria-hidden="true"
+          />
+          {{ t('JRC_GLPI.visual.service_desk') }}
+        </p>
+        <h2 class="text-2xl font-bold text-n-slate-12">{{ screenTitle }}</h2>
+        <p class="mt-1 text-sm text-n-slate-11">
+          {{
+            t(`JRC_GLPI.visual.help.${screenDefinition?.kind || 'resource'}`)
+          }}
+        </p>
         <p class="text-sm text-n-slate-11">
           {{ t('JRC_GLPI.workspace.source') }}
+          <span
+            v-if="state.context?.available"
+            class="mt-2 block text-xs font-semibold text-n-blue-11"
+          >
+            {{
+              t('JRC_GLPI.visual.timezone', {
+                timezone:
+                  state.context.timezone ||
+                  t('JRC_GLPI.visual.unknown_timezone'),
+              })
+            }}
+          </span>
         </p>
       </div>
       <Button
@@ -84,13 +123,42 @@ watch(
       />
     </header>
     <div
-      v-for="(error, key) in state.errors"
-      :key="key"
+      v-for="error in errors"
+      :key="error.code"
       role="alert"
       class="rounded-lg border border-n-ruby-6 bg-n-ruby-2 p-3 text-sm"
     >
-      {{ t('JRC_GLPI.error') }}
-      {{ t('JRC_GLPI.source_code', { code: error.code }) }}
+      <p class="font-semibold">
+        {{
+          t(
+            error.code === 'ERROR_RIGHT_MISSING'
+              ? 'JRC_GLPI.visual.right_missing'
+              : error.code === 'forbidden'
+                ? 'JRC_GLPI.visual.forbidden'
+                : 'JRC_GLPI.error'
+          )
+        }}
+      </p>
+      <details class="mt-2 text-xs">
+        <summary class="cursor-pointer font-semibold">
+          {{
+            t('JRC_GLPI.visual.error_details', {
+              count: error.operations.length,
+            })
+          }}
+        </summary>
+        <p class="mt-2">
+          {{ t('JRC_GLPI.source_code', { code: error.code }) }}
+        </p>
+        <ul class="mt-1 list-inside list-disc">
+          <li
+            v-for="operation in error.operations"
+            :key="operation"
+          >
+            {{ operation }}
+          </li>
+        </ul>
+      </details>
     </div>
     <p
       v-if="state.loading.context"
@@ -134,6 +202,8 @@ watch(
         :key="screen"
         :glpi="glpi"
         :screen="screen"
+        :initial-filters="initialFilters"
+        @filters="persistFilters"
       />
       <GlpiTicketWorkspace
         v-else-if="['tickets', 'ticket'].includes(screenDefinition?.kind)"
@@ -142,6 +212,8 @@ watch(
         :screen="screen"
         :ticket-id="ticketId"
         :fixed-filters="screenDefinition.filters || {}"
+        :initial-filters="initialFilters"
+        @filters="persistFilters"
       />
       <GlpiResourceBoard
         v-else-if="screenDefinition?.kind === 'resource'"

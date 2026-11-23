@@ -17,10 +17,15 @@ class JrcServiceDesk::Intake::Readiness
     @candidates = @selections.filter_map { |selection| candidate(selection) }
     verify_source if @blockers.empty?
     { ready: @blockers.empty?, blockers: @blockers.uniq, selection_count: @selections.size,
-      checked_at: Time.current.iso8601, requester_policy: 'mapped_contacts_only' }
+      checked_at: Time.current.iso8601, requester_policy: requester_policy_summary }
   end
 
   private
+
+  def requester_policy_summary
+    policies = configuration.mappings.fetch('routes', []).pluck('requester_policy').uniq
+    policies == ['mapped_contact'] ? 'mapped_contacts_only' : policies
+  end
 
   def validate_classification
     return unless @selections.any? { |row| row['severity'] }
@@ -61,6 +66,10 @@ class JrcServiceDesk::Intake::Readiness
   end
 
   def validate_sla!(route, selection)
+    if route.key?('slas')
+      JrcServiceDesk::Intake::SlaMapping.new(route, selection.fetch('sla')).definitions
+      return
+    end
     return if selection.fetch('sla').fetch('unit') == 'none' && route['sla'].nil?
 
     sla = route.fetch('sla', {})
@@ -68,6 +77,11 @@ class JrcServiceDesk::Intake::Readiness
   end
 
   def requester!(route)
+    if %w[email_only email_or_anonymous].include?(route['requester_policy'])
+      raise ArgumentError, 'intake_requester_policy_unapproved' unless route['requester_approved'] == true
+
+      return [{ 'policy_probe' => true }]
+    end
     raise ArgumentError, 'intake_requester_unmapped' unless route['requester_policy'] == 'mapped_contact'
 
     rows = configuration.mappings.fetch('requesters', []).select { |row| row['entity_id'].to_s == route.fetch('entity_id').to_s }

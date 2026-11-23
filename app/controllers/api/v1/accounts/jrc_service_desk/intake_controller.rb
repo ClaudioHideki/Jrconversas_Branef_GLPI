@@ -38,6 +38,21 @@ class Api::V1::Accounts::JrcServiceDesk::IntakeController < Api::V1::Accounts::J
     render json: envelope(result)
   end
 
+  def start_operation
+    authorize ::JrcServiceDesk::IntakeConfiguration, :manage?
+    operation = configuration_operation(SecureRandom.uuid)
+    result = operation.start(kind: params[:kind], attributes: request.request_parameters, account: Current.account)
+    render json: envelope(result), status: :accepted
+  end
+
+  def operation
+    authorize ::JrcServiceDesk::IntakeConfiguration, :manage?
+    result = configuration_operation(params[:operation_id]).status
+    raise ActiveRecord::RecordNotFound unless result
+
+    render json: envelope(result)
+  end
+
   def conversation
     target = Current.account.conversations.find_by!(display_id: ::JrcServiceDesk::Input.id(params[:conversation_id]))
     authorize target, :show?
@@ -61,6 +76,10 @@ class Api::V1::Accounts::JrcServiceDesk::IntakeController < Api::V1::Accounts::J
   end
 
   private
+
+  def configuration_operation(id)
+    ::JrcServiceDesk::Intake::ConfigurationOperation.new(Current.account.id, Current.user.id, id)
+  end
 
   def authorized_demand
     demand = ::JrcServiceDesk::IntakeDemand.where(account_id: Current.account.id).find(::JrcServiceDesk::Input.id(params[:demand_id]))

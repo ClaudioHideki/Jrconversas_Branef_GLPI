@@ -1,0 +1,60 @@
+name: Branef intake adjustments - isolated validation
+on:
+  push:
+    branches: [codex/branef-glpi-ajustes-20261117, codex/branef-documentos-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts-and-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: branef_glpi_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-intake-test-only
+        ports: ['127.0.0.1:5432:5432']
+        options: --health-cmd "pg_isready -U postgres -d branef_glpi_test" --health-interval 5s --health-timeout 5s --health-retries 15
+      redis:
+        image: redis:7-alpine
+        ports: ['127.0.0.1:6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 15
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_DATABASE: branef_glpi_test
+      POSTGRES_USERNAME: postgres
+      POSTGRES_PASSWORD: isolated-intake-test-only
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY_BASE: isolated-intake-test-only-012345678901234567890123456789012345678901234567890123456789
+      JRC_BROKER_ENABLED: 'true'
+      JRC_BROKER_CREDENTIAL_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Native test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev libvips libvips-dev
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4.4'
+          bundler: 2.5.16
+          bundler-cache: true
+      - name: Pure contracts and regression
+        run: |
+          set -e
+          for suite in test/jrc_service_desk/intake_*_test.rb test/jrc_service_desk/glpi_command_contract_test.rb; do
+            bundle exec ruby "$suite"
+          done
+      - name: Disposable database and real Rails integration
+        run: |
+          test "$POSTGRES_DATABASE" = branef_glpi_test
+          bundle exec rails db:schema:load
+          bundle exec rails db:migrate
+          for suite in test/jrc_service_desk/intake_*_integration.rb; do
+            bundle exec ruby "$suite"
+          done
+          bundle exec ruby test/jrc_service_desk/glpi_ticket_form_integration.rb

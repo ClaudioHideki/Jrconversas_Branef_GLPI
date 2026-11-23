@@ -6,6 +6,9 @@ import { useI18n } from 'vue-i18n';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import jrcAiAPI from 'dashboard/api/jrcAi';
 import CockpitHero from './CockpitHero.vue';
+import TicketMetricsCard from './TicketMetricsCard.vue';
+import { useAccount } from 'dashboard/composables/useAccount';
+import { navigationEntryVisible } from 'dashboard/components-next/sidebar/temporaryVisibility';
 import { useJrcModuleAvailability } from 'dashboard/composables/useJrcModuleAvailability';
 import { useJrcCopilot } from 'dashboard/components-next/jrcCopilot/useJrcCopilot';
 
@@ -13,6 +16,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const store = useStore();
+const { currentAccount } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
 const inboxes = useMapGetter('inboxes/getInboxes');
 const getInboxUnreadCount = useMapGetter(
@@ -142,8 +146,11 @@ const summaryCards = computed(() => {
     },
     {
       key: 'sla',
-      label: 'SLA operacional',
-      value: formatPercent(summary.sla_estimated_percent),
+      label: t('JRC_COCKPIT_TICKETS.waiting'),
+      value:
+        summary.sla_estimated_percent == null
+          ? t('JRC_COCKPIT_TICKETS.no_sample')
+          : formatPercent(summary.sla_estimated_percent),
       detail: `${formatNumber(summary.sla_risk_count)} em risco`,
       icon: 'i-lucide-gauge',
       tone: summary.sla_risk_count > 0 ? 'amber' : 'teal',
@@ -256,6 +263,14 @@ const quickLinks = computed(() => {
   ];
 });
 
+const visibleQuickLinks = computed(() =>
+  quickLinks.value.filter(
+    item =>
+      item.route !== 'whatsapp_calling_index' ||
+      navigationEntryVisible('WhatsApp Calling', currentAccount.value)
+  )
+);
+
 const personalizationItems = computed(() => {
   const items = [
     { key: 'summary', label: 'Resumo e indicadores' },
@@ -346,18 +361,23 @@ const chartPoints = computed(() => {
     .join(' ');
 });
 
+let requestGeneration = 0;
 const loadCockpit = async () => {
+  requestGeneration += 1;
+  const generation = requestGeneration;
   loading.value = true;
   error.value = '';
   try {
     const response = await jrcAiAPI.cockpit(period.value);
+    if (generation !== requestGeneration) return;
     data.value = response.data;
   } catch (requestError) {
+    if (generation !== requestGeneration) return;
     error.value =
       requestError?.response?.data?.error ||
       'Não foi possível carregar o Cockpit.';
   } finally {
-    loading.value = false;
+    if (generation === requestGeneration) loading.value = false;
   }
 };
 
@@ -395,6 +415,19 @@ const restorePreferences = () => {
 };
 
 watch(period, loadCockpit);
+watch([() => route.params.accountId, () => currentUser.value?.id], () => {
+  data.value = {
+    profile: 'agent',
+    summary: {},
+    attention: [],
+    channel_distribution: [],
+    daily_volume: [],
+    team: {},
+    ai_agents: [],
+    usage: {},
+  };
+  loadCockpit();
+});
 onMounted(() => {
   restorePreferences();
   store.dispatch('inboxes/get');
@@ -402,7 +435,10 @@ onMounted(() => {
   loadCockpit();
   refreshTimer = window.setInterval(loadCockpit, 60000);
 });
-onBeforeUnmount(() => window.clearInterval(refreshTimer));
+onBeforeUnmount(() => {
+  requestGeneration += 1;
+  window.clearInterval(refreshTimer);
+});
 </script>
 
 <template>
@@ -465,7 +501,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
 
       <section
         v-if="visibleSections.summary"
-        class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+        class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"
       >
         <button
           v-for="card in summaryCards"
@@ -498,6 +534,17 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
             {{ card.detail }} →
           </p>
         </button>
+        <TicketMetricsCard
+          v-if="data.ticket_metrics"
+          :metrics="data.ticket_metrics"
+          @navigate="
+            destination =>
+              router.push({
+                ...destination,
+                params: { accountId: route.params.accountId },
+              })
+          "
+        />
       </section>
 
       <section
@@ -545,7 +592,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
           class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6"
         >
           <button
-            v-for="link in quickLinks"
+            v-for="link in visibleQuickLinks"
             :key="link.label"
             type="button"
             class="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"

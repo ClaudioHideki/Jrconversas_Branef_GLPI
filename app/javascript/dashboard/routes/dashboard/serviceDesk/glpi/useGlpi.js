@@ -123,8 +123,13 @@ export function useGlpi() {
       if (current()) state.loading[key] = false;
     }
   };
-  const read = (key, path, params) =>
-    run(key, (account, signal) => API.get(account, path, params, signal));
+  const read = (key, path, params) => {
+    if (['tickets', 'overview'].includes(key) || key.startsWith('resource:'))
+      delete state.data[key];
+    return run(key, (account, signal) =>
+      API.get(account, path, params, signal)
+    );
+  };
   const discard = key => {
     requests.get(key)?.abort();
     requests.delete(key);

@@ -125,6 +125,17 @@ class JrcServiceDesk::Glpi::Execute
       end
     end
     payload = command.request_payload
+    if command.operation == 'ticket.create'
+      raise Pundit::NotAuthorizedError if payload['_groups_id_assign'].to_i.positive? && !access.context.capability?(:tickets_assign)
+      if (payload.keys & %w[slas_id_tto slas_id_ttr]).any? && !access.context.capability?(:tickets_edit)
+        raise Pundit::NotAuthorizedError
+      end
+      if payload['requesttypes_id'].to_i.positive?
+        origin = client.get("RequestType/#{payload['requesttypes_id']}")
+        verify_id!(origin, payload['requesttypes_id'])
+        raise Pundit::NotAuthorizedError if [1, '1', true].include?(origin['is_deleted'])
+      end
+    end
     if (payload.keys & %w[begin end]).any?
       planning = (row || {}).slice('begin', 'end').merge(payload.slice('begin', 'end'))
       valid_dates = %w[begin end].all? do |field|
@@ -146,12 +157,22 @@ class JrcServiceDesk::Glpi::Execute
       next unless reference_values[field].to_i.positive?
       # Contextual form metadata was validated against the Ticket entity, including
       # recursive ancestors, by the shared template policy scope.
-      next if command.operation == 'ticket.create' && command.template_version && %w[itilcategories_id _users_id_requester].include?(field)
+      if command.operation == 'ticket.create' && command.template_version && %w[itilcategories_id _users_id_requester].include?(field)
+        next
+      end
 
       related = client.get("#{type}/#{reference_values[field]}")
       verify_id!(related, reference_values[field])
       if type == 'Document'
         verify_entity!(related, command.entity_id)
+      elsif command.operation == 'ticket.create' && %w[Group SLA].include?(type)
+        JrcServiceDesk::Glpi::MetadataScope.new(access: access, client: client, entity_id: command.entity_id).authorize!(type, related)
+        if type == 'Group' && ![1, '1', true].include?(related['is_assign'])
+          raise JrcServiceDesk::Glpi::Error.new('intake_group_unavailable', 422)
+        end
+        if type == 'SLA' && related['type'].to_s != (field == 'slas_id_ttr' ? '0' : '1')
+          raise JrcServiceDesk::Glpi::Error.new('intake_sla_mismatch', 422)
+        end
       else
         query.authorize_record!(access, client, type, related)
       end
@@ -200,6 +221,9 @@ class JrcServiceDesk::Glpi::Execute
                   client.collection("KnowbaseItem/#{id}/Entity_KnowbaseItem/").any? do |link|
                     link['knowbaseitems_id'].to_s == id.to_s && link['entities_id'].to_s == command.entity_id.to_s
                   end
+                elsif field == '_users_id_requester_notif' ||
+                      (field == '_users_id_requester' && command.request_payload.key?('_users_id_requester_notif'))
+                  anonymous_requester_matches?(client, id, command.request_payload.fetch('_users_id_requester_notif'))
                 elsif %w[_users_id_assign _groups_id_assign _users_id_requester].include?(field)
                   actor_matches?(client, command.itemtype, id, field, expected)
                 elsif field == 'knowbaseitemcategories_id'
@@ -306,6 +330,14 @@ class JrcServiceDesk::Glpi::Execute
   end
 
   def authorize_source!(profile, command, descriptor, row, parent, technical_id)
+    if command.operation == 'ticket.create'
+      if command.request_payload['_groups_id_assign'].to_i.positive?
+        raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) if (profile.fetch('ticket', 0).to_i & 8192).zero?
+      end
+      if (command.request_payload.keys & %w[slas_id_tto slas_id_ttr]).any?
+        raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) if (profile.fetch('ticket', 0).to_i & 2).zero?
+      end
+    end
     alternatives = [descriptor[:source_right]] + descriptor[:source_alternatives]
     if command.itemtype == 'TicketValidation'
       incident = parent.fetch('type').to_i == 1
@@ -320,6 +352,13 @@ class JrcServiceDesk::Glpi::Execute
     if command.itemtype == 'ITILFollowup' && descriptor[:verb] == 'patch'
       mask = row['users_id'].to_s == technical_id.to_s ? 2 : 1024
       raise JrcServiceDesk::Glpi::Error.new('operation_not_permitted', 403) if (profile.fetch('followup', 0).to_i & mask).zero?
+    end
+  end
+
+  def anonymous_requester_matches?(client, id, notification)
+    client.collection("Ticket/#{id}/Ticket_User/").any? do |actor|
+      actor['tickets_id'].to_s == id.to_s && actor['type'].to_s == '1' && [0, '0'].include?(actor['users_id']) &&
+        actor['alternative_email'] == notification.fetch('alternative_email').first && actor['use_notification'].to_i == 1
     end
   end
 

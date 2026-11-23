@@ -363,7 +363,7 @@ const reconcileCommand = async () => {
           :key="index"
           class="mb-3 grid gap-3 md:grid-cols-4"
         >
-          <label class="grid gap-1 text-xs">
+          <label class="grid gap-2 text-sm font-medium text-n-slate-12">
             {{ t('JRC_GLPI.category') }}
             <input
               v-model="category.id"
@@ -373,7 +373,7 @@ const reconcileCommand = async () => {
               class="!mb-0 rounded-lg border border-n-weak px-3 py-2 text-sm"
             />
           </label>
-          <label class="grid gap-1 text-xs">
+          <label class="grid gap-2 text-sm font-medium text-n-slate-12">
             {{ t('JRC_GLPI.fields.name') }}
             <input
               v-model="category.name"
@@ -381,7 +381,7 @@ const reconcileCommand = async () => {
               class="!mb-0 rounded-lg border border-n-weak px-3 py-2 text-sm"
             />
           </label>
-          <label class="grid gap-1 text-xs">
+          <label class="grid gap-2 text-sm font-medium text-n-slate-12">
             {{ t('JRC_GLPI.entity') }}
             <select
               v-model="category.entity_id"

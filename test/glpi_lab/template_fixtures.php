@@ -21,7 +21,7 @@ foreach (['name', 'content', 'type', 'urgency', 'impact', 'priority'] as $field)
     $numbers[$field] = $ticket->getSearchOptionIDByField('field', $field, 'glpi_tickets');
 }
 $numbers['category'] = $ticket->getSearchOptionIDByField('field', 'completename', 'glpi_itilcategories');
-$numbers['requesttype'] = $ticket->getSearchOptionIDByField('field', 'name', 'glpi_requesttypes');
+$numbers['location'] = $ticket->getSearchOptionIDByField('field', 'completename', 'glpi_locations');
 foreach ($numbers as $number) {
     if (!is_numeric($number) || (int) $number <= 0) {
         throw new RuntimeException('Official template search option missing');
@@ -42,7 +42,7 @@ insert('glpi_tickettemplatehiddenfields', ['tickettemplates_id' => $models['expl
 foreach ([$numbers['content'], 4] as $number) {
     insert('glpi_tickettemplatemandatoryfields', ['tickettemplates_id' => $models['explicit'], 'num' => $number]);
 }
-insert('glpi_tickettemplatemandatoryfields', ['tickettemplates_id' => $models['unsupported'], 'num' => $numbers['requesttype']]);
+insert('glpi_tickettemplatemandatoryfields', ['tickettemplates_id' => $models['unsupported'], 'num' => $numbers['location']]);
 // Category-selected models must ignore their own type/category selectors.
 foreach ([$numbers['type'] => '2', $numbers['category'] => (string) $category] as $number => $value) {
     insert('glpi_tickettemplatepredefinedfields', ['tickettemplates_id' => $models['incident'], 'num' => $number, 'value' => $value]);

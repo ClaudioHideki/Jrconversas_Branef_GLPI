@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'cgi'
+require 'uri'
 
 class JrcServiceDesk::Glpi::CommandInput
   attr_reader :operation, :descriptor, :target_id, :parent_id, :entity_id, :input, :expected_version, :reason,
@@ -44,6 +45,9 @@ class JrcServiceDesk::Glpi::CommandInput
     input.each do |field, value|
       input[field] = normalize(field, value, prepared)
     end
+    if input.key?('_users_id_requester_notif') && input['_users_id_requester'] != 0
+      raise ArgumentError, 'Anonymous notification requires anonymous requester'
+    end
     if descriptor[:verb] == 'patch' && input.empty? && descriptor[:defaults].empty?
       raise ArgumentError, 'No changes requested'
     end
@@ -77,6 +81,15 @@ class JrcServiceDesk::Glpi::CommandInput
   private
 
   def normalize(field, value, prepared)
+    if field == '_users_id_requester_notif'
+      values = JrcServiceDesk::Input.attributes(value, %w[use_notification alternative_email])
+      emails = values['alternative_email']
+      unless values['use_notification'] == [1] && emails.is_a?(Array) && emails.one? &&
+             emails.first.is_a?(String) && emails.first.length <= 254 && emails.first.match?(URI::MailTo::EMAIL_REGEXP)
+        raise ArgumentError, 'Invalid requester notification'
+      end
+      return values
+    end
     if %w[name content answer comment comment_submission comment_validation value].include?(field)
       return '' if @partial && %w[name content].include?(field) && value.is_a?(String) && value.strip.empty?
       maximum = field == 'name' ? 255 : 50_000

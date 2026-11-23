@@ -38,7 +38,7 @@ describe('Service Desk final sidebar sections', () => {
       result
         .find(section => section.name === 'attendance')
         .items.map(item => item.name)
-    ).toEqual(['JRC Call Center', 'Inbox', 'JRC Cockpit']);
+    ).toEqual(['JRC Call Center', 'JRC Cockpit', 'Inbox']);
     expect(
       result
         .find(section => section.name === 'operations')

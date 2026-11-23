@@ -53,6 +53,24 @@ class GlpiTransportTest < Minitest::Test
     end
   end
 
+  def test_complete_user_list_can_contain_fewer_visible_rows_than_the_range
+    @responses = [Response.new('200', [{ 'id' => 4 }, { 'id' => 9 }], { 'content-range' => '0-130/131' })]
+    SsrfFilter.stub(:get, @transport) do
+      assert_equal [4, 9], @client.collection('User/').map { |row| row['id'] }
+      assert_equal 1, @requests.size
+    end
+  end
+
+  def test_filtered_user_page_does_not_relax_partial_pages_or_other_resources
+    [['206', 'User/'], ['200', 'Ticket/']].each do |status, path|
+      @responses = [Response.new(status, [{ 'id' => 4 }], { 'content-range' => '0-130/131' })]
+      SsrfFilter.stub(:get, @transport) do
+        error = assert_raises(JrcServiceDesk::Glpi::Error) { @client.collection(path).to_a }
+        assert_equal 'source_changed', error.code
+      end
+    end
+  end
+
   def test_primary_source_session_selects_all_permitted_entities_before_reading
     @client.connection.define_singleton_method(:primary_source?) { true }
     @responses = [Response.new('200', { 'session_token' => 'synthetic-session' }, {}),

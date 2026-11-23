@@ -33,7 +33,7 @@ class JrcServiceDesk::Glpi::ResourceQuery
 
   def call(access:, client:, kind:, filters:)
     access = authorize_kind!(access, kind)
-    metadata_kind = %w[categories templates users].include?(kind)
+    metadata_kind = %w[categories templates users groups].include?(kind)
     allowed = %w[page per_page search ticket_id parent_type] + (metadata_kind ? %w[entity_id] : [])
     values = JrcServiceDesk::Input.attributes(filters, allowed)
     metadata_scope = if values.key?('entity_id')

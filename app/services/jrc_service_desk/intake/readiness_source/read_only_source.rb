@@ -6,6 +6,6 @@ class JrcServiceDesk::Intake::ReadinessSource::ReadOnlySource
     @cache = {}
   end
 
-  def get(path) = @cache[[:get, path]] ||= @client.get(path).deep_dup
+  def get(path, *args) = @cache[[:get, path, args]] ||= @client.get(path, *args).deep_dup
   def collection(path, *args) = @cache[[:collection, path, args]] ||= @client.collection(path, *args).deep_dup
 end

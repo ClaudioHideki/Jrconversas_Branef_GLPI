@@ -66,8 +66,14 @@ class JrcServiceDesk::Intake::Origin
     target = Conversation.find_by!(id: @demand.conversation_id, account_id: @demand.account_id,
                                    inbox_id: @demand.inbox_id, contact_id: @demand.contact_id)
     validate_routing!(target)
+    return validate_handoff_receipt!(target) if values['handoff_operation_id']
+
     return unless control
 
+    validate_bot_control!(target)
+  end
+
+  def validate_bot_control!(target)
     valid = target.pending? && values['conversation_status'] == 'pending' && target.assignee_id.nil? && target.team_id.nil? &&
             target.assignee_agent_bot_id == values['assignee_agent_bot_id']
     raise Pundit::NotAuthorizedError unless valid
@@ -76,5 +82,16 @@ class JrcServiceDesk::Intake::Origin
   def validate_routing!(target)
     routing = JrcFlowEffects::ControlRevision.snapshot(target).fetch('routing_source_hash')
     raise Pundit::NotAuthorizedError unless routing == values.fetch('routing_source_hash')
+  end
+
+  def validate_handoff_receipt!(target)
+    receipt = JrcFlowEffectReceipt.find_by!(account_id: @demand.account_id, conversation_id: target.id,
+                                            organization_id: values.fetch('organization_id'),
+                                            operation_id: values.fetch('handoff_operation_id'), operation: 'domain')
+    expected = { 'command' => 'service_desk_handoff', 'resource_type' => 'Conversation', 'resource_id' => target.id,
+                 'episode_key' => @demand.episode_key, 'configuration_id' => @demand.intake_configuration_id.to_s }
+    valid = receipt.actor_user_id == @demand.account_user.user_id && receipt.domain_result.slice(*expected.keys) == expected &&
+            receipt.domain_result.dig('intake', 'id') == @demand.id.to_s
+    raise Pundit::NotAuthorizedError unless valid
   end
 end

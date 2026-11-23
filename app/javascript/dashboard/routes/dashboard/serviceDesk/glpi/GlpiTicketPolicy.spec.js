@@ -59,7 +59,11 @@ const policy = values => ({
   unsupported_required: [],
   ...values,
 });
-const render = (source = 'glpi', operation = 'ticket.create') => {
+const render = (
+  source = 'glpi',
+  operation = 'ticket.create',
+  locale = 'en'
+) => {
   holder.session.state.context.data_source = source;
   const wrapper = mount(
     {
@@ -98,7 +102,10 @@ const render = (source = 'glpi', operation = 'ticket.create') => {
         plugins: [
           createI18n({
             legacy: false,
-            locale: 'en',
+            locale,
+            fallbackLocale: 'en',
+            missingWarn: false,
+            fallbackWarn: false,
             messages: { en: { ...messages, ...serviceMessages } },
           }),
         ],
@@ -298,6 +305,12 @@ describe('primary-source ticket creation policy', () => {
         ? envelope({
             form: policy({
               category_id: params.category_id || null,
+              fields: [
+                ...creationFields,
+                'requesttypes_id',
+                'slas_id_tto',
+                'slas_id_ttr',
+              ],
               required: [
                 'name',
                 'content',
@@ -325,7 +338,7 @@ describe('primary-source ticket creation policy', () => {
             ],
           })
     );
-    const wrapper = render();
+    const wrapper = render('glpi', 'ticket.create', 'pt_BR');
     expect(submit(wrapper).attributes('disabled')).toBeDefined();
     expect(API.get).not.toHaveBeenCalled();
     await entity(wrapper).setValue('0');
@@ -348,6 +361,9 @@ describe('primary-source ticket creation policy', () => {
     await control(wrapper, '_users_id_requester').setValue('9');
     await control(wrapper, 'itilcategories_id').setValue('5');
     await flushPromises();
+    await control(wrapper, 'requesttypes_id').setValue('8');
+    await control(wrapper, 'slas_id_tto').setValue('11');
+    await control(wrapper, 'slas_id_ttr').setValue('1');
     await wrapper.get('form').trigger('submit');
     expect(API.execute).not.toHaveBeenCalled();
     wrapper
@@ -368,6 +384,9 @@ describe('primary-source ticket creation policy', () => {
         content_format: 'rich',
         _users_id_requester: 9,
         itilcategories_id: 5,
+        requesttypes_id: 8,
+        slas_id_tto: 11,
+        slas_id_ttr: 1,
       },
     });
     expect(API.execute.mock.calls[0][1].attributes).not.toHaveProperty(
