@@ -159,6 +159,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
 
     { ticket_id: ticket.fetch('id'), status: 'analyzed', inferred: true, period: period,
       source_version: ticket.fetch('date_mod'), analyzed_at: Time.current.iso8601, model: result.fetch('model'), report: report,
+      usage: result.fetch('usage'),
       source_window: { references: references, digest: Digest::SHA256.hexdigest(messages.to_json),
                        text_records_in_period: selected.size, analyzed_records: rows.size, omitted_records: selected.size - rows.size,
                        truncated_records: rows.count { |row| row[:truncated] }, characters_per_record: CHARACTERS,

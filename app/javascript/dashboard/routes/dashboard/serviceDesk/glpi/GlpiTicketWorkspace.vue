@@ -8,6 +8,7 @@ import GlpiFilters from './GlpiFilters.vue';
 import GlpiCoverage from './GlpiCoverage.vue';
 import GlpiResourceBoard from './GlpiResourceBoard.vue';
 import GlpiOperationForm from './GlpiOperationForm.vue';
+import GlpiTicketSentiment from './GlpiTicketSentiment.vue';
 import { serviceDeskRouteName } from '../routeDefinitions';
 import GlpiBadge from './GlpiBadge.vue';
 import { plainText, formatGlpiDate, selectedFilters } from './presentation';
@@ -219,6 +220,12 @@ const create = () =>
             }}
           </p>
         </article>
+        <GlpiTicketSentiment
+          v-if="!deleted"
+          :key="detail.ticket.id"
+          :glpi="glpi"
+          :ticket-id="detail.ticket.id"
+        />
         <GlpiOperationForm
           :glpi="glpi"
           :operations="descriptors"

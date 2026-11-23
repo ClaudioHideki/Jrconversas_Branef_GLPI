@@ -17,6 +17,13 @@ export function createServiceDeskGlpiClient(scope = () => null) {
     };
   };
   return {
+    analyzeSentiment(accountId, ticketId, values, signal) {
+      return axios.post(
+        `${base(accountId)}/tickets/${canonicalId(ticketId)}/sentiment`,
+        values,
+        { signal, headers: headers(), timeout: 120000 }
+      );
+    },
     startSync(accountId, signal) {
       return axios.post(
         `${base(accountId)}/sync`,

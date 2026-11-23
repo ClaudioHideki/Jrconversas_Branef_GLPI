@@ -27,6 +27,15 @@ describe('authenticated GLPI connection binding', () => {
     expect(http.get.mock.calls.at(-1)[1].headers).toEqual(expected);
     await client.execute('1', { operation: 'ticket.update' });
     expect(http.post.mock.calls.at(-1)[2].headers).toEqual(expected);
+    await client.analyzeSentiment('1', 20, {
+      from: '2026-10-01',
+      to: '2026-11-01',
+    });
+    expect(http.post.mock.calls.at(-1)).toEqual([
+      '/api/v1/accounts/1/jrc_service_desk/glpi/tickets/20/sentiment',
+      { from: '2026-10-01', to: '2026-11-01' },
+      expect.objectContaining({ headers: expected }),
+    ]);
     await client.downloadDocument('1', 20, 30);
     expect(http.get.mock.calls.at(-1)[1].headers).toEqual(expected);
     await client.downloadExport('1', 3);

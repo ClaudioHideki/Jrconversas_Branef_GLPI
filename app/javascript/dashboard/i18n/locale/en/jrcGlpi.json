@@ -490,6 +490,40 @@
       "export": "Exportação da consulta",
       "source": "Origem GLPI",
       "utc_timestamp": "· {time} UTC"
+    },
+    "sentiment": {
+      "heading": "Análise de sentimento do chamado",
+      "scope": "Analisa descrição, acompanhamentos públicos e solução no período escolhido, usando a IA desta conta. Selecione até 62 dias.",
+      "from": "A partir de",
+      "through": "Até (inclusive)",
+      "analyze": "Analisar chamado",
+      "pending": "Analisando…",
+      "invalid_period": "Selecione datas válidas, em ordem, com até 62 dias.",
+      "failed": "A análise não foi concluída. Confira o retorno antes de tentar novamente.",
+      "no_text": "Não há texto público deste chamado no período escolhido para análise.",
+      "inferred": "Resultado inferido pela IA a partir dos registros disponíveis. Não equivale a uma pesquisa de satisfação respondida pelo cliente. Autoria desconhecida não comprova atendimento humano.",
+      "customer": "Sentimento do cliente",
+      "operator": "Sentimento do atendente",
+      "score": "Qualidade do atendimento (0–100)",
+      "unavailable": "Evidência insuficiente",
+      "model": "Modelo utilizado",
+      "period": "Janela analisada (fim não incluído)",
+      "records": "Cobertura do texto público",
+      "coverage": "{analyzed} registros analisados; {omitted} omitidos; {truncated} com texto reduzido.",
+      "usage": "Tokens confirmados pelo provedor",
+      "tokens": "Entrada: {input}; saída: {output}; total: {total}.",
+      "partial": "O período ainda está em andamento. O resultado abrange somente os registros disponíveis até a coleta.",
+      "risks": "Riscos identificados",
+      "recommendations": "Recomendações",
+      "evidence": "Evidências nos registros GLPI",
+      "download": "Baixar relatório do chamado",
+      "labels": {
+        "positive": "Positivo",
+        "neutral": "Neutro",
+        "negative": "Negativo",
+        "mixed": "Misto",
+        "insufficient_data": "Evidência insuficiente"
+      }
     }
   }
 }

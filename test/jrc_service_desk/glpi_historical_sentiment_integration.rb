@@ -82,7 +82,8 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     client = Object.new
     client.define_singleton_method(:sentiment) do |payload|
       payloads << payload
-      { 'model' => 'synthetic', 'report' => { 'evidence' => [{ 'message_id' => 'ITILFollowup/101' }] } }
+      { 'model' => 'synthetic', 'usage' => { 'input_tokens' => 12, 'output_tokens' => 9, 'total_tokens' => 21 },
+        'report' => { 'evidence' => [{ 'message_id' => 'ITILFollowup/101' }] } }
     end
     metered = ->(**_arguments, &block) { block.call(nil, nil) }
     result = JrcNico::OperationalInference.stub(:metered, metered) do
@@ -93,6 +94,7 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     assert_equal({ system: 'glpi', resource_type: 'Ticket', resource_id: '101' }, payloads.first.fetch(:source))
     assert_equal ['ITILFollowup/101', 'ITILFollowup/104'], result.fetch(:source_window).fetch(:references)
     assert result.fetch(:inferred)
+    assert_equal 21, result.fetch(:usage).fetch('total_tokens')
     assert_empty @source.writes
   end
 
