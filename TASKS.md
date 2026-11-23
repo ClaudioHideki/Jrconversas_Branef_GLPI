@@ -33,3 +33,11 @@ Uma tarefa deve registrar problema, escopo, critério de aceite, evidência/arqu
 
 - [x] Implementar candidata com controle pelo provedor e teto local opcional; preservar reservas incertas e isolamento. Ver ADR0007.
 - [ ] Concluir testes nativos/CI, publicação das imagens e implantação autorizada na Branef. Validação local não comprova ambiente atualizado.
+
+## Groq HTTP 429 — 23/11/2026
+
+- [x] Integrar seletivamente a recuperação de Retry-After do núcleo, mantendo GLPI e a versão implantada 0861e68e.
+- [ ] CI da candidata e publicação apenas do runtime; aplicação, URA e abertura automática preservadas.
+- [ ] Homologar conhecimento e recuperar resultado da leitura de prontidão iniciada anteriormente antes de disparar outra leitura. Ver docs/adr/20261123-groq-retry-after.md.
+
+- [ ] **GLPI-SENTIMENT-20261123:** Adaptador/API de histórico público por período implementado em candidata; executar CI e homologar outubro/novembro, sem mensagens. Ver ADR20261123-glpi-historical-sentiment.

@@ -5,6 +5,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   before_action { response.headers['Cache-Control'] = 'no-store' }
   before_action :verify_connection_binding!, except: %i[context configuration update_configuration validate_connection]
   rescue_from ::JrcServiceDesk::Glpi::Error, with: :source_error
+  rescue_from ::JrcNico::RuntimeClient::Error, with: :sentiment_error
   rescue_from ArgumentError, KeyError, ActionController::ParameterMissing, with: :invalid_input
   rescue_from ::JrcServiceDesk::IdempotencyConflict, ActiveRecord::StaleObjectError, with: :conflict
 
@@ -320,6 +321,24 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     render json: envelope.merge(report: ::JrcServiceDesk::Glpi::Report.build(rows), filters: request.query_parameters)
   end
 
+  def sentiment_candidates
+    permit!(:report?)
+    values = ::JrcServiceDesk::Input.attributes(request.query_parameters, %w[from to])
+    analysis = ::JrcServiceDesk::Glpi::HistoricalSentiment.new(access: access, from: values.fetch('from'), to: values.fetch('to'))
+    result = ::JrcServiceDesk::Glpi::Client.new(access.connection).session(read_only: true) { |client| analysis.candidates(client: client) }
+    render json: envelope.merge(result)
+  end
+
+  def analyze_sentiment
+    permit!(:report?)
+    values = ::JrcServiceDesk::Input.attributes(request.request_parameters, %w[from to])
+    analysis = ::JrcServiceDesk::Glpi::HistoricalSentiment.new(access: access, from: values.fetch('from'), to: values.fetch('to'))
+    result = ::JrcServiceDesk::Glpi::Client.new(access.connection).session(read_only: true) do |client|
+      analysis.analyze(client: client, ticket_id: ::JrcServiceDesk::Input.id(params[:remote_id]))
+    end
+    render json: envelope.merge(analysis: result)
+  end
+
   def export
     permit!(:export?)
     if access.connection&.primary_source?
@@ -358,6 +377,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
 
   def verify_connection_binding!
     modern = %w[operate capabilities ticket_form trash show_trashed_ticket resources resource relations search_fields upload_document download_document overview
+                sentiment_candidates analyze_sentiment
                 prepare_export export_status cancel_export download_export start_sync sync_status latest_sync cancel_sync]
     ::JrcServiceDesk::Glpi::ReferenceBinding.verify!(
       access: access, connection_id: request.headers['X-JRC-GLPI-Connection-Id'],
@@ -386,6 +406,10 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
 
   def source_error(error)
     render json: { code: 'glpi_source_error', source_code: error.code }, status: error.http_status
+  end
+
+  def sentiment_error(error)
+    render json: { code: 'sentiment_unavailable', source_code: error.code }, status: :service_unavailable
   end
 
   def render_unauthorized(_message)

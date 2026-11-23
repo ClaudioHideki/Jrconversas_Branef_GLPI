@@ -131,6 +131,8 @@ Rails.application.routes.draw do
               patch 'connection', to: 'glpi#update_configuration'
               post 'connection/validate', to: 'glpi#validate_connection'
               get 'tickets', to: 'glpi#tickets'
+              get 'sentiment/candidates', to: 'glpi#sentiment_candidates'
+              post 'tickets/:remote_id/sentiment', to: 'glpi#analyze_sentiment'
               get 'trash', to: 'glpi#trash'
               get 'trash/:remote_id', to: 'glpi#show_trashed_ticket'
               post 'tickets', to: 'glpi#create_ticket'
