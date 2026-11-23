@@ -9,3 +9,7 @@ GET /api/v1/accounts/:account_id/jrc_service_desk/glpi/sentiment/candidates?from
 São analisados até 100 registros públicos por chamado, com 1000 caracteres por registro; omissões e truncamentos ficam explícitos. Sem texto público, nenhum consumo de IA é iniciado. Resultado inferido não representa resposta a pesquisa de satisfação. O consumo é contabilizado pelo recibo real do provedor. A projeção não envia anexos, áudios, notas privadas nem credenciais.
 
 Contrato genérico de origem implementado no núcleo LAB2; leitura GLPI somente na Branef. Sem migration. CI, imagem, implantação e análise real permanecem etapas de evidência distintas.
+
+## Coleta em ambiente ativo
+
+A primeira leitura real abortou com source_changed durante a paginação da coleção completa de tickets. A enumeração agora usa campos efetivamente identificados por listSearchOptions/Ticket, filtros de entidade/data e uma janela superior de IDs reais capturada da própria API. IDs são enumerados antes das leituras individuais autorizadas, com páginas limitadas a1000 identificadores. A proteção global de paginação permanece intacta; contagens instáveis continuam abortando. O corte parcial é convertido ao fuso configurado na conexão antes da consulta.

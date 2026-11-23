@@ -15,7 +15,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
     requested_to = @zone.local(*Date.iso8601(to).to_s.split('-').map(&:to_i))
     raise ArgumentError unless @from < requested_to && requested_to <= @from + 62.days
 
-    @to = [requested_to, Time.current].min
+    @to = [requested_to, Time.current.in_time_zone(@zone).change(usec: 0)].min
     raise ArgumentError unless @from < @to
 
     @requested_to = requested_to
@@ -36,13 +36,12 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
     raise JrcServiceDesk::Glpi::Error.new('source_scope_incomplete', 422) if missing.any?
 
     ids = []
-    client.collection('Ticket/', { 'sort' => 'id', 'order' => 'ASC' }).each do |ticket|
-      next if [1, '1', true].include?(ticket['is_deleted'])
-      next unless @access.entity_ids.include?(JrcServiceDesk::Glpi::Identifiers.remote(ticket.fetch('entities_id')))
-      next unless timestamp(ticket.fetch('date')) < @to && timestamp(ticket.fetch('date_mod')) >= @from
-
+    candidate_ids(client).each do |id|
       begin
-        query.authorize_record!(@access, client, 'Ticket', ticket)
+        ticket = query.raw(access: @access, client: client, kind: 'tickets', id: id)
+        next if [1, '1', true].include?(ticket['is_deleted'])
+        next unless timestamp(ticket.fetch('date')) < @to && timestamp(ticket.fetch('date_mod')) >= @from
+
         ids << JrcServiceDesk::Input.id(ticket.fetch('id'))
       rescue Pundit::NotAuthorizedError
         next
@@ -82,6 +81,51 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
   end
 
   private
+
+  def candidate_ids(client)
+    options = client.get('listSearchOptions/Ticket/')
+    raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless options.is_a?(Hash)
+    fields = { 'id' => ['glpi_tickets', 'id'], 'opened' => ['glpi_tickets', 'date'],
+               'modified' => ['glpi_tickets', 'date_mod'], 'entity' => ['glpi_entities', 'completename'] }.transform_values do |table, field|
+      found = options.find { |key, row| key.to_s.match?(/\A[1-9]\d*\z/) && row.is_a?(Hash) && row['table'] == table && row['field'] == field }
+      raise JrcServiceDesk::Glpi::Error.new('search_schema_unsupported', 422) unless found
+
+      JrcServiceDesk::Input.id(found.first)
+    end
+    # Collection validates GLPI 10's native ID column; never guess another ID.
+    raise JrcServiceDesk::Glpi::Error.new('search_schema_unsupported', 422) unless fields.fetch('id') == 2
+
+    criteria = [{ 'criteria' => @access.entity_ids.map { |id| condition(fields.fetch('entity'), 'equals', id, 'OR') } },
+                condition(fields.fetch('opened'), 'lessthan', @to.strftime('%Y-%m-%d %H:%M:%S')),
+                condition(fields.fetch('modified'), 'morethan', (@from - 1.second).strftime('%Y-%m-%d %H:%M:%S'))]
+    parameters = { 'criteria' => criteria, 'forcedisplay' => [fields.fetch('id')], 'is_deleted' => 0,
+                   'sort' => fields.fetch('id'), 'order' => 'DESC', 'range' => '0-0' }
+    first = client.get('search/Ticket/', parameters)
+    rows = first.fetch('data') do
+      raise JrcServiceDesk::Glpi::Error.new('invalid_response') unless [0, '0'].include?(first.fetch('totalcount'))
+
+      []
+    end
+    rows = rows.values if rows.is_a?(Hash)
+    unless rows.is_a?(Array) && rows.size <= 1 && first.fetch('totalcount').to_s.match?(/\A\d+\z/)
+      raise JrcServiceDesk::Glpi::Error.new('invalid_response')
+    end
+    if rows.empty? && first.fetch('totalcount').to_i.positive?
+      raise JrcServiceDesk::Glpi::Error.new('source_changed', 409)
+    end
+    return [] if rows.empty?
+
+    high_water = JrcServiceDesk::Input.id(rows.first.fetch(fields.fetch('id').to_s))
+    criteria << condition(fields.fetch('id'), 'lessthan', high_water + 1)
+    # Enumerate IDs quickly before individual authorization/detail reads. New
+    # tickets cannot shift this window; Collection still rejects source drift.
+    client.collection('search/Ticket/', parameters.except('range').merge('order' => 'ASC'), batch_size: 1000)
+          .map { |row| JrcServiceDesk::Input.id(row.fetch(fields.fetch('id').to_s)) }
+  end
+
+  def condition(field, searchtype, value, link = 'AND')
+    { 'field' => field, 'searchtype' => searchtype, 'value' => value, 'link' => link }
+  end
 
   def analyze_selected(ticket, selected, client:)
     rows = selected.last(LIMIT)

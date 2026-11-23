@@ -6,9 +6,11 @@ require 'minitest/mock'
 
 class GlpiSentimentSource < GlpiCommandSource
   attr_accessor :interactions
+  attr_reader :searches
 
   def initialize
     super
+    @searches = []
     rows['Ticket/101'].merge!('date' => '2026-09-30 12:00:00', 'date_mod' => '2026-10-20 12:00:00',
                               'content' => 'Outside period', 'users_id_recipient' => 77)
     @interactions = [
@@ -21,8 +23,12 @@ class GlpiSentimentSource < GlpiCommandSource
     ]
   end
 
-  def collection(path, *)
+  def collection(path, parameters = {}, **_options)
     return rows.select { |key, _| key.start_with?('Ticket/') }.values.deep_dup if path == 'Ticket/'
+    if path == 'search/Ticket/'
+      @searches << parameters.deep_dup
+      return rows.select { |key, _| key.start_with?('Ticket/') }.values.map { |row| { '2' => row.fetch('id') } }
+    end
     return interactions.deep_dup if path == 'Ticket/101/ITILFollowup/'
     if path == 'Ticket/101/Ticket_User/'
       return [{ 'id' => 1, 'tickets_id' => 101, 'users_id' => 77, 'type' => 1 },
@@ -32,8 +38,17 @@ class GlpiSentimentSource < GlpiCommandSource
     super
   end
 
-  def get(path, *)
+  def get(path, parameters = {})
     return { 'session' => { 'glpiID' => 900, 'glpiactiveentities' => [0] } } if path == 'getFullSession/'
+    if path == 'listSearchOptions/Ticket/'
+      return { '2' => { 'table' => 'glpi_tickets', 'field' => 'id' }, '15' => { 'table' => 'glpi_tickets', 'field' => 'date' },
+               '19' => { 'table' => 'glpi_tickets', 'field' => 'date_mod' }, '80' => { 'table' => 'glpi_entities', 'field' => 'completename' } }
+    end
+    if path == 'search/Ticket/'
+      @searches << parameters.deep_dup
+      ids = rows.select { |key, _| key.start_with?('Ticket/') }.values.map { |row| row.fetch('id') }
+      return { 'totalcount' => ids.size, 'data' => ids.empty? ? [] : [{ '2' => ids.max }] }
+    end
 
     super
   end
@@ -52,6 +67,11 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     @source.rows['Ticket/202'] = @source.rows['Ticket/101'].merge('id' => 202, 'entities_id' => 999)
     @source.rows['Ticket/303'] = @source.rows['Ticket/101'].merge('id' => 303, 'is_deleted' => 1)
     assert_equal [101], @analysis.candidates(client: @source).fetch(:ticket_ids)
+    assert_includes @source.searches.first.fetch('criteria'),
+                    { 'field' => 19, 'searchtype' => 'morethan', 'value' => '2026-09-30 23:59:59', 'link' => 'AND' }
+    assert_equal 'DESC', @source.searches.first.fetch('order')
+    assert_equal 'ASC', @source.searches.last.fetch('order')
+    assert_includes @source.searches.last.fetch('criteria'), { 'field' => 2, 'searchtype' => 'lessthan', 'value' => 304, 'link' => 'AND' }
     assert_empty @source.writes
   end
 
@@ -88,5 +108,19 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     @source.rows['Ticket/101']['entities_id'] = 999
     assert_raises(Pundit::NotAuthorizedError) { @analysis.analyze(client: @source, ticket_id: 101) }
     assert_empty @source.writes
+  end
+
+  def test_partial_month_uses_the_configured_source_timezone_in_search_criteria
+    @connection.update!(timezone: 'America/Sao_Paulo')
+    Time.stub(:current, Time.utc(2026, 11, 23, 15, 0, 0)) do
+      analysis = JrcServiceDesk::Glpi::HistoricalSentiment.new(
+        access: JrcServiceDesk::Glpi::Access.new(@identity), from: '2026-11-01', to: '2026-12-01'
+      )
+      result = analysis.candidates(client: @source)
+      assert_equal '2026-11-23T12:00:00-03:00', result.fetch(:period).fetch(:to_exclusive)
+      assert result.fetch(:period).fetch(:partial)
+      assert_includes @source.searches.first.fetch('criteria'),
+                      { 'field' => 15, 'searchtype' => 'lessthan', 'value' => '2026-11-23 12:00:00', 'link' => 'AND' }
+    end
   end
 end
