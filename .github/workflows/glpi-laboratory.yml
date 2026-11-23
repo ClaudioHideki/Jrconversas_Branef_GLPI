@@ -2,7 +2,7 @@ name: Branef - GLPI 10 synthetic laboratory
 on:
   workflow_dispatch:
   push:
-    branches: ['codex/branef-glpi-*-20261104', 'codex/consolidacao-*']
+    branches: ['codex/branef-glpi-*-20261104', 'codex/consolidacao-*', 'codex/branef-nico-provider-20261123']
 permissions:
   contents: read
 jobs:
@@ -25,6 +25,7 @@ jobs:
     env:
       GLPI_LAB_CONFIRM: isolated-synthetic
       RAILS_ENV: test
+      FRONTEND_URL: https://branef-native.example.test
       POSTGRES_HOST: localhost
       POSTGRES_DATABASE: branef_glpi_test
       POSTGRES_USERNAME: postgres
