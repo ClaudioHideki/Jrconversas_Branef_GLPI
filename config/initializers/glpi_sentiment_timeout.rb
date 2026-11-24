@@ -1,4 +1,4 @@
 require Rails.root.join('app/middleware/jrc_glpi_sentiment_timeout')
 
-# rack-timeout deliberately omits its Rails middleware in the test environment.
-Rails.application.config.middleware.swap Rack::Timeout, JrcGlpiSentimentTimeout unless Rails.env.test?
+# This application's rack-timeout gem is enabled only in the production group.
+Rails.application.config.middleware.swap Rack::Timeout, JrcGlpiSentimentTimeout if Rails.env.production?
