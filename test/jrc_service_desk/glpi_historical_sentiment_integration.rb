@@ -106,6 +106,27 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     assert_empty @source.writes
   end
 
+  def test_selected_ticket_scope_needs_no_dates_and_includes_public_history_before_and_after_the_list_period
+    analysis = JrcServiceDesk::Glpi::HistoricalSentiment.new(access: JrcServiceDesk::Glpi::Access.new(@identity), scope: 'ticket')
+    payloads = []
+    runtime = Object.new
+    runtime.define_singleton_method(:sentiment) do |payload|
+      payloads << payload
+      { 'model' => 'synthetic-account-provider', 'usage' => { 'input_tokens' => 12, 'output_tokens' => 9, 'total_tokens' => 21 },
+        'report' => { 'evidence' => [{ 'message_id' => 'Ticket/101' }] } }
+    end
+    result = JrcNico::OperationalInference.stub(:metered, ->(**_args, &block) { block.call(nil, nil) }) do
+      JrcNico::RuntimeClient.stub(:new, runtime) { analysis.analyze(client: @source, ticket_id: 101) }
+    end
+    assert_equal %w[Ticket/101 ITILFollowup/101 ITILFollowup/103], payloads.first.fetch(:messages).pluck(:id)
+    assert_equal 'ticket', result.fetch(:period).fetch(:scope)
+    refute payloads.first.fetch(:messages).any? { |row| row[:content].include?('Private') }
+    assert_empty @source.writes
+    assert_raises(ArgumentError) do
+      JrcServiceDesk::Glpi::HistoricalSentiment.new(access: JrcServiceDesk::Glpi::Access.new(@identity), scope: 'ticket', from: '2026-10-01', to: '2026-11-01')
+    end
+  end
+
   def test_no_public_text_never_invokes_inference
     @source.interactions.first['is_private'] = 1
     JrcNico::OperationalInference.stub(:metered, ->(**) { flunk 'Inference must not run' }) do

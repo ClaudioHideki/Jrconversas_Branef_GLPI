@@ -5,6 +5,8 @@ import { createI18n } from 'vue-i18n';
 import Component from './GlpiTicketAnalysis.vue';
 import messages from 'dashboard/i18n/locale/en/jrcGlpi.json';
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }));
 describe('ticket analysis selection', () => {
   it('loads a scoped list without inference and passes the inclusive period only to the candidate query', async () => {
     const glpi = {
@@ -61,6 +63,114 @@ describe('ticket analysis selection', () => {
     expect(
       wrapper.findComponent({ name: 'GlpiTicketSentiment' }).exists()
     ).toBe(false);
+    wrapper.unmount();
+  });
+});
+
+describe('selected ticket actions', () => {
+  const setup = () => {
+    const state = reactive({
+      context: { entities: [] },
+      data: {
+        analysisTickets: {
+          items: [
+            { id: 22, title: 'Two' },
+            { id: 11, title: 'One' },
+          ],
+          meta: { total: 2 },
+          coverage: { state: 'complete' },
+        },
+      },
+      loading: {},
+      errors: {},
+    });
+    const glpi = {
+      state,
+      session: { accountId: { value: '3' } },
+      read: vi.fn(),
+      discard: vi.fn(),
+      API: {
+        analyzeSentiment: vi.fn(async (_account, id) => ({
+          analysis: { ticket_id: Number(id), status: 'no_public_text' },
+        })),
+      },
+      run: vi.fn(async (_key, action) =>
+        action('3', new AbortController().signal)
+      ),
+    };
+    const wrapper = mount(Component, {
+      props: { glpi },
+      global: {
+        plugins: [
+          createI18n({
+            legacy: false,
+            locale: 'en',
+            messages: { en: messages },
+          }),
+        ],
+        stubs: {
+          GlpiFilters: true,
+          GlpiTicketSentiment: true,
+          GlpiCoverage: true,
+          Pagination: true,
+          GlpiBadge: true,
+          Button: {
+            props: ['label', 'disabled'],
+            template: '<button :disabled="disabled">{{label}}</button>',
+          },
+        },
+      },
+    });
+    return { wrapper, glpi, state };
+  };
+  it('opens the real JRC ticket and analyzes selected IDs sequentially without asking for dates', async () => {
+    const { wrapper, glpi } = setup();
+    push.mockClear();
+    await wrapper
+      .findAll('button')
+      .find(b => b.text() === 'Abrir chamado')
+      .trigger('click');
+    expect(push).toHaveBeenCalledWith(
+      expect.objectContaining({ params: { accountId: '3', ticketId: 22 } })
+    );
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper
+      .findAll('button')
+      .find(b => b.text() === 'Analisar selecionados (2)')
+      .trigger('click');
+    await flushPromises();
+    expect(
+      glpi.API.analyzeSentiment.mock.calls.map(c => c.slice(0, 3))
+    ).toEqual([
+      ['3', '22', { scope: 'ticket' }],
+      ['3', '11', { scope: 'ticket' }],
+    ]);
+    const report = wrapper.get('[data-testid="analysis-report-list"]').text();
+    expect(report.indexOf('#11')).toBeLessThan(report.indexOf('#22'));
+    wrapper.unmount();
+  });
+  it('discards late batch results when the authorized context changes', async () => {
+    const { wrapper, glpi, state } = setup();
+    let finish;
+    glpi.run.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper
+      .findAll('button')
+      .find(b => b.text() === 'Analisar selecionados (2)')
+      .trigger('click');
+    state.context = { entities: [] };
+    await flushPromises();
+    finish({ analysis: { ticket_id: 22, status: 'no_public_text' } });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="analysis-report-list"]').exists()).toBe(
+      false
+    );
+    expect(glpi.run).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 });

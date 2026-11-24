@@ -337,8 +337,8 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
 
   def analyze_sentiment
     permit!(:report?)
-    values = ::JrcServiceDesk::Input.attributes(request.request_parameters, %w[from to])
-    analysis = ::JrcServiceDesk::Glpi::HistoricalSentiment.new(access: access, from: values.fetch('from'), to: values.fetch('to'))
+    values = ::JrcServiceDesk::Input.attributes(request.request_parameters, %w[from to scope])
+    analysis = ::JrcServiceDesk::Glpi::HistoricalSentiment.new(access: access, **values.symbolize_keys)
     result = ::JrcServiceDesk::Glpi::Client.new(access.connection).session(read_only: true) do |client|
       analysis.analyze(client: client, ticket_id: ::JrcServiceDesk::Input.id(params[:remote_id]))
     end

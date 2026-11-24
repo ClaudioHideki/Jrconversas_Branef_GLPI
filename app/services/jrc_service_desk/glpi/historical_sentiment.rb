@@ -5,12 +5,19 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
   LIMIT = 100
   CHARACTERS = 1000
 
-  def initialize(access:, from:, to:)
+  def initialize(access:, from: nil, to: nil, scope: nil)
     @access = access.ready!
     raise Pundit::NotAuthorizedError unless access.context.capability?(:dashboard_view)
-    raise ArgumentError unless from.is_a?(String) && to.is_a?(String)
-
     @zone = Time.find_zone!(access.connection.timezone)
+    if scope == 'ticket'
+      raise ArgumentError unless from.nil? && to.nil?
+
+      @whole_ticket = true
+      @to = Time.current.in_time_zone(@zone).change(usec: 0)
+      @requested_to = @to
+      return
+    end
+    raise ArgumentError unless scope.nil? && from.is_a?(String) && to.is_a?(String)
     @from = @zone.local(*Date.iso8601(from).to_s.split('-').map(&:to_i))
     requested_to = @zone.local(*Date.iso8601(to).to_s.split('-').map(&:to_i))
     raise ArgumentError unless @from < requested_to && requested_to <= @from + 62.days
@@ -25,6 +32,8 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
   # Only authorized IDs are returned; the actual public interactions are selected
   # again by analyze, so a date_mod change alone is not classified as a response.
   def candidates(client:)
+    raise ArgumentError if @whole_ticket
+
     query = JrcServiceDesk::Glpi::ResourceQuery.new
     session = client.get('getFullSession/').fetch('session')
     visible = session.fetch('glpiactiveentities')
@@ -54,6 +63,8 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
   # The interactive list uses the existing, scoped source projection. A recent
   # modification identifies a candidate, not proof of public text in the period.
   def candidate_page(filters:)
+    raise ArgumentError if @whole_ticket
+
     data = JrcServiceDesk::Glpi::Overview.new.selection(access: @access, filters: filters)
     page = JrcServiceDesk::Input.id(data.query.filters.fetch('page', 1))
     size = JrcServiceDesk::Input.id(data.query.filters.fetch('per_page', 25))
@@ -75,6 +86,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
     ticket = query.raw(access: @access, client: client, kind: 'tickets', id: ticket_id)
     raise Pundit::NotAuthorizedError if [1, '1', true].include?(ticket['is_deleted'])
 
+    @from = timestamp(ticket.fetch('date')) if @whole_ticket
     actors = query.related(access: @access, client: client, kind: 'actors', ticket_id: ticket.fetch('id')).fetch(:items)
     @technical_user = client.get('getFullSession/').fetch('session').fetch('glpiID').to_s
     records = [{ 'id' => ticket.fetch('id'), 'content' => ticket['content'], 'date' => ticket.fetch('date'),
@@ -209,6 +221,9 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
   end
 
   def period
+    return { scope: 'ticket', from: @from.iso8601, to_exclusive: @to.iso8601, requested_to_exclusive: @to.iso8601,
+             timezone: @zone.tzinfo.name, partial: false } if @whole_ticket
+
     { from: @from.iso8601, to_exclusive: @to.iso8601, requested_to_exclusive: @requested_to.iso8601,
       timezone: @zone.tzinfo.name, partial: @to < @requested_to }
   end

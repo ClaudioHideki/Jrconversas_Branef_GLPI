@@ -501,7 +501,7 @@
       "pending": "Analisando…",
       "invalid_period": "Selecione datas válidas, em ordem, com até 62 dias.",
       "failed": "A análise não foi concluída. Confira o retorno antes de tentar novamente.",
-      "no_text": "Não há texto público deste chamado no período escolhido para análise.",
+      "no_text": "Não há texto público disponível deste chamado para análise.",
       "inferred": "Resultado inferido pela IA a partir dos registros disponíveis. Não equivale a uma pesquisa de satisfação respondida pelo cliente. Autoria desconhecida não comprova atendimento humano.",
       "customer": "Sentimento do cliente",
       "operator": "Sentimento do atendente",
@@ -524,12 +524,23 @@
         "negative": "Negativo",
         "mixed": "Misto",
         "insufficient_data": "Evidência insuficiente"
-      }
+      },
+      "scope_ticket": "Analisa a descrição, os acompanhamentos públicos e a solução deste chamado usando a IA configurada na conta. A cobertura e os limites aparecem no resultado."
     },
     "analysis": {
       "heading": "Análise dos chamados",
-      "scope": "Pesquise os chamados e selecione qual analisar. O período procura chamados com possível atividade; a análise usa somente os textos públicos encontrados nas datas selecionadas.",
-      "select": "Selecionar chamado"
+      "scope": "Use o período para localizar chamados. A análise considera os textos públicos do chamado selecionado, com a cobertura indicada no resultado.",
+      "select": "Selecionar chamado",
+      "open": "Abrir chamado",
+      "analyze_selected": "Analisar selecionados ({count})",
+      "select_page": "Selecionar chamados desta página",
+      "select_number": "Selecionar chamado #{id}",
+      "stop": "Parar após o chamado atual",
+      "progress": "{done} de {total} chamados processados",
+      "download": "Baixar relatório",
+      "clear": "Limpar resultados",
+      "results": "Resultados por chamado",
+      "details": "Ver análise"
     }
   }
 }

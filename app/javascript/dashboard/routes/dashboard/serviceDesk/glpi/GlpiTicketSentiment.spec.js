@@ -5,7 +5,7 @@ import { createI18n } from 'vue-i18n';
 import Component from './GlpiTicketSentiment.vue';
 import messages from 'dashboard/i18n/locale/en/jrcGlpi.json';
 
-const setup = (allowed = true) => {
+const setup = (allowed = true, wholeTicket = false) => {
   const state = reactive({ loading: {}, errors: {}, data: {} });
   const glpi = {
     state,
@@ -30,7 +30,7 @@ const setup = (allowed = true) => {
     }),
   };
   const wrapper = mount(Component, {
-    props: { glpi, ticketId: 101 },
+    props: { glpi, ticketId: 101, wholeTicket },
     global: {
       plugins: [
         createI18n({ legacy: false, locale: 'en', messages: { en: messages } }),
@@ -51,6 +51,20 @@ const chooseOctober = async wrapper => {
   await fields[1].setValue('2026-10-31');
 };
 describe('GLPI ticket text sentiment in the existing Service Desk', () => {
+  it('analyzes the selected ticket without asking for dates again', async () => {
+    const { wrapper, glpi } = setup(true, true);
+    expect(wrapper.find('input[type="date"]').exists()).toBe(false);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(glpi.API.analyzeSentiment).toHaveBeenCalledWith(
+      '3',
+      '101',
+      { scope: 'ticket' },
+      expect.any(AbortSignal)
+    );
+    expect(wrapper.emitted('completed')[0][0].ticket_id).toBe(101);
+    wrapper.unmount();
+  });
   it('does not offer analysis without the native reporting capability', () => {
     const { wrapper, glpi } = setup(false);
     expect(wrapper.find('form').exists()).toBe(false);

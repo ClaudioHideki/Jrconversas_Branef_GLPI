@@ -4,14 +4,18 @@ import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { canRead, canonicalId } from '../helpers/access';
 import { analysisPeriod } from './analysisPeriod';
+import { analysisReportHtml } from './ticketAnalysisReport';
 import { formatGlpiDate } from './presentation';
 
 const props = defineProps({
+  wholeTicket: { type: Boolean, default: true },
+  savedAnalysis: { type: Object, default: null },
   initialFrom: { type: String, default: '' },
   initialThrough: { type: String, default: '' },
   glpi: { type: Object, required: true },
   ticketId: { type: [String, Number], required: true },
 });
+const emit = defineEmits(['completed']);
 const { t } = useI18n();
 const from = ref(props.initialFrom);
 const through = ref(props.initialThrough);
@@ -21,14 +25,22 @@ const permitted = computed(() =>
 );
 const pending = computed(() => props.glpi.state.loading[key.value] === true);
 const analysis = computed(() => {
-  const value = props.glpi.state.data[key.value]?.analysis;
+  const value =
+    props.glpi.state.data[key.value]?.analysis || props.savedAnalysis;
   return canonicalId(value?.ticket_id) === canonicalId(props.ticketId)
     ? value
     : null;
 });
 const report = computed(() => analysis.value?.report);
 const error = computed(() => props.glpi.state.errors[key.value]);
-const period = computed(() => analysisPeriod(from.value, through.value));
+const period = computed(() =>
+  props.wholeTicket
+    ? { scope: 'ticket' }
+    : analysisPeriod(from.value, through.value)
+);
+watch(analysis, value => {
+  if (value) emit('completed', value);
+});
 const analyze = () => {
   if (!permitted.value || !period.value || pending.value || analysis.value)
     return;
@@ -48,13 +60,13 @@ onBeforeUnmount(() => props.glpi.discard(key.value));
 const download = () => {
   if (!permitted.value || !analysis.value) return;
   const url = URL.createObjectURL(
-    new Blob([JSON.stringify(analysis.value, null, 2)], {
-      type: 'application/json',
+    new Blob([analysisReportHtml([analysis.value])], {
+      type: 'text/html;charset=utf-8',
     })
   );
   const link = document.createElement('a');
   link.href = url;
-  link.download = `glpi-${canonicalId(props.ticketId)}-sentimento.json`;
+  link.download = `glpi-${canonicalId(props.ticketId)}-sentimento.html`;
   link.click();
   URL.revokeObjectURL(url);
 };
@@ -68,12 +80,23 @@ const time = value => formatGlpiDate(value, analysis.value?.period?.timezone);
     data-testid="glpi-ticket-sentiment"
   >
     <h3 class="font-semibold">{{ t('JRC_GLPI.sentiment.heading') }}</h3>
-    <p class="text-sm text-n-slate-11">{{ t('JRC_GLPI.sentiment.scope') }}</p>
+    <p class="text-sm text-n-slate-11">
+      {{
+        t(
+          wholeTicket
+            ? 'JRC_GLPI.sentiment.scope_ticket'
+            : 'JRC_GLPI.sentiment.scope'
+        )
+      }}
+    </p>
     <form
       class="flex flex-wrap items-end gap-3"
       @submit.prevent="analyze"
     >
-      <label class="grid gap-1 text-sm">
+      <label
+        v-if="!wholeTicket"
+        class="grid gap-1 text-sm"
+      >
         {{ t('JRC_GLPI.sentiment.from') }}
         <input
           v-model="from"
@@ -83,7 +106,10 @@ const time = value => formatGlpiDate(value, analysis.value?.period?.timezone);
           class="rounded-lg border border-n-weak bg-n-background p-2"
         />
       </label>
-      <label class="grid gap-1 text-sm">
+      <label
+        v-if="!wholeTicket"
+        class="grid gap-1 text-sm"
+      >
         {{ t('JRC_GLPI.sentiment.through') }}
         <input
           v-model="through"
@@ -106,7 +132,7 @@ const time = value => formatGlpiDate(value, analysis.value?.period?.timezone);
       />
     </form>
     <p
-      v-if="from && through && !period"
+      v-if="!wholeTicket && from && through && !period"
       role="alert"
       class="text-sm text-n-ruby-11"
     >
