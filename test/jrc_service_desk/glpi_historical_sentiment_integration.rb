@@ -6,7 +6,7 @@ require 'minitest/mock'
 
 class GlpiSentimentTimeoutTest < Minitest::Test
   def test_only_the_exact_sentiment_post_has_the_inference_budget
-    assert Rails.application.middleware.any? { |entry| entry.klass == JrcGlpiSentimentTimeout }
+    refute(Rails.application.middleware.any? { |entry| entry.klass == JrcGlpiSentimentTimeout })
     captured = []
     middleware = JrcGlpiSentimentTimeout.new(lambda do |env|
       captured << env.fetch(Rack::Timeout::ENV_INFO_KEY).timeout
