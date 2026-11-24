@@ -120,7 +120,7 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     end
     assert_equal %w[Ticket/101 ITILFollowup/101 ITILFollowup/103], payloads.first.fetch(:messages).pluck(:id)
     assert_equal 'ticket', result.fetch(:period).fetch(:scope)
-    refute payloads.first.fetch(:messages).any? { |row| row[:content].include?('Private') }
+    refute(payloads.first.fetch(:messages).any? { |row| row[:content].include?('Private') })
     assert_empty @source.writes
     assert_raises(ArgumentError) do
       JrcServiceDesk::Glpi::HistoricalSentiment.new(access: JrcServiceDesk::Glpi::Access.new(@identity), scope: 'ticket', from: '2026-10-01', to: '2026-11-01')
