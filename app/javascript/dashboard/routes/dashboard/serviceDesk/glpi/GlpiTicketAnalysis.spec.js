@@ -34,13 +34,11 @@ describe('ticket analysis selection', () => {
       page: 1,
       per_page: 25,
     });
-    wrapper
-      .findComponent({ name: 'GlpiFilters' })
-      .vm.$emit('apply', {
-        from: '2026-10-01',
-        to: '2026-10-31',
-        search: '4152',
-      });
+    wrapper.findComponent({ name: 'GlpiFilters' }).vm.$emit('apply', {
+      from: '2026-10-01',
+      to: '2026-10-31',
+      search: '4152',
+    });
     await flushPromises();
     expect(glpi.read).toHaveBeenLastCalledWith(
       'analysisTickets',

@@ -58,7 +58,7 @@ class JrcServiceDesk::Glpi::SyncTickets
     query = JrcServiceDesk::Glpi::TicketQuery.new(@access, { 'entity_id' => entity })
     # Capture each entity's search pages before slow detail/actor requests.
     # The collection still rejects count changes and duplicate IDs.
-    rows = client.collection('search/Ticket/', query.parameters(offset: 0, size: 200), batch_size: 1000).to_a
+    rows = client.collection('search/Ticket/', query.parameters(offset: 0, size: 200)).to_a
     rows.each do |row|
       access = current_access!
       id = JrcServiceDesk::Input.id(row.fetch('2'))

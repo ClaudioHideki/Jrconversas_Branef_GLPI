@@ -66,7 +66,7 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
   def test_interactive_candidates_include_older_opening_dates_and_never_call_inference
     JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: @source)
     result = @analysis.candidate_page(filters: { 'page' => 1, 'per_page' => 25 })
-    assert_equal [101], result.fetch(:items).map { |row| row.fetch('id') }
+    assert_equal [101], (result.fetch(:items).map { |row| row.fetch('id') })
     assert_equal 1, result.fetch(:meta).fetch(:total)
     assert_empty @source.writes
   end
