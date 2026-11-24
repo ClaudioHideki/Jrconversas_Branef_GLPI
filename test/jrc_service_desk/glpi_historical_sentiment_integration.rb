@@ -4,6 +4,24 @@ require_relative 'glpi_test_helper'
 require_relative 'glpi_source_fixture'
 require 'minitest/mock'
 
+class GlpiSentimentTimeoutTest < Minitest::Test
+  def test_only_the_exact_sentiment_post_has_the_inference_budget
+    assert Rails.application.middleware.any? { |entry| entry.klass == JrcGlpiSentimentTimeout }
+    captured = []
+    middleware = JrcGlpiSentimentTimeout.new(lambda do |env|
+      captured << env.fetch(Rack::Timeout::ENV_INFO_KEY).timeout
+      [200, {}, []]
+    end)
+    path = '/api/v1/accounts/3/jrc_service_desk/glpi/tickets/4152/sentiment'
+    middleware.call('REQUEST_METHOD' => 'POST', 'PATH_INFO' => path)
+    middleware.call('REQUEST_METHOD' => 'GET', 'PATH_INFO' => path)
+    middleware.call('REQUEST_METHOD' => 'POST', 'PATH_INFO' => "#{path}/other")
+    middleware.call('REQUEST_METHOD' => 'POST', 'PATH_INFO' => path.sub('/tickets/4152', '/tickets/0'))
+    ordinary = Rack::Timeout.new(->(_) {}).service_timeout
+    assert_equal [100, ordinary, ordinary, ordinary], captured
+  end
+end
+
 class GlpiSentimentSource < GlpiCommandSource
   attr_accessor :interactions
   attr_reader :searches
