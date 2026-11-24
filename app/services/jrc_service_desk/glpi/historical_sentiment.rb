@@ -51,6 +51,25 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
       scope: 'Candidates require public text in the period before analysis; date_mod alone is not an interaction.' }
   end
 
+  # The interactive list uses the existing, scoped source projection. A recent
+  # modification identifies a candidate, not proof of public text in the period.
+  def candidate_page(filters:)
+    data = JrcServiceDesk::Glpi::Overview.new.selection(access: @access, filters: filters)
+    page = JrcServiceDesk::Input.id(data.query.filters.fetch('page', 1))
+    size = JrcServiceDesk::Input.id(data.query.filters.fetch('per_page', 25))
+    raise ArgumentError unless page <= 100_000 && size <= 100
+
+    scope = data.scope.where("payload->>'date' < ?", @to.strftime('%Y-%m-%d %H:%M:%S'))
+      .where("payload->>'date_mod' >= ?", @from.strftime('%Y-%m-%d %H:%M:%S'))
+    items = scope.order(:remote_id).offset((page - 1) * size).limit(size).map do |snapshot|
+      snapshot.payload.merge('source' => 'glpi', 'id' => snapshot.remote_id, 'entities_id' => snapshot.entity_id,
+                             'observed_at' => snapshot.observed_at.iso8601)
+    end
+    { items: items, meta: { page: page, per_page: size, total: data.coverage[:state] == 'unavailable' ? nil : scope.count },
+      coverage: data.coverage, observed_at: data.observed_at, period: period,
+      scope: 'Candidates require public text in the period before analysis; date_mod alone is not an interaction.' }
+  end
+
   def analyze(client:, ticket_id:)
     query = JrcServiceDesk::Glpi::ResourceQuery.new
     ticket = query.raw(access: @access, client: client, kind: 'tickets', id: ticket_id)

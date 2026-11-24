@@ -23,7 +23,8 @@ class JrcServiceDesk::Glpi::SyncStatus
   end
 
   def latest(access:)
-    scope(authorize!(access)).order(created_at: :desc, id: :desc).first
+    fresh = authorize!(access).ready!
+    scope(fresh).where(connection_version: fresh.connection.lock_version).order(created_at: :desc, id: :desc).first
   end
 
   def cancel(access:, id:)

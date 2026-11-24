@@ -31,6 +31,7 @@ const glpiLabels = computed(() => ({
   glpi_settings: t('JRC_GLPI.configure'),
   documents: t('JRC_GLPI.resources.documents'),
   native_history: t('JRC_GLPI.workspace.native_history'),
+  ticket_analysis: t('JRC_GLPI.analysis.heading'),
 }));
 const screenLabel = key => glpiLabels.value[key] || screenLabels.value[key];
 const primaryKeys = [
@@ -41,6 +42,7 @@ const primaryKeys = [
   'sla',
   'assignees',
   'reports',
+  'ticket_analysis',
 ];
 const primaryEntries = computed(() =>
   primaryKeys
@@ -78,6 +80,7 @@ const tabTones = {
   sla: 'amber',
   assignees: 'cyan',
   reports: 'rose',
+  ticket_analysis: 'violet',
 };
 const navigationItems = computed(() =>
   primaryEntries.value.map(item => ({

@@ -31,6 +31,7 @@ export const isJrcConfiguration = screen =>
   screen !== 'native_history' &&
   screen !== 'glpi_settings';
 export function glpiScreen(screen) {
+  if (screen === 'ticket_analysis') return { kind: 'analysis' };
   const filters = {};
   if (screen === 'mine') filters.mine = true;
   if (screen === 'incidents') filters.type = 1;

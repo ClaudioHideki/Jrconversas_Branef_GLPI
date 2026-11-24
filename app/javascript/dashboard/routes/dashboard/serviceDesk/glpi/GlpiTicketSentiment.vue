@@ -3,15 +3,18 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { canRead, canonicalId } from '../helpers/access';
+import { analysisPeriod } from './analysisPeriod';
 import { formatGlpiDate } from './presentation';
 
 const props = defineProps({
+  initialFrom: { type: String, default: '' },
+  initialThrough: { type: String, default: '' },
   glpi: { type: Object, required: true },
   ticketId: { type: [String, Number], required: true },
 });
 const { t } = useI18n();
-const from = ref('');
-const through = ref('');
+const from = ref(props.initialFrom);
+const through = ref(props.initialThrough);
 const key = computed(() => `sentiment:${canonicalId(props.ticketId)}`);
 const permitted = computed(() =>
   canRead(props.glpi.session.state.context, 'reports')
@@ -25,22 +28,7 @@ const analysis = computed(() => {
 });
 const report = computed(() => analysis.value?.report);
 const error = computed(() => props.glpi.state.errors[key.value]);
-const date = value => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) &&
-    parsed.toISOString().slice(0, 10) === value
-    ? parsed
-    : null;
-};
-const period = computed(() => {
-  const start = date(from.value);
-  const end = date(through.value);
-  if (!start || !end || start > end) return null;
-  end.setUTCDate(end.getUTCDate() + 1);
-  if (end - start > 62 * 86400000) return null;
-  return { from: from.value, to: end.toISOString().slice(0, 10) };
-});
+const period = computed(() => analysisPeriod(from.value, through.value));
 const analyze = () => {
   if (!permitted.value || !period.value || pending.value || analysis.value)
     return;

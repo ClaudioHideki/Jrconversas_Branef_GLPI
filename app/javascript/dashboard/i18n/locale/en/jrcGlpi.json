@@ -132,9 +132,9 @@
     "workspace": {
       "select_asset_context": "Selecione o chamado e a família do ativo para pesquisar.",
       "select_asset_ticket": "Chamado autorizado para consultar e vincular ativos",
-      "trash": "Lixeira administrativa GLPI",
+      "trash": "Chamados excluídos",
       "active_tickets": "Chamados ativos",
-      "trash_back": "Voltar à lixeira",
+      "trash_back": "Voltar aos chamados excluídos",
       "deleted": "Registro excluído na origem GLPI · restauração administrativa",
       "confirm_restore": "Confirmo a restauração deste chamado na origem GLPI.",
       "catalog": "Catálogo da origem GLPI",
@@ -480,7 +480,8 @@
         "tickets": "Pesquise os chamados e acompanhe o estado, a prioridade e os prazos no escopo autorizado.",
         "overview": "Indicadores e distribuições da consulta autorizada. Ajuste o período de abertura nos filtros.",
         "resource": "Consulte os recursos disponíveis e suas ações autorizadas na origem.",
-        "ticket": "Identificação, classificação, prazos e histórico do chamado na origem."
+        "ticket": "Identificação, classificação, prazos e histórico do chamado na origem.",
+        "analysis": "Consulte os chamados e analise o atendimento por período."
       },
       "exceeded": "Prazo excedido no GLPI",
       "catalog_id": "Identificador {id} · nome não fornecido pela consulta",
@@ -524,6 +525,11 @@
         "mixed": "Misto",
         "insufficient_data": "Evidência insuficiente"
       }
+    },
+    "analysis": {
+      "heading": "Análise dos chamados",
+      "scope": "Pesquise os chamados e selecione qual analisar. O período procura chamados com possível atividade; a análise usa somente os textos públicos encontrados nas datas selecionadas.",
+      "select": "Selecionar chamado"
     }
   }
 }

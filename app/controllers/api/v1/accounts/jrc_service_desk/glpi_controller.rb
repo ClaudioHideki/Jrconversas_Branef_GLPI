@@ -323,9 +323,15 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
 
   def sentiment_candidates
     permit!(:report?)
-    values = ::JrcServiceDesk::Input.attributes(request.query_parameters, %w[from to])
+    values = ::JrcServiceDesk::Input.attributes(request.query_parameters, %w[from to entity_id status priority search page per_page])
     analysis = ::JrcServiceDesk::Glpi::HistoricalSentiment.new(access: access, from: values.fetch('from'), to: values.fetch('to'))
-    result = ::JrcServiceDesk::Glpi::Client.new(access.connection).session(read_only: true) { |client| analysis.candidates(client: client) }
+    result = if values.key?('page')
+               analysis.candidate_page(filters: values.except('from', 'to'))
+             else
+               raise ArgumentError unless (values.keys - %w[from to]).empty?
+
+               ::JrcServiceDesk::Glpi::Client.new(access.connection).session(read_only: true) { |client| analysis.candidates(client: client) }
+             end
     render json: envelope.merge(result)
   end
 

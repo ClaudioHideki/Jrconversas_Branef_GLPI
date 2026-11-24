@@ -193,6 +193,14 @@ export const SERVICE_DESK_ROUTES = Object.freeze([
     group: 'management',
   },
   {
+    key: 'ticket_analysis',
+    path: 'ticket-analysis',
+    page: 'glpiServiceDesk',
+    icon: 'i-lucide-chart-no-axes-combined',
+    group: 'management',
+    resource: 'reports',
+  },
+  {
     key: 'settings',
     path: 'settings',
     page: 'settings',

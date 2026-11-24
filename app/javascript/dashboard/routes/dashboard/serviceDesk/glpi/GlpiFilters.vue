@@ -6,6 +6,7 @@ import { plainText, selectedFilters } from './presentation';
 const props = defineProps({
   entities: { type: Array, default: () => [] },
   busy: Boolean,
+  analysisPeriod: Boolean,
   initialFilters: { type: Object, default: () => ({}) },
 });
 const emit = defineEmits(['apply']);
@@ -60,6 +61,8 @@ const filterLabel = (key, value) => {
       props.entities.find(entity => String(entity.id) === String(value))
         ?.name || t('JRC_GLPI.entity_number', { id: value })
     );
+  if (props.analysisPeriod && ['from', 'to'].includes(key))
+    return `${t(`JRC_GLPI.sentiment.${key === 'to' ? 'through' : 'from'}`)}: ${value}`;
   return `${t(`JRC_GLPI.${key === 'search' ? 'workspace.search' : key}`)}: ${value}`;
 };
 </script>
@@ -122,7 +125,11 @@ const filterLabel = (key, value) => {
       :key="field"
       class="grid gap-2 text-sm font-medium text-n-slate-12"
     >
-      {{ t(`JRC_GLPI.${field}`) }}
+      {{
+        t(
+          `JRC_GLPI.${analysisPeriod ? `sentiment.${field === 'to' ? 'through' : 'from'}` : field}`
+        )
+      }}
       <input
         v-model="values[field]"
         type="date"

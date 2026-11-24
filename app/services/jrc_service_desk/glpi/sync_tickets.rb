@@ -56,7 +56,10 @@ class JrcServiceDesk::Glpi::SyncTickets
     actor_unavailable = 0
     failures = []
     query = JrcServiceDesk::Glpi::TicketQuery.new(@access, { 'entity_id' => entity })
-    client.collection('search/Ticket/', query.parameters(offset: 0, size: 200)).each do |row|
+    # Capture each entity's search pages before slow detail/actor requests.
+    # The collection still rejects count changes and duplicate IDs.
+    rows = client.collection('search/Ticket/', query.parameters(offset: 0, size: 200), batch_size: 1000).to_a
+    rows.each do |row|
       access = current_access!
       id = JrcServiceDesk::Input.id(row.fetch('2'))
       raise JrcServiceDesk::Glpi::Error.new('source_changed', 409) if @seen[id]

@@ -23,6 +23,8 @@ export function moduleAccessible(context) {
 }
 export function screenAccessible(context, definition) {
   if (!moduleAccessible(context) || !definition) return false;
+  if (definition.key === 'ticket_analysis')
+    return context.data_source === 'glpi' && canRead(context, 'tickets') && canRead(context, 'reports');
   if (definition.key === 'native_history')
     return context.data_source === 'glpi' && canRead(context, 'tickets');
   if (definition.key === 'documents' && context.data_source !== 'glpi')

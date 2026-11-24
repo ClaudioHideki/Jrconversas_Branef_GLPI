@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useGlpi } from './useGlpi';
 import { glpiScreen } from '../helpers/glpiScreens';
+import GlpiTicketAnalysis from './GlpiTicketAnalysis.vue';
 import GlpiTicketWorkspace from './GlpiTicketWorkspace.vue';
 import GlpiOverview from './GlpiOverview.vue';
 import GlpiResourceBoard from './GlpiResourceBoard.vue';
@@ -27,9 +28,11 @@ const { session, state, read } = glpi;
 const screenDefinition = computed(() => glpiScreen(props.screen));
 const errors = computed(() => groupErrors(state.errors));
 const screenTitle = computed(() =>
-  ['glpi', 'detail', 'edit', 'new'].includes(props.screen)
-    ? t(`JRC_GLPI.visual.titles.${props.screen}`)
-    : t(`JRC_SERVICE_DESK.SCREENS.${props.screen}`)
+  props.screen === 'ticket_analysis'
+    ? t('JRC_GLPI.analysis.heading')
+    : ['glpi', 'detail', 'edit', 'new'].includes(props.screen)
+      ? t(`JRC_GLPI.visual.titles.${props.screen}`)
+      : t(`JRC_SERVICE_DESK.SCREENS.${props.screen}`)
 );
 const catalogResource = ref('templates');
 watch(
@@ -202,6 +205,12 @@ watch(
         :key="screen"
         :glpi="glpi"
         :screen="screen"
+        :initial-filters="initialFilters"
+        @filters="persistFilters"
+      />
+      <GlpiTicketAnalysis
+        v-else-if="screenDefinition?.kind === 'analysis'"
+        :glpi="glpi"
         :initial-filters="initialFilters"
         @filters="persistFilters"
       />

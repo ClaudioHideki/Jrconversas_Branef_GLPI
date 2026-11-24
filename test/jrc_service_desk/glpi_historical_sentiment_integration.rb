@@ -63,6 +63,14 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     )
   end
 
+  def test_interactive_candidates_include_older_opening_dates_and_never_call_inference
+    JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: @source)
+    result = @analysis.candidate_page(filters: { 'page' => 1, 'per_page' => 25 })
+    assert_equal [101], result.fetch(:items).map { |row| row.fetch('id') }
+    assert_equal 1, result.fetch(:meta).fetch(:total)
+    assert_empty @source.writes
+  end
+
   def test_candidates_include_older_tickets_with_interactions_but_exclude_other_entities_and_deleted
     @source.rows['Ticket/202'] = @source.rows['Ticket/101'].merge('id' => 202, 'entities_id' => 999)
     @source.rows['Ticket/303'] = @source.rows['Ticket/101'].merge('id' => 303, 'is_deleted' => 1)
