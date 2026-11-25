@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_09_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_25_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -5078,6 +5078,36 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_09_160000) do
     t.index ["unit_id"], name: "index_jrc_service_desk_glpi_references_on_unit_id"
   end
 
+  create_table "jrc_service_desk_glpi_sentiment_batches", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "account_user_id", null: false
+    t.bigint "glpi_connection_id", null: false
+    t.integer "connection_version", null: false
+    t.string "state", default: "queued", null: false
+    t.jsonb "filters", default: {}, null: false
+    t.jsonb "entity_ids", default: [], null: false
+    t.jsonb "coverage", default: {}, null: false
+    t.integer "total", null: false
+    t.string "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_jrc_service_desk_glpi_sentiment_batches_on_account_id"
+    t.index ["glpi_connection_id"], name: "idx_glpi_sentiment_active_batch", unique: true, where: "state IN ('queued', 'running', 'cancelling')"
+  end
+
+  create_table "jrc_service_desk_glpi_sentiment_items", force: :cascade do |t|
+    t.bigint "batch_id", null: false
+    t.bigint "remote_id", null: false
+    t.bigint "entity_id", null: false
+    t.string "state", default: "queued", null: false
+    t.jsonb "result"
+    t.string "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["batch_id", "remote_id"], name: "idx_glpi_sentiment_ticket", unique: true
+    t.index ["batch_id", "state", "id"], name: "idx_glpi_sentiment_work"
+  end
+
   create_table "jrc_service_desk_glpi_sync_runs", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "glpi_connection_id", null: false
@@ -6595,6 +6625,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_09_160000) do
   add_foreign_key "jrc_service_desk_glpi_exports", "account_users"
   add_foreign_key "jrc_service_desk_glpi_exports", "accounts"
   add_foreign_key "jrc_service_desk_glpi_exports", "jrc_service_desk_glpi_connections", column: "glpi_connection_id"
+  add_foreign_key "jrc_service_desk_glpi_sentiment_batches", "account_users", on_delete: :cascade
+  add_foreign_key "jrc_service_desk_glpi_sentiment_batches", "accounts"
+  add_foreign_key "jrc_service_desk_glpi_sentiment_batches", "jrc_service_desk_glpi_connections", column: "glpi_connection_id", on_delete: :cascade
+  add_foreign_key "jrc_service_desk_glpi_sentiment_items", "jrc_service_desk_glpi_sentiment_batches", column: "batch_id", on_delete: :cascade
   add_foreign_key "jrc_service_desk_glpi_reference_links", "account_users"
   add_foreign_key "jrc_service_desk_glpi_reference_links", "accounts"
   add_foreign_key "jrc_service_desk_glpi_reference_links", "jrc_service_desk_glpi_references", column: "glpi_reference_id"

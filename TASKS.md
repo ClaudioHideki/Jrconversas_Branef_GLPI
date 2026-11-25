@@ -41,3 +41,4 @@ Uma tarefa deve registrar problema, escopo, critério de aceite, evidência/arqu
 - [ ] Homologar conhecimento e recuperar resultado da leitura de prontidão iniciada anteriormente antes de disparar outra leitura. Ver docs/adr/20261123-groq-retry-after.md.
 
 - [ ] **GLPI-SENTIMENT-20261123:** Adaptador/API de histórico público por período implementado em candidata; executar CI e homologar outubro/novembro, sem mensagens. Ver ADR20261123-glpi-historical-sentiment.
+- [ ] **GLPI-SENTIMENT-BATCH:** Validar migração, execução Sidekiq e relatório de todas as páginas de outubro e novembro antes de homologar em produção. Ver ADR20261124-selected-ticket-sentiment.

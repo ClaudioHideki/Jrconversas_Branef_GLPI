@@ -89,6 +89,39 @@ class GlpiHistoricalSentimentTest < GlpiIntegrationTest
     assert_empty @source.writes
   end
 
+  def test_batch_captures_every_authorized_candidate_and_prevents_duplicate_running_batches
+    (201..226).each do |id|
+      @source.rows["Ticket/#{id}"] = @source.rows.fetch('Ticket/101').merge('id' => id)
+    end
+    JrcServiceDesk::Glpi::SyncTickets.new.call(connection: @connection, actor: @member, client: @source)
+    service = JrcServiceDesk::Glpi::SentimentBatch.new
+    access = JrcServiceDesk::Glpi::Access.new(@identity)
+    filters = { 'from' => '2026-10-01', 'to' => '2026-11-01' }
+    batch = service.prepare(access: access, values: filters)
+    assert_equal 27, batch.total
+    assert_equal [101] + (201..226).to_a, batch.items.order(:remote_id).pluck(:remote_id)
+    assert_equal batch.id, service.latest(access: access).id
+    assert_equal 27, service.rows(batch: batch, access: access, page: 1).fetch(:total)
+    error = assert_raises(JrcServiceDesk::Glpi::Error) { service.prepare(access: access, values: filters) }
+    assert_equal 'sentiment_batch_active', error.code
+
+    first = batch.items.order(:id).first
+    first.update!(state: 'running', updated_at: 20.minutes.ago)
+    client = Object.new
+    client.define_singleton_method(:session) { |read_only:, &block| raise unless read_only; block.call }
+    result = ->(ticket_id:, **_options) { { ticket_id: ticket_id, status: 'no_public_text' } }
+    analysis = Object.new
+    analysis.define_singleton_method(:analyze, result)
+    JrcServiceDesk::Glpi::HistoricalSentiment.stub(:new, analysis) do
+      JrcServiceDesk::Glpi::Client.stub(:new, client) { service.step(batch) }
+    end
+    assert_equal 'interrupted', first.reload.error
+    assert_equal({ 'failed' => 1, 'no_public_text' => 1, 'queued' => 25 }, batch.receipt.fetch(:counts))
+    assert_equal 'cancelled', service.cancel(batch: batch).state
+    assert_equal 25, batch.receipt.fetch(:counts).fetch('cancelled')
+    assert_empty @source.writes
+  end
+
   def test_candidates_include_older_tickets_with_interactions_but_exclude_other_entities_and_deleted
     @source.rows['Ticket/202'] = @source.rows['Ticket/101'].merge('id' => 202, 'entities_id' => 999)
     @source.rows['Ticket/303'] = @source.rows['Ticket/101'].merge('id' => 303, 'is_deleted' => 1)

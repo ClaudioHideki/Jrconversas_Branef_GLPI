@@ -14,10 +14,20 @@ const labels = {
   insufficient_data: 'Evidência insuficiente',
 };
 const label = value => labels[value] || 'Evidência insuficiente';
+export function countAnalysisResults(entries) {
+  return {
+    analyzed: entries.filter(row => row.status === 'analyzed').length,
+    empty: entries.filter(row => row.status === 'no_public_text').length,
+    failed: entries.filter(row => row.status === 'failed').length,
+  };
+}
+
 export function analysisReportHtml(
   entries,
-  generatedAt = new Date().toISOString()
+  generatedAt = new Date().toISOString(),
+  batch = null
 ) {
+  const counts = countAnalysisResults(entries);
   const sections = [...entries]
     .sort((a, b) => Number(a.ticket_id) - Number(b.ticket_id))
     .map(row => {
@@ -98,7 +108,31 @@ export function analysisReportHtml(
     escape(generatedAt) +
     '. ' +
     entries.length +
-    ' chamado(s).</p><p>Análise inferida dos textos públicos disponíveis. Não equivale a uma pesquisa respondida pelo cliente. Áudio, anexos e notas privadas não são analisados. A cobertura e os tokens são apresentados por chamado.</p>' +
+    ' chamado(s).</p><p>Concluídos: ' +
+    counts.analyzed +
+    ' · Sem texto público: ' +
+    counts.empty +
+    ' · Falhas: ' +
+    counts.failed +
+    '</p>' +
+    (batch
+      ? '<p>Lote #' +
+        escape(batch.id) +
+        ' · ' +
+        entries.length +
+        ' de ' +
+        escape(batch.total) +
+        ' chamados visíveis.' +
+        (batch.filters.from
+          ? ' Período de ' +
+            escape(batch.filters.from) +
+            ' até ' +
+            escape(batch.filters.to) +
+            ' (data final exclusiva).'
+          : '') +
+        '</p>'
+      : '') +
+    '<p>Análise inferida dos textos públicos disponíveis. Não equivale a uma pesquisa respondida pelo cliente. Áudio, anexos e notas privadas não são analisados. A cobertura e os tokens são apresentados por chamado.</p>' +
     sections +
     '</html>'
   );

@@ -518,6 +518,19 @@
       "recommendations": "Recomendações",
       "evidence": "Evidências nos registros GLPI",
       "download": "Baixar relatório do chamado",
+      "result_title": "Resultado do chamado #{id}",
+      "result_sections": "Seções do resultado do chamado",
+      "sections": {
+        "summary": "Resumo",
+        "quality": "Nota e cobertura",
+        "audit": "Pontos de atenção",
+        "evidence": "Evidências do GLPI"
+      },
+      "score_value": "{score}/100",
+      "score_basis": "A nota é uma avaliação da IA com base no texto público disponível. A análise destaca as limitações da amostra abaixo.",
+      "no_findings": "Nenhum ponto registrado nesta análise.",
+      "evidence_source": "Referências e observações sobre a descrição, os acompanhamentos públicos ou a solução do chamado.",
+      "no_evidence": "A análise não retornou referências a registros do GLPI.",
       "labels": {
         "positive": "Positivo",
         "neutral": "Neutro",
@@ -529,7 +542,7 @@
     },
     "analysis": {
       "heading": "Análise dos chamados",
-      "scope": "Use o período para localizar chamados. A análise considera os textos públicos do chamado selecionado, com a cobertura indicada no resultado.",
+      "scope": "Busque por número, título ou período. O lote usa os textos públicos do período escolhido. A análise individual considera o chamado inteiro.",
       "select": "Selecionar chamado",
       "open": "Abrir chamado",
       "analyze_selected": "Analisar selecionados ({count})",
@@ -537,10 +550,40 @@
       "select_number": "Selecionar chamado #{id}",
       "stop": "Parar após o chamado atual",
       "progress": "{done} de {total} chamados processados",
-      "download": "Baixar relatório",
+      "download": "Baixar relatório HTML",
+      "export_csv": "Exportar CSV",
+      "view_report": "Ver relatório ({count})",
+      "session_report": "Resultados acumulados nesta sessão.",
+      "batch_progress": "Progresso da análise",
+      "result_count": "Concluídos: {count}",
+      "empty_count": "Sem texto público: {count}",
+      "failed_count": "Falhas: {count}",
       "clear": "Limpar resultados",
       "results": "Resultados por chamado",
-      "details": "Ver análise"
+      "details": "Ver análise",
+      "actions": "Ações",
+      "batch_heading": "Análise em lote",
+      "analyze_all": "Analisar todos do filtro ({count})",
+      "batch_report": "Relatório geral do lote",
+      "batch_coverage": "A análise de todo o filtro fica disponível quando a coleta do GLPI estiver completa.",
+      "batch_number": "Lote #{id} · {state}",
+      "batch_period": "Textos de {from} até {to} (exclusivo)",
+      "batch_error": "A operação do lote encontrou um problema ({code}).",
+      "refresh_batch": "Atualizar lote",
+      "export_failed": "O relatório completo não pôde ser baixado. Atualize o relatório e tente novamente.",
+      "visible_batch_count": "{count} de {total} chamados do lote estão no escopo atual da consulta.",
+      "detail_unavailable": "O resultado detalhado está indisponível. O chamado pode ter sido alterado no GLPI ou saído do escopo autorizado.",
+      "close_detail": "Fechar análise",
+      "batch_state": {
+        "queued": "Na fila",
+        "running": "Em análise",
+        "analyzed": "Concluído",
+        "no_public_text": "Sem texto público",
+        "failed": "Falha",
+        "cancelling": "Encerrando",
+        "cancelled": "Interrompido",
+        "complete": "Processado"
+      }
     }
   }
 }

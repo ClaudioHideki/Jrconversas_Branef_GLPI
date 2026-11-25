@@ -14,6 +14,7 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     ready = access.connection&.enabled? && access.mappings.any? && (access.all_tickets? || access.glpi_user_id.present?)
     payload = { configured: access.connection.present?, enabled: access.connection&.enabled? == true, available: ready == true,
                 can_manage: policy.manage?, can_manage_trash: policy.trash?, can_create: policy.create?, can_export: policy.export?,
+                can_analyze_batch: ready == true && access.all_tickets? && policy.report?,
                 user_mapping_required: !access.all_tickets? && access.glpi_user_id.nil? }
     if ready
       with_client do |client|
@@ -345,6 +346,38 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
     render json: envelope.merge(analysis: result)
   end
 
+  def prepare_sentiment_batch
+    permit!(:report?)
+    values = ::JrcServiceDesk::Input.attributes(request.request_parameters, %w[from to entity_id status priority search])
+    batch = sentiment_batch.prepare(access: access, values: values)
+    render json: envelope.merge(batch: batch.receipt), status: :accepted
+  end
+
+  def latest_sentiment_batch
+    permit!(:report?)
+    render json: envelope.merge(batch: sentiment_batch.latest(access: access)&.receipt)
+  end
+
+  def cancel_sentiment_batch
+    permit!(:report?)
+    batch = sentiment_batch.find(access: access, id: params[:batch_id])
+    render json: envelope.merge(batch: sentiment_batch.cancel(batch: batch).receipt)
+  end
+
+  def sentiment_batch_rows
+    permit!(:report?)
+    batch = sentiment_batch.find(access: access, id: params[:batch_id])
+    page = request.query_parameters.fetch('page', 1)
+    render json: envelope.merge(rows: sentiment_batch.rows(batch: batch, access: access, page: page))
+  end
+
+  def sentiment_batch_detail
+    permit!(:report?)
+    batch = sentiment_batch.find(access: access, id: params[:batch_id])
+    result = sentiment_batch.detail(batch: batch, access: access, id: params[:remote_id])
+    render json: envelope.merge(analysis: result)
+  end
+
   def export
     permit!(:export?)
     if access.connection&.primary_source?
@@ -361,6 +394,10 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
   end
 
   private
+
+  def sentiment_batch
+    @sentiment_batch ||= ::JrcServiceDesk::Glpi::SentimentBatch.new
+  end
 
   def policy
     @glpi_policy ||= ::JrcServiceDesk::GlpiPolicy.new(pundit_user, :glpi)
@@ -383,7 +420,8 @@ class Api::V1::Accounts::JrcServiceDesk::GlpiController < Api::V1::Accounts::Jrc
 
   def verify_connection_binding!
     modern = %w[operate capabilities ticket_form trash show_trashed_ticket resources resource relations search_fields upload_document download_document overview
-                sentiment_candidates analyze_sentiment
+                sentiment_candidates analyze_sentiment prepare_sentiment_batch latest_sentiment_batch cancel_sentiment_batch
+                sentiment_batch_rows sentiment_batch_detail
                 prepare_export export_status cancel_export download_export start_sync sync_status latest_sync cancel_sync]
     ::JrcServiceDesk::Glpi::ReferenceBinding.verify!(
       access: access, connection_id: request.headers['X-JRC-GLPI-Connection-Id'],

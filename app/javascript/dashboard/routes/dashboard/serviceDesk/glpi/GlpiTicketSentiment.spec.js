@@ -30,6 +30,7 @@ const setup = (allowed = true, wholeTicket = false) => {
     }),
   };
   const wrapper = mount(Component, {
+    attachTo: document.body,
     props: { glpi, ticketId: 101, wholeTicket },
     global: {
       plugins: [
@@ -148,6 +149,20 @@ describe('GLPI ticket text sentiment in the existing Service Desk', () => {
     expect(wrapper.text()).toContain('Entrada: 12; saída: 9; total: 21.');
     expect(wrapper.text()).toContain('Evidência insuficiente');
     expect(wrapper.text()).not.toContain('estimado');
+    const result = wrapper.get('[data-testid="glpi-sentiment-result"]');
+    const sectionButton = label =>
+      result.findAll('nav button').find(button => button.text() === label);
+    const evidence = result
+      .findAll('li')
+      .find(item => item.text().includes('ITILFollowup/22'));
+    expect(evidence.isVisible()).toBe(false);
+    await sectionButton('Evidências do GLPI').trigger('click');
+    expect(evidence.isVisible()).toBe(true);
+    expect(sectionButton('Evidências do GLPI').attributes('aria-pressed')).toBe(
+      'true'
+    );
+    await sectionButton('Nota e cobertura').trigger('click');
+    expect(evidence.isVisible()).toBe(false);
     state.errors['sentiment:101'] = { code: 'provider_rate_limited' };
     delete state.data['sentiment:101'];
     await flushPromises();

@@ -128,6 +128,11 @@ jrc_service_desk_clock_monitoring_job:
   class: 'JrcServiceDesk::ClockMonitoringJob'
   queue: scheduled_jobs
 
+jrc_glpi_sentiment_batch_recovery:
+  cron: '*/2 * * * *'
+  class: 'JrcServiceDesk::GlpiSentimentBatchJob'
+  queue: low
+
 # Only approvals explicitly bound to an enabled published rule are eligible.
 jrc_service_desk_approval_deadline_job:
   cron: '* * * * *'

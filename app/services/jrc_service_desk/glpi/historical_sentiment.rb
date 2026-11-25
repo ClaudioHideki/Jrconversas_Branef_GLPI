@@ -5,7 +5,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
   LIMIT = 100
   CHARACTERS = 1000
 
-  def initialize(access:, from: nil, to: nil, scope: nil)
+  def initialize(access:, from: nil, to: nil, scope: nil, observed_until: Time.current)
     @access = access.ready!
     raise Pundit::NotAuthorizedError unless access.context.capability?(:dashboard_view)
     @zone = Time.find_zone!(access.connection.timezone)
@@ -13,7 +13,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
       raise ArgumentError unless from.nil? && to.nil?
 
       @whole_ticket = true
-      @to = Time.current.in_time_zone(@zone).change(usec: 0)
+      @to = observed_until.in_time_zone(@zone).change(usec: 0)
       @requested_to = @to
       return
     end
@@ -22,7 +22,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
     requested_to = @zone.local(*Date.iso8601(to).to_s.split('-').map(&:to_i))
     raise ArgumentError unless @from < requested_to && requested_to <= @from + 62.days
 
-    @to = [requested_to, Time.current.in_time_zone(@zone).change(usec: 0)].min
+    @to = [requested_to, observed_until.in_time_zone(@zone).change(usec: 0)].min
     raise ArgumentError unless @from < @to
 
     @requested_to = requested_to
@@ -63,15 +63,12 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
   # The interactive list uses the existing, scoped source projection. A recent
   # modification identifies a candidate, not proof of public text in the period.
   def candidate_page(filters:)
-    raise ArgumentError if @whole_ticket
-
-    data = JrcServiceDesk::Glpi::Overview.new.selection(access: @access, filters: filters)
+    data = candidate_selection(filters: filters)
     page = JrcServiceDesk::Input.id(data.query.filters.fetch('page', 1))
     size = JrcServiceDesk::Input.id(data.query.filters.fetch('per_page', 25))
     raise ArgumentError unless page <= 100_000 && size <= 100
 
-    scope = data.scope.where("payload->>'date' < ?", @to.strftime('%Y-%m-%d %H:%M:%S'))
-      .where("payload->>'date_mod' >= ?", @from.strftime('%Y-%m-%d %H:%M:%S'))
+    scope = data.scope
     items = scope.order(:remote_id).offset((page - 1) * size).limit(size).map do |snapshot|
       snapshot.payload.merge('source' => 'glpi', 'id' => snapshot.remote_id, 'entities_id' => snapshot.entity_id,
                              'observed_at' => snapshot.observed_at.iso8601)
@@ -81,10 +78,20 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
       scope: 'Candidates require public text in the period before analysis; date_mod alone is not an interaction.' }
   end
 
-  def analyze(client:, ticket_id:)
+  def candidate_selection(filters:)
+    raise ArgumentError if @whole_ticket
+
+    data = JrcServiceDesk::Glpi::Overview.new.selection(access: @access, filters: filters)
+    data.scope = data.scope.where("payload->>'date' < ?", @to.strftime('%Y-%m-%d %H:%M:%S'))
+                     .where("payload->>'date_mod' >= ?", @from.strftime('%Y-%m-%d %H:%M:%S'))
+    data
+  end
+
+  def analyze(client:, ticket_id:, expected_entity: nil, &block)
     query = JrcServiceDesk::Glpi::ResourceQuery.new
     ticket = query.raw(access: @access, client: client, kind: 'tickets', id: ticket_id)
     raise Pundit::NotAuthorizedError if [1, '1', true].include?(ticket['is_deleted'])
+    raise Pundit::NotAuthorizedError if expected_entity && ticket.fetch('entities_id').to_s != expected_entity.to_s
 
     @from = timestamp(ticket.fetch('date')) if @whole_ticket
     actors = query.related(access: @access, client: client, kind: 'actors', ticket_id: ticket.fetch('id')).fetch(:items)
@@ -108,7 +115,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
     end.sort_by { |row| [row[:occurred_at], row[:id]] }
     return { ticket_id: ticket.fetch('id'), status: 'no_public_text', period: period } if selected.empty?
 
-    analyze_selected(ticket, selected, client: client)
+    analyze_selected(ticket, selected, client: client, &block)
   end
 
   private
@@ -176,6 +183,7 @@ class JrcServiceDesk::Glpi::HistoricalSentiment
     end
 
     fresh.authorize_ticket!(client, ticket)
+    yield if block_given?
     result = JrcNico::OperationalInference.metered(account: fresh.context.account, user: fresh.context.user, kind: 'sentiment',
                                                  reservation_tokens: payload.to_json.bytesize + 16_000,
                                                  request_id: payload[:request_id]) do |provider, ledger|

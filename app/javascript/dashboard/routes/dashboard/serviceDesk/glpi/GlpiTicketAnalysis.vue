@@ -1,14 +1,19 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { serviceDeskRouteName } from '../routeDefinitions';
-import { analysisReportHtml, analysisReportCsv } from './ticketAnalysisReport';
+import {
+  analysisReportHtml,
+  analysisReportCsv,
+  countAnalysisResults,
+} from './ticketAnalysisReport';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Pagination from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import GlpiFilters from './GlpiFilters.vue';
 import GlpiCoverage from './GlpiCoverage.vue';
 import GlpiBadge from './GlpiBadge.vue';
+import GlpiSentimentBatch from './GlpiSentimentBatch.vue';
 import GlpiTicketSentiment from './GlpiTicketSentiment.vue';
 import { analysisPeriod } from './analysisPeriod';
 import { plainText, selectedFilters } from './presentation';
@@ -24,6 +29,7 @@ const selectedIds = ref([]);
 const reports = ref({});
 const batch = ref(false);
 const processed = ref(0);
+const batchTotal = ref(0);
 const stopRequested = ref(false);
 let disposed = false;
 let scopeGeneration = 0;
@@ -32,12 +38,18 @@ const reportRows = computed(() =>
     (a, b) => Number(a.ticket_id) - Number(b.ticket_id)
   )
 );
+const reportCounts = computed(() => countAnalysisResults(reportRows.value));
 const selected = ref(null);
+const reportHeading = ref(null);
+const detailHeading = ref(null);
 const list = computed(() => props.glpi.state.data.analysisTickets);
-const choose = ticket => {
+const choose = async (ticket, select = true) => {
   if (batch.value) return;
   selected.value = ticket;
-  if (!selectedIds.value.includes(ticket.id)) selectedIds.value.push(ticket.id);
+  if (select && !selectedIds.value.includes(ticket.id))
+    selectedIds.value.push(ticket.id);
+  await nextTick();
+  detailHeading.value?.focus();
 };
 const remember = (value, ticket = selected.value) => {
   if (ticket && String(value.ticket_id) === String(ticket.id))
@@ -60,6 +72,7 @@ const analyzeSelection = async () => {
   const tickets = (list.value?.items || []).filter(ticket =>
     selectedIds.value.includes(ticket.id)
   );
+  batchTotal.value = tickets.length;
   try {
     await tickets.reduce(async (previous, ticket) => {
       await previous;
@@ -119,6 +132,10 @@ const period = computed(() =>
 const invalid = computed(
   () => !!(filters.value.from || filters.value.to) && !period.value
 );
+const batchFilters = computed(() => {
+  const { from, to, ...rest } = filters.value;
+  return { ...rest, ...(period.value || {}) };
+});
 const load = () => {
   selected.value = null;
   selectedIds.value = [];
@@ -198,6 +215,14 @@ onBeforeUnmount(() => {
     >
       {{ t('JRC_GLPI.loading') }}
     </p>
+    <GlpiSentimentBatch
+      v-if="glpi.state.context.can_analyze_batch"
+      :glpi="glpi"
+      :filters="batchFilters"
+      :total="list?.meta.total ?? null"
+      :disabled="pending || invalid || list?.coverage.state !== 'complete'"
+      @open="open"
+    />
     <div class="flex flex-wrap items-center gap-3">
       <Button
         :label="
@@ -219,30 +244,26 @@ onBeforeUnmount(() => {
         {{
           t('JRC_GLPI.analysis.progress', {
             done: processed,
-            total: selectedIds.length,
+            total: batchTotal,
           })
         }}
       </span>
       <Button
-        :label="t('JRC_GLPI.analysis.download')"
-        :disabled="!reportRows.length || batch"
-        variant="outline"
-        @click="download('html')"
-      />
-      <Button
-        label="Exportar CSV"
-        :disabled="!reportRows.length || batch"
-        variant="outline"
-        @click="download('csv')"
-      />
-      <Button
         v-if="reportRows.length"
-        :label="t('JRC_GLPI.analysis.clear')"
-        :disabled="batch"
-        variant="ghost"
-        @click="reports = {}"
+        :label="
+          t('JRC_GLPI.analysis.view_report', { count: reportRows.length })
+        "
+        variant="outline"
+        @click="reportHeading?.focus()"
       />
     </div>
+    <progress
+      v-if="batch && batchTotal"
+      :value="processed"
+      :max="batchTotal"
+      :aria-label="t('JRC_GLPI.analysis.batch_progress')"
+      class="h-2 w-full accent-n-blue-9"
+    />
     <template v-if="list">
       <GlpiCoverage
         :coverage="list.coverage"
@@ -365,19 +386,69 @@ onBeforeUnmount(() => {
       class="grid gap-3"
       data-testid="analysis-report-list"
     >
-      <h3 class="font-semibold">{{ t('JRC_GLPI.analysis.results') }}</h3>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3
+            ref="reportHeading"
+            tabindex="-1"
+            class="font-semibold"
+          >
+            {{ t('JRC_GLPI.analysis.results') }}
+          </h3>
+          <p class="text-sm text-n-slate-11">
+            {{ t('JRC_GLPI.analysis.session_report') }}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Button
+            :label="t('JRC_GLPI.analysis.download')"
+            :disabled="batch"
+            @click="download('html')"
+          />
+          <Button
+            :label="t('JRC_GLPI.analysis.export_csv')"
+            :disabled="batch"
+            variant="outline"
+            @click="download('csv')"
+          />
+          <Button
+            :label="t('JRC_GLPI.analysis.clear')"
+            :disabled="batch"
+            variant="ghost"
+            @click="reports = {}"
+          />
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 text-sm">
+        <span class="rounded-lg bg-n-teal-3 px-3 py-2 text-n-teal-11">
+          {{
+            t('JRC_GLPI.analysis.result_count', {
+              count: reportCounts.analyzed,
+            })
+          }}
+        </span>
+        <span class="rounded-lg bg-n-amber-3 px-3 py-2 text-n-amber-11">
+          {{
+            t('JRC_GLPI.analysis.empty_count', { count: reportCounts.empty })
+          }}
+        </span>
+        <span class="rounded-lg bg-n-ruby-3 px-3 py-2 text-n-ruby-11">
+          {{
+            t('JRC_GLPI.analysis.failed_count', { count: reportCounts.failed })
+          }}
+        </span>
+      </div>
       <article
         v-for="row in reportRows"
         :key="row.ticket_id"
         class="rounded-xl border border-n-weak p-3 text-sm"
       >
         <p class="font-semibold">#{{ row.ticket_id }} · {{ row.title }}</p>
-        <p>
+        <p v-if="!row.report">
           {{
-            row.report?.summary ||
-            (row.status === 'no_public_text'
+            row.status === 'no_public_text'
               ? t('JRC_GLPI.sentiment.no_text')
-              : t('JRC_GLPI.sentiment.failed'))
+              : t('JRC_GLPI.sentiment.failed')
           }}
         </p>
         <p v-if="row.report">
@@ -404,7 +475,7 @@ onBeforeUnmount(() => {
           :label="t('JRC_GLPI.analysis.details')"
           :disabled="batch"
           variant="outline"
-          @click="choose({ id: row.ticket_id, title: row.title })"
+          @click="choose({ id: row.ticket_id, title: row.title }, false)"
         />
       </article>
     </section>
@@ -413,7 +484,11 @@ onBeforeUnmount(() => {
       class="grid gap-3"
       data-testid="selected-analysis-ticket"
     >
-      <h3 class="font-semibold">
+      <h3
+        ref="detailHeading"
+        tabindex="-1"
+        class="font-semibold"
+      >
         #{{ selected.id }} · {{ plainText(selected.title) }}
       </h3>
       <GlpiTicketSentiment

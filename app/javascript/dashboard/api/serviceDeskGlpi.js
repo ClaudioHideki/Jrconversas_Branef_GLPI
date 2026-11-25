@@ -17,6 +17,20 @@ export function createServiceDeskGlpiClient(scope = () => null) {
     };
   };
   return {
+    startSentimentBatch(accountId, values, signal) {
+      return axios.post(`${base(accountId)}/sentiment/batches`, values, {
+        signal,
+        headers: headers(),
+        timeout: 30000,
+      });
+    },
+    cancelSentimentBatch(accountId, id, signal) {
+      return axios.post(
+        `${base(accountId)}/sentiment/batches/${canonicalId(id)}/cancel`,
+        {},
+        { signal, headers: headers(), timeout: 30000 }
+      );
+    },
     analyzeSentiment(accountId, ticketId, values, signal) {
       return axios.post(
         `${base(accountId)}/tickets/${canonicalId(ticketId)}/sentiment`,

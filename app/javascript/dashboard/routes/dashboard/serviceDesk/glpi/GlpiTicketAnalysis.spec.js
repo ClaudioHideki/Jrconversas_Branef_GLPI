@@ -68,16 +68,16 @@ describe('ticket analysis selection', () => {
 });
 
 describe('selected ticket actions', () => {
-  const setup = () => {
+  const setup = (canAnalyzeBatch = false) => {
     const state = reactive({
-      context: { entities: [] },
+      context: { entities: [], can_analyze_batch: canAnalyzeBatch },
       data: {
         analysisTickets: {
           items: [
             { id: 22, title: 'Two' },
             { id: 11, title: 'One' },
           ],
-          meta: { total: 2 },
+          meta: { total: canAnalyzeBatch ? 120 : 2 },
           coverage: { state: 'complete' },
         },
       },
@@ -90,6 +90,17 @@ describe('selected ticket actions', () => {
       read: vi.fn(),
       discard: vi.fn(),
       API: {
+        get: vi.fn(async () => ({ batch: null })),
+        startSentimentBatch: vi.fn(async () => ({
+          batch: {
+            id: '44',
+            state: 'queued',
+            counts: { queued: 120 },
+            total: 120,
+            processed: 0,
+            filters: { from: '2026-10-01', to: '2026-12-01' },
+          },
+        })),
         analyzeSentiment: vi.fn(async (_account, id) => ({
           analysis: { ticket_id: Number(id), status: 'no_public_text' },
         })),
@@ -99,7 +110,12 @@ describe('selected ticket actions', () => {
       ),
     };
     const wrapper = mount(Component, {
-      props: { glpi },
+      props: {
+        glpi,
+        initialFilters: canAnalyzeBatch
+          ? { from: '2026-10-01', to: '2026-11-30' }
+          : {},
+      },
       global: {
         plugins: [
           createI18n({
@@ -123,6 +139,22 @@ describe('selected ticket actions', () => {
     });
     return { wrapper, glpi, state };
   };
+  it('starts a server batch for the whole filter without sending visible page IDs', async () => {
+    const { wrapper, glpi } = setup(true);
+    await flushPromises();
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'Analisar todos do filtro (120)')
+      .trigger('click');
+    await flushPromises();
+    expect(glpi.API.startSentimentBatch).toHaveBeenCalledWith(
+      '3',
+      { from: '2026-10-01', to: '2026-12-01' },
+      expect.any(AbortSignal)
+    );
+    expect(glpi.API.analyzeSentiment).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
   it('opens the real JRC ticket and analyzes selected IDs sequentially without asking for dates', async () => {
     const { wrapper, glpi } = setup();
     push.mockClear();
