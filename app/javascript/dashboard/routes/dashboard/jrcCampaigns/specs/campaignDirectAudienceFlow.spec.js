@@ -39,7 +39,7 @@ const savedCampaign = {
   name: 'Synthetic image campaign',
   status: 'draft',
   approval_valid: false,
-  created_at: '2026-10-26T12:00:00Z',
+  created_at: new Date().toISOString(),
   delivery_channel: 'whatsapp',
   audience_type: 'sanitized_list',
   audience_config: { sanitized_list_id: 42 },
